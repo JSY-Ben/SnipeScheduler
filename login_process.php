@@ -44,8 +44,12 @@ if ($email === '' || $password === '') {
 // ------------------------------------------------------------------
 if (!empty($ldapCfg['ignore_cert'])) {
     putenv('LDAPTLS_REQCERT=never');
-    ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
-    ldap_set_option(null, LDAP_OPT_X_TLS_NEWCTX, 0); // reset TLS context per request
+    if (defined('LDAP_OPT_X_TLS_REQUIRE_CERT')) {
+        ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
+    }
+    if (defined('LDAP_OPT_X_TLS_NEWCTX')) {
+        ldap_set_option(null, LDAP_OPT_X_TLS_NEWCTX, 0); // reset TLS context per request
+    }
 }
 
 $ldap = @ldap_connect($ldapCfg['host']);
