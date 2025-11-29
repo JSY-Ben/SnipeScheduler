@@ -1,0 +1,23 @@
+# Environment / secrets
+.env
+config.local.php
+config.php
+
+# Composer
+/vendor/
+
+# Logs
+*.log
+logs/
+
+# Cache / temp
+cache/
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

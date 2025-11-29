@@ -1,0 +1,245 @@
+/* --------------------------------------------------
+   Global / layout
+-------------------------------------------------- */
+
+body {
+    background: #f4f5f7;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.page-shell {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+}
+
+.page-header {
+    margin-bottom: 1rem;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.page-subtitle {
+    margin-top: 0.25rem;
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+/* --------------------------------------------------
+   App navigation
+-------------------------------------------------- */
+
+.app-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+}
+
+.app-nav-link {
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-nav-link:hover {
+    background: #e5f0ff;
+    color: #1d4ed8;
+}
+
+.app-nav-link.active {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #ffffff;
+}
+
+/* --------------------------------------------------
+   Top bar (user + actions)
+-------------------------------------------------- */
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+}
+
+.top-bar-user {
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.top-bar-user strong {
+    font-weight: 600;
+}
+
+.top-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* --------------------------------------------------
+   Tables / badges
+-------------------------------------------------- */
+
+.table-bookings th,
+.table-bookings td {
+    vertical-align: middle;
+}
+
+.badge-summary {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Preserve newlines in error messages on login */
+.white-space-prewrap {
+    white-space: pre-wrap;
+}
+
+/* --------------------------------------------------
+   Catalogue cards & model images
+-------------------------------------------------- */
+
+.model-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Consistent, non-cropping image area for catalogue cards */
+.model-image-wrapper,
+.model-image-wrapper--placeholder {
+    height: 180px;              /* adjust this height if needed */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    padding: 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Actual images: scale down to fit, never crop */
+.model-image {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;        /* show whole image, no cropping */
+}
+
+/* Placeholder text stays centred and matches height */
+.model-image-placeholder {
+    font-size: 0.85rem;
+    color: #888;
+    text-align: center;
+}
+
+/* --------------------------------------------------
+   Forms / filter bar tweaks
+-------------------------------------------------- */
+
+form .form-label {
+    font-size: 0.85rem;
+    color: #4b5563;
+}
+
+/* Slightly smaller inputs on catalogue filters */
+form .form-control,
+form .form-select {
+    font-size: 0.9rem;
+}
+
+/* --------------------------------------------------
+   Buttons
+-------------------------------------------------- */
+
+.btn-outline-primary {
+    border-radius: 999px;
+}
+
+.btn-primary,
+.btn-success {
+    border-radius: 0.5rem;
+}
+
+/* Optional: subtle hover effect */
+.btn-primary:hover,
+.btn-success:hover,
+.btn-outline-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+/* --------------------------------------------------
+   Pagination
+-------------------------------------------------- */
+
+.pagination .page-link {
+    font-size: 0.9rem;
+}
+
+/* --------------------------------------------------
+   Responsive tweaks
+-------------------------------------------------- */
+
+@media (max-width: 576px) {
+    .page-shell {
+        padding: 1rem;
+    }
+
+    .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .top-bar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .app-nav {
+        flex-wrap: wrap;
+    }
+}
+
+/* --------------------------------------------------
+   (Optional) basket button pulse – harmless if unused
+-------------------------------------------------- */
+
+#view-basket-btn.basket-pulse {
+    animation: basketPulse 0.7s ease-in-out 2;
+}
+
+@keyframes basketPulse {
+    0%   { transform: scale(1); }
+    25%  { transform: scale(1.05); box-shadow: 0 0 0.5rem rgba(0,0,0,0.2); }
+    50%  { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
+    75%  { transform: scale(1.05); box-shadow: 0 0 0.5rem rgba(0,0,0,0.2); }
+    100% { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
+}
