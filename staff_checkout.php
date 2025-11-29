@@ -21,7 +21,42 @@ if (empty($currentUser['is_admin'])) {
     exit;
 }
 
-session_start();
+// ---------------------------------------------------------------------
+// AJAX: user search for autocomplete
+// ---------------------------------------------------------------------
+if (($_GET['ajax'] ?? '') === 'user_search') {
+    header('Content-Type: application/json');
+
+    $q = trim($_GET['q'] ?? '');
+    if ($q === '' || strlen($q) < 2) {
+        echo json_encode(['results' => []]);
+        exit;
+    }
+
+    try {
+        $data = snipeit_request('GET', 'users', [
+            'search' => $q,
+            'limit'  => 10,
+        ]);
+
+        $rows = $data['rows'] ?? [];
+        $results = [];
+        foreach ($rows as $row) {
+            $results[] = [
+                'id'       => $row['id'] ?? null,
+                'name'     => $row['name'] ?? '',
+                'email'    => $row['email'] ?? '',
+                'username' => $row['username'] ?? '',
+            ];
+        }
+
+        echo json_encode(['results' => $results]);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+    exit;
+}
 
 // ---------------------------------------------------------------------
 // Helper: UK date/time display from Y-m-d H:i:s
@@ -376,10 +411,18 @@ $isStaff = !empty($currentUser['is_admin']);
                                 <label class="form-label">
                                     Check out to (Snipe-IT user email or name)
                                 </label>
-                                <input type="text"
-                                       name="checkout_to"
-                                       class="form-control"
-                                       placeholder="e.g. student@college.ac.uk or 'Firstname Lastname'">
+                                <div class="position-relative">
+                                    <input type="text"
+                                           id="checkout_to"
+                                           name="checkout_to"
+                                           class="form-control"
+                                           autocomplete="off"
+                                           placeholder="Start typing email or name">
+                                    <div id="userSuggestions"
+                                         class="list-group position-absolute w-100"
+                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;">
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Note (optional)</label>
@@ -400,5 +443,81 @@ $isStaff = !empty($currentUser['is_admin']);
 
     </div>
 </div>
+
+<script>
+(function () {
+    const input = document.getElementById('checkout_to');
+    const list = document.getElementById('userSuggestions');
+    if (!input || !list) return;
+
+    let timer = null;
+    let lastQuery = '';
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim();
+        if (q.length < 2) {
+            hideSuggestions();
+            return;
+        }
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => fetchSuggestions(q), 250);
+    });
+
+    input.addEventListener('blur', () => {
+        setTimeout(hideSuggestions, 150); // allow click
+    });
+
+    function fetchSuggestions(q) {
+        lastQuery = q;
+        fetch('staff_checkout.php?ajax=user_search&q=' + encodeURIComponent(q), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then((res) => res.ok ? res.json() : Promise.reject())
+            .then((data) => {
+                if (lastQuery !== q) return; // stale
+                renderSuggestions(data.results || []);
+            })
+            .catch(() => {
+                renderSuggestions([]);
+            });
+    }
+
+    function renderSuggestions(items) {
+        list.innerHTML = '';
+        if (!items || !items.length) {
+            hideSuggestions();
+            return;
+        }
+
+        items.forEach((item) => {
+            const email = item.email || '';
+            const name = item.name || item.username || email;
+            const label = (name && email && name !== email) ? `${name} (${email})` : (name || email);
+            const value = email || name;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.textContent = label;
+            btn.dataset.value = value;
+
+            btn.addEventListener('click', () => {
+                input.value = btn.dataset.value;
+                hideSuggestions();
+                input.focus();
+            });
+
+            list.appendChild(btn);
+        });
+
+        list.style.display = 'block';
+    }
+
+    function hideSuggestions() {
+        list.style.display = 'none';
+        list.innerHTML = '';
+    }
+})();
+</script>
 </body>
 </html>
