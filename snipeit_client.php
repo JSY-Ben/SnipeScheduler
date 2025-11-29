@@ -415,8 +415,8 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = ''): v
 
     $payload = [
         'checkout_to_type' => 'user',
-        'checkout_to_id'   => $userId,    // some versions accept this
-        'assigned_to'      => $userId,    // documented field for user checkout
+        // Snipe-IT expects `assigned_to` for checkouts (user/location/asset)
+        'assigned_to'      => $userId,
     ];
 
     if ($note !== '') {
