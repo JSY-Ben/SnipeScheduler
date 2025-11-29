@@ -3,6 +3,9 @@ require 'auth.php';
 require 'snipeit_client.php';
 require 'db.php';
 
+$active  = basename($_SERVER['PHP_SELF']);
+$isStaff = !empty($currentUser['is_admin']);
+
 // Basket: model_id => quantity
 $basket = $_SESSION['basket'] ?? [];
 
@@ -130,6 +133,8 @@ $isStaff = !empty($currentUser['is_admin']);
             <?php if ($isStaff): ?>
                 <a href="staff_reservations.php"
                    class="app-nav-link <?= $active === 'staff_reservations.php' ? 'active' : '' ?>">Admin</a>
+                <a href="staff_checkout.php"
+                   class="app-nav-link <?= $active === 'staff_checkout.php' ? 'active' : '' ?>">Checkout</a>
             <?php endif; ?>
         </nav>
 

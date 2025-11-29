@@ -13,6 +13,8 @@ require_once __DIR__ . '/snipeit_client.php';
 
 $config   = require __DIR__ . '/config.php';
 $timezone = $config['app']['timezone'] ?? 'Europe/Jersey';
+$active   = basename($_SERVER['PHP_SELF']);
+$isStaff  = !empty($currentUser['is_admin']);
 
 // Only staff/admin allowed
 if (empty($currentUser['is_admin'])) {

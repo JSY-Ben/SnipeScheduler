@@ -28,14 +28,16 @@ $isStaff = !empty($currentUser['is_admin']);
             <a href="index.php"
                class="app-nav-link <?= $active === 'index.php' ? 'active' : '' ?>">Dashboard</a>
             <a href="catalogue.php"
-               class="app-nav-link <?= $active === 'catalogue.php' ? 'active' : '' ?>">Catalogue</a>
-            <a href="my_bookings.php"
-               class="app-nav-link <?= $active === 'my_bookings.php' ? 'active' : '' ?>">My bookings</a>
-            <?php if ($isStaff): ?>
-                <a href="staff_reservations.php"
-                   class="app-nav-link <?= $active === 'staff_reservations.php' ? 'active' : '' ?>">Admin</a>
-            <?php endif; ?>
-        </nav>
+           class="app-nav-link <?= $active === 'catalogue.php' ? 'active' : '' ?>">Catalogue</a>
+        <a href="my_bookings.php"
+           class="app-nav-link <?= $active === 'my_bookings.php' ? 'active' : '' ?>">My bookings</a>
+        <?php if ($isStaff): ?>
+            <a href="staff_reservations.php"
+               class="app-nav-link <?= $active === 'staff_reservations.php' ? 'active' : '' ?>">Admin</a>
+            <a href="staff_checkout.php"
+               class="app-nav-link <?= $active === 'staff_checkout.php' ? 'active' : '' ?>">Checkout</a>
+        <?php endif; ?>
+    </nav>
 
         <div class="top-bar mb-3">
             <div class="top-bar-user">

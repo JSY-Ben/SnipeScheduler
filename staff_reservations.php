@@ -3,6 +3,9 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/booking_helpers.php';
 
+$active  = basename($_SERVER['PHP_SELF']);
+$isStaff = !empty($currentUser['is_admin']);
+
 /**
  * Convert YYYY-MM-DD → DD/MM/YYYY.
  */
@@ -117,6 +120,10 @@ try {
                class="app-nav-link <?= $active === 'my_bookings.php' ? 'active' : '' ?>">My bookings</a>
             <a href="staff_reservations.php"
                class="app-nav-link <?= $active === 'staff_reservations.php' ? 'active' : '' ?>">Admin</a>
+            <?php if ($isStaff): ?>
+            <a href="staff_checkout.php"
+               class="app-nav-link <?= $active === 'staff_checkout.php' ? 'active' : '' ?>">Checkout</a>
+            <?php endif; ?>
         </nav>
 
         <!-- Top bar -->

@@ -4,6 +4,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/booking_helpers.php';
 
+$isStaff = !empty($currentUser['is_admin']);
+
 /**
  * Convert YYYY-MM-DD → DD/MM/YYYY.
  */
@@ -89,7 +91,10 @@ $isStaff = !empty($currentUser['is_admin']);
             <a href="index.php" class="app-nav-link">Dashboard</a>
             <a href="catalogue.php" class="app-nav-link">Catalogue</a>
             <a href="my_bookings.php" class="app-nav-link">My bookings</a>
+            <?php if ($isStaff): ?>
             <a href="staff_reservations.php" class="app-nav-link active">Admin</a>
+            <a href="staff_checkout.php" class="app-nav-link">Checkout</a>
+            <?php endif; ?>
         </nav>
 
         <div class="top-bar mb-3">
