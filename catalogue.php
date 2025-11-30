@@ -286,7 +286,7 @@ if (!empty($categories)) {
                         (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
                     <?php endif; ?>
                 </div>
-                <form method="post" class="d-flex gap-2 mb-0 flex-wrap">
+                <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap">
                     <input type="hidden" name="mode" value="set_booking_user">
                     <input type="hidden" name="booking_user_email" id="booking_user_email">
                     <input type="hidden" name="booking_user_name" id="booking_user_name">
@@ -644,10 +644,11 @@ function revertToLoggedIn() {
     const email = document.getElementById('booking_user_email');
     const name  = document.getElementById('booking_user_name');
     const input = document.getElementById('booking_user_input');
+    const form  = document.getElementById('booking_user_form');
     if (email) email.value = <?= json_encode($currentUser['email'] ?? '') ?>;
     if (name) name.value = <?= json_encode(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?>;
     if (input) input.value = '';
-    document.querySelector('form[method=\"post\"][action=\"\"] button.btn-primary')?.click();
+    if (form) form.submit();
 }
 });
 </script>
