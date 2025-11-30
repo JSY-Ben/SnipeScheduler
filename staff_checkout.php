@@ -116,45 +116,6 @@ function model_booked_elsewhere(PDO $pdo, int $modelId, string $start, string $e
 }
 
 // ---------------------------------------------------------------------
-// Selected reservation details (today only)
-// ---------------------------------------------------------------------
-$selectedReservation = null;
-$selectedItems       = [];
-$modelLimits         = [];
-$selectedStart       = '';
-$selectedEnd         = '';
-
-if ($selectedReservationId) {
-    $stmt = $pdo->prepare("
-        SELECT *
-        FROM reservations
-        WHERE id = :id
-          AND DATE(start_datetime) = :today
-    ");
-    $stmt->execute([
-        ':id'    => $selectedReservationId,
-        ':today' => $todayStr,
-    ]);
-    $selectedReservation = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
-    if ($selectedReservation) {
-        $selectedStart = $selectedReservation['start_datetime'] ?? '';
-        $selectedEnd   = $selectedReservation['end_datetime'] ?? '';
-        $selectedItems = get_reservation_items_with_names($pdo, $selectedReservationId);
-        foreach ($selectedItems as $item) {
-            $mid          = (int)($item['model_id'] ?? 0);
-            $qty          = (int)($item['qty'] ?? 0);
-            if ($mid > 0 && $qty > 0) {
-                $modelLimits[$mid] = $qty;
-            }
-        }
-    } else {
-        unset($_SESSION['selected_reservation_id']);
-        $selectedReservationId = null;
-    }
-}
-
-// ---------------------------------------------------------------------
 // Load today's bookings from reservations table
 // ---------------------------------------------------------------------
 $todayBookings = [];
@@ -224,6 +185,45 @@ if (isset($_GET['remove'])) {
     }
     header('Location: staff_checkout.php');
     exit;
+}
+
+// ---------------------------------------------------------------------
+// Selected reservation details (today only)
+// ---------------------------------------------------------------------
+$selectedReservation = null;
+$selectedItems       = [];
+$modelLimits         = [];
+$selectedStart       = '';
+$selectedEnd         = '';
+
+if ($selectedReservationId) {
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM reservations
+        WHERE id = :id
+          AND DATE(start_datetime) = :today
+    ");
+    $stmt->execute([
+        ':id'    => $selectedReservationId,
+        ':today' => $todayStr,
+    ]);
+    $selectedReservation = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if ($selectedReservation) {
+        $selectedStart = $selectedReservation['start_datetime'] ?? '';
+        $selectedEnd   = $selectedReservation['end_datetime'] ?? '';
+        $selectedItems = get_reservation_items_with_names($pdo, $selectedReservationId);
+        foreach ($selectedItems as $item) {
+            $mid          = (int)($item['model_id'] ?? 0);
+            $qty          = (int)($item['qty'] ?? 0);
+            if ($mid > 0 && $qty > 0) {
+                $modelLimits[$mid] = $qty;
+            }
+        }
+    } else {
+        unset($_SESSION['selected_reservation_id']);
+        $selectedReservationId = null;
+    }
 }
 
 // ---------------------------------------------------------------------
