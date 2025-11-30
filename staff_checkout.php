@@ -220,7 +220,21 @@ if ($selectedReservationId) {
             if ($mid > 0 && $qty > 0) {
                 $modelLimits[$mid] = $qty;
                 try {
-                    $modelAssets[$mid] = list_assets_by_model($mid, 300);
+                    // Only include assets not already checked out/assigned
+                    $assetsRaw = list_assets_by_model($mid, 300);
+                    $filtered  = [];
+                    foreach ($assetsRaw as $a) {
+                        $assigned = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
+                        $status   = strtolower((string)($a['status_label'] ?? ''));
+                        if (!empty($assigned)) {
+                            continue;
+                        }
+                        if (strpos($status, 'checked out') !== false) {
+                            continue;
+                        }
+                        $filtered[] = $a;
+                    }
+                    $modelAssets[$mid] = $filtered;
                 } catch (Throwable $e) {
                     $modelAssets[$mid] = [];
                 }
@@ -303,10 +317,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation for today before checking out.';
         } else {
-            $checkoutTo = trim($_POST['reservation_checkout_to'] ?? '');
+            $checkoutTo = trim($selectedReservation['student_name'] ?? '');
             $note       = trim($_POST['reservation_note'] ?? '');
             if ($checkoutTo === '') {
-                $checkoutErrors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
+                $checkoutErrors[] = 'This reservation has no associated user name.';
             }
 
             $selectedAssetsInput = $_POST['selected_assets'] ?? [];
@@ -563,17 +577,11 @@ $isStaff = !empty($currentUser['is_admin']);
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label">Check out to (Snipe-IT user)</label>
-                                <div class="position-relative user-autocomplete-wrapper">
-                                    <input type="text"
-                                           name="reservation_checkout_to"
-                                           class="form-control user-autocomplete"
-                                           autocomplete="off"
-                                           placeholder="Start typing email or name">
-                                    <div class="list-group position-absolute w-100"
-                                         data-suggestions
-                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
-                                </div>
+                                <label class="form-label">Check out to (from reservation)</label>
+                                <input type="text"
+                                       class="form-control"
+                                       value="<?= h($selectedReservation['student_name'] ?? '') ?>"
+                                       readonly>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Note (optional)</label>
@@ -601,7 +609,8 @@ $isStaff = !empty($currentUser['is_admin']);
                                 <?php else: ?>
                                     <?php for ($i = 0; $i < $qty; $i++): ?>
                                         <select class="form-select mb-2"
-                                                name="selected_assets[<?= $mid ?>][]">
+                                                name="selected_assets[<?= $mid ?>][]"
+                                                data-model-select="<?= $mid ?>">
                                             <option value="">-- Select asset --</option>
                                             <?php foreach ($options as $opt): ?>
                                                 <?php
@@ -812,6 +821,40 @@ $isStaff = !empty($currentUser['is_admin']);
             list.innerHTML = '';
         }
     });
+})();
+
+// Prevent selecting the same asset twice for a model
+(function () {
+    const groups = {};
+    document.querySelectorAll('[data-model-select]').forEach((sel) => {
+        const mid = sel.getAttribute('data-model-select');
+        if (!groups[mid]) groups[mid] = [];
+        groups[mid].push(sel);
+        sel.addEventListener('change', () => syncGroup(mid));
+    });
+
+    function syncGroup(mid) {
+        const selects = groups[mid] || [];
+        const chosen  = new Set();
+        selects.forEach((s) => {
+            if (s.value) chosen.add(s.value);
+        });
+        selects.forEach((s) => {
+            Array.from(s.options).forEach((opt) => {
+                if (!opt.value) {
+                    opt.disabled = false;
+                    return;
+                }
+                if (opt.selected) {
+                    opt.disabled = false;
+                    return;
+                }
+                opt.disabled = chosen.has(opt.value);
+            });
+        });
+    }
+
+    Object.keys(groups).forEach(syncGroup);
 })();
 </script>
 </body>
