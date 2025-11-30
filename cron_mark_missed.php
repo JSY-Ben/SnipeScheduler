@@ -12,6 +12,22 @@ $appCfg         = $config['app'] ?? [];
 $cutoffMinutes  = isset($appCfg['missed_cutoff_minutes']) ? (int)$appCfg['missed_cutoff_minutes'] : 60;
 $cutoffMinutes  = max(1, $cutoffMinutes);
 
+// Ensure the status column includes 'missed' in the ENUM definition.
+try {
+    $col = $pdo->query("SHOW COLUMNS FROM reservations LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+    $type = $col['Type'] ?? '';
+    if ($type !== '' && stripos($type, 'missed') === false) {
+        $pdo->exec("
+            ALTER TABLE reservations
+            MODIFY status ENUM('pending','confirmed','completed','cancelled','missed')
+            NOT NULL DEFAULT 'pending'
+        ");
+        echo "[" . date('Y-m-d H:i:s') . "] Updated reservations.status enum to include 'missed'\n";
+    }
+} catch (Throwable $e) {
+    echo "[" . date('Y-m-d H:i:s') . "] Warning: could not verify/alter status column: " . $e->getMessage() . "\n";
+}
+
 // Use DB server time to avoid PHP/DB drift.
 $sql = "
     UPDATE reservations
