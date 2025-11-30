@@ -292,7 +292,7 @@ if (!empty($categories)) {
                                         <span><strong>Requestable units:</strong> <?= $assetCount ?></span>
                                     <?php endif; ?>
                                     <?php if (!empty($notes)): ?>
-                                        <div class="mt-2 text-muted">
+                                        <div class="mt-2 text-muted clamp-3">
                                             <?= label_safe($notes) ?>
                                         </div>
                                     <?php endif; ?>
