@@ -242,14 +242,6 @@ function get_model_categories(): array
 
     $rows = $data['rows'];
 
-    // Keep only categories that have at least one requestable model (as indicated by requestable_count)
-    $rows = array_values(array_filter($rows, function ($row) {
-        if (isset($row['requestable_count']) && is_numeric($row['requestable_count'])) {
-            return (int)$row['requestable_count'] > 0;
-        }
-        return true; // fallback if field not present
-    }));
-
     usort($rows, function ($a, $b) {
         $na = $a['name'] ?? '';
         $nb = $b['name'] ?? '';
