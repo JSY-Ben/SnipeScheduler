@@ -291,7 +291,6 @@ if (!empty($categories)) {
                     <input type="hidden" name="mode" value="set_booking_user">
                     <input type="hidden" name="booking_user_email" id="booking_user_email">
                     <input type="hidden" name="booking_user_name" id="booking_user_name">
-                    <input type="hidden" name="booking_user_revert" id="booking_user_revert" value="0">
                     <div class="position-relative">
                         <input type="text"
                                id="booking_user_input"
@@ -303,7 +302,7 @@ if (!empty($categories)) {
                              style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
                     </div>
                     <button class="btn btn-sm btn-primary" type="submit">Use</button>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="revertToLoggedIn(event)">Revert to logged in user</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1">Revert to logged in user</button>
                 </form>
             </div>
         <?php endif; ?>
@@ -647,13 +646,17 @@ function revertToLoggedIn(e) {
     const email = document.getElementById('booking_user_email');
     const name  = document.getElementById('booking_user_name');
     const input = document.getElementById('booking_user_input');
-    const revert = document.getElementById('booking_user_revert');
     const form  = document.getElementById('booking_user_form');
     if (email) email.value = '';
     if (name) name.value = '';
     if (input) input.value = '';
-    if (revert) revert.value = '1';
-    if (form) form.submit();
+    // Submit form via hidden revert button to mirror normal submit
+    const revertBtn = document.querySelector('button[name="booking_user_revert"]');
+    if (revertBtn) {
+        revertBtn.click();
+    } else if (form) {
+        form.submit();
+    }
 }
 });
 </script>
