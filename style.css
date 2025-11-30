@@ -16,6 +16,7 @@ body {
 
 .page-header {
     margin-bottom: 1rem;
+    text-align: center;
 }
 
 .page-header h1 {
@@ -41,6 +42,7 @@ body {
     margin-bottom: 1rem;
     border-bottom: 1px solid #e5e7eb;
     padding-bottom: 0.5rem;
+    justify-content: center;
 }
 
 .app-nav-link {
