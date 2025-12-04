@@ -18,8 +18,46 @@ $snipeConfig  = $config['snipeit'] ?? [];
 $snipeBaseUrl   = rtrim($snipeConfig['base_url'] ?? '', '/');
 $snipeApiToken  = $snipeConfig['api_token'] ?? '';
 $snipeVerifySsl = !empty($snipeConfig['verify_ssl']);
+$cacheTtl       = isset($config['app']['api_cache_ttl_seconds'])
+    ? max(0, (int)$config['app']['api_cache_ttl_seconds'])
+    : 60;
+$cacheDir       = CONFIG_PATH . '/cache';
 
 $limit = min(200, SNIPEIT_MAX_MODELS_FETCH);
+
+function snipeit_cache_path(string $key): string
+{
+    global $cacheDir;
+    return rtrim($cacheDir, '/\\') . '/' . $key . '.json';
+}
+
+function snipeit_cache_get(string $key, int $ttl)
+{
+    $path = snipeit_cache_path($key);
+    if ($ttl <= 0 || !is_file($path)) {
+        return null;
+    }
+    $age = time() - (int)@filemtime($path);
+    if ($age > $ttl) {
+        return null;
+    }
+    $raw = @file_get_contents($path);
+    if ($raw === false) {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+function snipeit_cache_set(string $key, array $data): void
+{
+    global $cacheDir;
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0755, true);
+    }
+    $path = snipeit_cache_path($key);
+    @file_put_contents($path, json_encode($data), LOCK_EX);
+}
 
 /**
  * Core HTTP wrapper for Snipe-IT API.
@@ -32,7 +70,7 @@ $limit = min(200, SNIPEIT_MAX_MODELS_FETCH);
  */
 function snipeit_request(string $method, string $endpoint, array $params = []): array
 {
-    global $snipeBaseUrl, $snipeApiToken, $snipeVerifySsl;
+    global $snipeBaseUrl, $snipeApiToken, $snipeVerifySsl, $cacheTtl;
 
     if ($snipeBaseUrl === '' || $snipeApiToken === '') {
         throw new Exception('Snipe-IT API is not configured (missing base_url or api_token).');
@@ -40,13 +78,23 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
 
     $url = $snipeBaseUrl . '/api/v1/' . ltrim($endpoint, '/');
 
+    $method = strtoupper($method);
+    $cacheKey = null;
+
+    // Simple GET cache to reduce repeated hits
+    if ($method === 'GET' && $cacheTtl > 0) {
+        $cacheKey = sha1($url . '|' . json_encode($params));
+        $cached = snipeit_cache_get($cacheKey, $cacheTtl);
+        if ($cached !== null) {
+            return $cached;
+        }
+    }
+
     $ch = curl_init();
     $headers = [
         'Accept: application/json',
         'Authorization: Bearer ' . $snipeApiToken,
     ];
-
-    $method = strtoupper($method);
 
     if ($method === 'GET') {
         if (!empty($params)) {
@@ -86,6 +134,10 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
 
     if (!is_array($decoded)) {
         throw new Exception('Invalid JSON from Snipe-IT API');
+    }
+
+    if ($cacheKey !== null && $cacheTtl > 0) {
+        snipeit_cache_set($cacheKey, $decoded);
     }
 
     return $decoded;

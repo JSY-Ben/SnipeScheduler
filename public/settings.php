@@ -86,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
     $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
     $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
+    $app['api_cache_ttl_seconds'] = max(0, (int)$post('app_api_cache_ttl', $app['api_cache_ttl_seconds'] ?? 60));
 
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -393,7 +394,12 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <label class="form-label">Logo URL</label>
                                 <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label">API cache TTL (seconds)</label>
+                                <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
+                                <div class="form-text">Cache Snipe-IT GET responses. Set 0 to disable.</div>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
