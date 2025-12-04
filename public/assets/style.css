@@ -348,6 +348,13 @@ form .form-select {
     margin-bottom: 0.75rem;
 }
 
+.filter-panel__title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--text);
+}
+
 .filter-panel__dot {
     width: 12px;
     height: 12px;

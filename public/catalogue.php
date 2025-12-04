@@ -293,15 +293,9 @@ if (!empty($categories)) {
         <?php endif; ?>
 
         <form class="filter-panel mb-4" method="get" action="catalogue.php">
-            <div class="filter-panel__header d-flex align-items-center justify-content-between flex-wrap gap-3">
-                <div class="d-flex align-items-center gap-3">
-                    <span class="filter-panel__dot"></span>
-                    <div>
-                        <div class="filter-panel__eyebrow">Filters</div>
-                        <div class="filter-panel__subtitle">Zero in on models quickly – start with the highlighted name search.</div>
-                    </div>
-                </div>
-                <div class="filter-panel__hint text-muted small">Tip: press Enter to search immediately</div>
+            <div class="filter-panel__header d-flex align-items-center gap-3">
+                <span class="filter-panel__dot"></span>
+                <div class="filter-panel__title">SEARCH</div>
             </div>
 
             <div class="row g-3 align-items-end">
