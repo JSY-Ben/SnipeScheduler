@@ -156,10 +156,13 @@ try {
 
 // Optional admin-controlled allowlist for categories shown in the filter
 $allowedCfg = $config['catalogue']['allowed_categories'] ?? [];
+$allowedCategoryIds = [];
 if (is_array($allowedCfg)) {
     foreach ($allowedCfg as $cid) {
         if (ctype_digit((string)$cid) || is_int($cid)) {
-            $allowedCategoryMap[(int)$cid] = true;
+            $cid = (int)$cid;
+            $allowedCategoryMap[$cid] = true;
+            $allowedCategoryIds[]     = $cid;
         }
     }
 }
@@ -173,8 +176,13 @@ $totalModels = 0;
 $totalPages  = 1;
 $nowIso      = date('Y-m-d H:i:s');
 
+// If allowlist is set, ignore any pre-selected category that's not allowed
+if (!empty($allowedCategoryMap) && $category !== null && !isset($allowedCategoryMap[$category])) {
+    $category = null;
+}
+
 try {
-    $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage);
+    $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds);
 
     if (isset($data['rows']) && is_array($data['rows'])) {
         $models = $data['rows'];

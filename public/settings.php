@@ -342,7 +342,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
-                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Leave everything unticked to show all categories.</p>
+                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue. Leave everything unticked to show all categories.</p>
                         <?php if ($categoryFetchError): ?>
                             <div class="alert alert-warning small mb-3">
                                 Could not load categories from Snipe-IT: <?= h($categoryFetchError) ?>

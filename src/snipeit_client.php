@@ -5,7 +5,7 @@
 // Uses config.php for base URL, API token and SSL verification settings.
 //
 // Exposes:
-//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage)
+//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds)
 //   - get_model_categories()
 //   - get_model($id)
 //   - get_model_hardware_count($modelId)
@@ -105,6 +105,7 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
  * @param int|null    $categoryId
  * @param string|null $sort
  * @param int         $perPage
+ * @param array       $allowedCategoryIds Optional allowlist; if provided, only models in these category IDs are returned.
  * @return array                  ['total' => X, 'rows' => [...]]
  * @throws Exception
  */
@@ -113,10 +114,17 @@ function get_bookable_models(
     string $search = '',
     ?int $categoryId = null,
     ?string $sort = null,
-    int $perPage = 50
+    int $perPage = 50,
+    array $allowedCategoryIds = []
 ): array {
     $page    = max(1, $page);
     $perPage = max(1, $perPage);
+    $allowedMap = [];
+    foreach ($allowedCategoryIds as $cid) {
+        if (ctype_digit((string)$cid) || is_int($cid)) {
+            $allowedMap[(int)$cid] = true;
+        }
+    }
 
     $allRows      = [];
     $totalFromApi = null;
@@ -166,6 +174,14 @@ function get_bookable_models(
     $allRows = array_values(array_filter($allRows, function ($row) {
         return !empty($row['requestable']);
     }));
+
+    // Apply optional category allowlist (overrides requestable-only default scope)
+    if (!empty($allowedMap)) {
+        $allRows = array_values(array_filter($allRows, function ($row) use ($allowedMap) {
+            $cid = isset($row['category']['id']) ? (int)$row['category']['id'] : 0;
+            return $cid > 0 && isset($allowedMap[$cid]);
+        }));
+    }
 
     // Determine total after filtering
     $total = count($allRows);
