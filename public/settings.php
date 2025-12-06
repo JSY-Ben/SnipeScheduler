@@ -616,9 +616,21 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             fetch(form.action || window.location.href, {
                 method: 'POST',
                 body: fd,
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                credentials: 'same-origin'
             })
-                .then((res) => res.ok ? res.json() : Promise.reject(new Error('Request failed')))
+                .then(async (res) => {
+                    if (!res.ok) {
+                        const text = await res.text().catch(() => '');
+                        throw new Error(text || 'Request failed');
+                    }
+                    try {
+                        return await res.json();
+                    } catch (_) {
+                        const text = await res.text().catch(() => '');
+                        throw new Error(text || 'Invalid response');
+                    }
+                })
                 .then((data) => {
                     const errs = Array.isArray(data.errors) ? data.errors : [];
                     const msgs = Array.isArray(data.messages) ? data.messages : [];
