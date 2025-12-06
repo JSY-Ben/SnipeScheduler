@@ -29,6 +29,7 @@ try {
     $config = is_file($examplePath) ? require $examplePath : [];
     $errors[] = 'Config file missing – showing defaults from config.example.php.';
 }
+$loadedConfig = $config;
 
 $categoryOptions    = [];
 $categoryFetchError = '';
@@ -177,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $db['dbname']   = $post('db_name', $db['dbname'] ?? '');
     $db['username'] = $post('db_username', $db['username'] ?? '');
     $dbPassInput    = $_POST['db_password'] ?? '';
-    $db['password'] = $dbPassInput === '' ? ($db['password'] ?? '') : $dbPassInput;
+    $db['password'] = $dbPassInput === '' ? ($loadedConfig['db_booking']['password'] ?? '') : $dbPassInput;
     $db['charset']  = $post('db_charset', $db['charset'] ?? 'utf8mb4');
 
     $ldap = $config['ldap'] ?? [];
@@ -185,13 +186,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ldap['base_dn']       = $post('ldap_base_dn', $ldap['base_dn'] ?? '');
     $ldap['bind_dn']       = $post('ldap_bind_dn', $ldap['bind_dn'] ?? '');
     $ldapPassInput         = $_POST['ldap_bind_password'] ?? '';
-    $ldap['bind_password'] = $ldapPassInput === '' ? ($ldap['bind_password'] ?? '') : $ldapPassInput;
+    $ldap['bind_password'] = $ldapPassInput === '' ? ($loadedConfig['ldap']['bind_password'] ?? '') : $ldapPassInput;
     $ldap['ignore_cert']   = isset($_POST['ldap_ignore_cert']);
 
     $snipe = $config['snipeit'] ?? [];
     $snipe['base_url']  = $post('snipe_base_url', $snipe['base_url'] ?? '');
     $snipeTokenInput    = $_POST['snipe_api_token'] ?? '';
-    $snipe['api_token'] = $snipeTokenInput === '' ? ($snipe['api_token'] ?? '') : $snipeTokenInput;
+    $snipe['api_token'] = $snipeTokenInput === '' ? ($loadedConfig['snipeit']['api_token'] ?? '') : $snipeTokenInput;
     $snipe['verify_ssl'] = isset($_POST['snipe_verify_ssl']);
 
     $auth = $config['auth'] ?? [];
