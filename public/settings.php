@@ -392,7 +392,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="db-test-result"></div>
-                            <button type="submit" name="action" value="test_db" class="btn btn-outline-primary btn-sm" data-test-action="test_db" data-target="db-test-result">Test database connection</button>
+                            <button type="button" name="action" value="test_db" class="btn btn-outline-primary btn-sm" data-test-action="test_db" data-target="db-test-result">Test database connection</button>
                         </div>
                     </div>
                 </div>
@@ -423,7 +423,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="api-test-result"></div>
-                            <button type="submit" name="action" value="test_api" class="btn btn-outline-primary btn-sm" data-test-action="test_api" data-target="api-test-result">Test Snipe-IT API</button>
+                            <button type="button" name="action" value="test_api" class="btn btn-outline-primary btn-sm" data-test-action="test_api" data-target="api-test-result">Test Snipe-IT API</button>
                         </div>
                     </div>
                 </div>
@@ -460,7 +460,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="ldap-test-result"></div>
-                            <button type="submit" name="action" value="test_ldap" class="btn btn-outline-primary btn-sm" data-test-action="test_ldap" data-target="ldap-test-result">Test LDAP connection</button>
+                            <button type="button" name="action" value="test_ldap" class="btn btn-outline-primary btn-sm" data-test-action="test_ldap" data-target="ldap-test-result">Test LDAP connection</button>
                         </div>
                     </div>
                 </div>
@@ -608,6 +608,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             const target = targetId ? document.getElementById(targetId) : null;
             clearStatus(target);
             setStatus(target, 'Testing...', false);
+            btn.disabled = true;
 
             const fd = new FormData(form);
             fd.set('action', action);
@@ -656,6 +657,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                     } else {
                         setStatus(target, err.message || 'Test failed.', true);
                     }
+                })
+                .finally(() => {
+                    btn.disabled = false;
                 });
         });
     });
