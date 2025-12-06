@@ -615,13 +615,18 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 
             const actionUrl = (form.getAttribute('action') || window.location.href).split('#')[0];
 
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+
             fetch(actionUrl, {
                 method: 'POST',
                 body: fd,
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                signal: controller.signal
             })
                 .then(async (res) => {
+                    clearTimeout(timeout);
                     if (!res.ok) {
                         const text = await res.text().catch(() => '');
                         throw new Error(text || 'Request failed');
@@ -645,7 +650,12 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                     }
                 })
                 .catch((err) => {
-                    setStatus(target, err.message || 'Test failed.', true);
+                    clearTimeout(timeout);
+                    if (err.name === 'AbortError') {
+                        setStatus(target, 'Request timed out. Please check the host/URL.', true);
+                    } else {
+                        setStatus(target, err.message || 'Test failed.', true);
+                    }
                 });
         });
     });
