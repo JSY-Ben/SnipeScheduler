@@ -43,7 +43,124 @@ $definedValues = [
     'SNIPEIT_MAX_MODELS_FETCH'  => defined('SNIPEIT_MAX_MODELS_FETCH') ? SNIPEIT_MAX_MODELS_FETCH : 1000,
 ];
 
+function reserveit_test_db_connection(array $db): string
+{
+    $dsn = sprintf(
+        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+        $db['host'] ?? 'localhost',
+        (int)($db['port'] ?? 3306),
+        $db['dbname'] ?? '',
+        $db['charset'] ?? 'utf8mb4'
+    );
+
+    $pdo = new PDO($dsn, $db['username'] ?? '', $db['password'] ?? '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_TIMEOUT => 5,
+    ]);
+
+    $row = $pdo->query('SELECT 1')->fetchColumn();
+    if ((int)$row !== 1) {
+        throw new Exception('Connected but validation query failed.');
+    }
+
+    return 'Database connection succeeded.';
+}
+
+function reserveit_test_snipe_api(array $snipe): string
+{
+    if (!function_exists('curl_init')) {
+        throw new Exception('PHP cURL extension is not installed.');
+    }
+
+    $base   = rtrim($snipe['base_url'] ?? '', '/');
+    $token  = $snipe['api_token'] ?? '';
+    $verify = !empty($snipe['verify_ssl']);
+
+    if ($base === '' || $token === '') {
+        throw new Exception('Base URL or API token is missing.');
+    }
+
+    $url = $base . '/api/v1/models?limit=1';
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json',
+            'Authorization: Bearer ' . $token,
+        ],
+        CURLOPT_SSL_VERIFYPEER => $verify,
+        CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
+    ]);
+    $raw = curl_exec($ch);
+    if ($raw === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        throw new Exception('cURL error: ' . $err);
+    }
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $decoded = json_decode($raw, true);
+    if ($code >= 400) {
+        $msg = $decoded['message'] ?? $raw;
+        throw new Exception('HTTP ' . $code . ': ' . $msg);
+    }
+
+    return 'Snipe-IT API reachable (HTTP ' . $code . ').';
+}
+
+function reserveit_test_ldap(array $ldap): string
+{
+    if (!function_exists('ldap_connect')) {
+        throw new Exception('PHP LDAP extension is not installed.');
+    }
+
+    $host    = $ldap['host'] ?? '';
+    $baseDn  = $ldap['base_dn'] ?? '';
+    $bindDn  = $ldap['bind_dn'] ?? '';
+    $bindPwd = $ldap['bind_password'] ?? '';
+    $ignore  = !empty($ldap['ignore_cert']);
+
+    if ($host === '') {
+        throw new Exception('LDAP host is missing.');
+    }
+
+    if ($ignore && function_exists('ldap_set_option')) {
+        @ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_ALLOW);
+    }
+
+    $conn = @ldap_connect($host);
+    if (!$conn) {
+        throw new Exception('Could not connect to LDAP host.');
+    }
+    @ldap_set_option($conn, LDAP_OPT_PROTOCOL_VERSION, 3);
+    @ldap_set_option($conn, LDAP_OPT_REFERRALS, 0);
+
+    $bindOk = $bindDn !== ''
+        ? @ldap_bind($conn, $bindDn, $bindPwd)
+        : @ldap_bind($conn);
+
+    if ($bindOk === false) {
+        $err = function_exists('ldap_error') ? @ldap_error($conn) : 'Unknown LDAP error';
+        throw new Exception('Bind failed: ' . $err);
+    }
+
+    if ($baseDn !== '') {
+        $search = @ldap_search($conn, $baseDn, '(objectClass=*)', ['dn'], 0, 1, 3);
+        if ($search === false) {
+            $err = function_exists('ldap_error') ? @ldap_error($conn) : 'Unknown LDAP error';
+            throw new Exception('Search failed: ' . $err);
+        }
+    }
+
+    @ldap_unbind($conn);
+    return 'LDAP connection and bind succeeded.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? 'save';
+
     $post = static function (string $key, $fallback = '') {
         return trim($_POST[$key] ?? $fallback);
     };
@@ -108,26 +225,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newConfig['app']        = $app;
     $newConfig['catalogue']  = $catalogue;
 
-    $content = reserveit_build_config_file($newConfig, [
+    // Keep posted values in the form
+    $config        = $newConfig;
+    $definedValues = [
         'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
         'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
         'SNIPEIT_MAX_MODELS_FETCH' => $maxModels,
-    ]);
+    ];
 
-    if (!is_dir(CONFIG_PATH)) {
-        @mkdir(CONFIG_PATH, 0755, true);
-    }
-
-    if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
-        $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
+    if ($action === 'test_db') {
+        try {
+            $messages[] = reserveit_test_db_connection($db);
+        } catch (Throwable $e) {
+            $errors[] = 'Database test failed: ' . $e->getMessage();
+        }
+    } elseif ($action === 'test_api') {
+        try {
+            $messages[] = reserveit_test_snipe_api($snipe);
+        } catch (Throwable $e) {
+            $errors[] = 'Snipe-IT API test failed: ' . $e->getMessage();
+        }
+    } elseif ($action === 'test_ldap') {
+        try {
+            $messages[] = reserveit_test_ldap($ldap);
+        } catch (Throwable $e) {
+            $errors[] = 'LDAP test failed: ' . $e->getMessage();
+        }
     } else {
-        $messages[]   = 'Config saved successfully.';
-        $config       = $newConfig;
-        $definedValues = [
+        $content = reserveit_build_config_file($newConfig, [
             'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
             'SNIPEIT_MAX_MODELS_FETCH' => $maxModels,
-        ];
+        ]);
+
+        if (!is_dir(CONFIG_PATH)) {
+            @mkdir(CONFIG_PATH, 0755, true);
+        }
+
+        if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
+            $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
+        } else {
+            $messages[] = 'Config saved successfully.';
+        }
     }
 }
 
@@ -239,6 +378,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <input type="text" name="db_charset" class="form-control" value="<?= h($cfg(['db_booking', 'charset'], 'utf8mb4')) ?>">
                             </div>
                         </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" name="action" value="test_db" class="btn btn-outline-primary btn-sm">Test database connection</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -265,6 +407,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                     <label class="form-check-label" for="snipe_verify_ssl">Verify SSL certificate</label>
                                 </div>
                             </div>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" name="action" value="test_api" class="btn btn-outline-primary btn-sm">Test Snipe-IT API</button>
                         </div>
                     </div>
                 </div>
@@ -298,6 +443,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                     <label class="form-check-label" for="ldap_ignore_cert">Ignore SSL certificate errors</label>
                                 </div>
                             </div>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" name="action" value="test_ldap" class="btn btn-outline-primary btn-sm">Test LDAP connection</button>
                         </div>
                     </div>
                 </div>
@@ -411,7 +559,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             </div>
 
             <div class="col-12 d-flex justify-content-end">
-                <button type="submit" class="btn btn-primary">Save settings</button>
+                <button type="submit" name="action" value="save" class="btn btn-primary">Save settings</button>
             </div>
         </form>
     </div>
