@@ -11,9 +11,21 @@ $isStaff = !empty($currentUser['is_admin']);
 // Basket: model_id => quantity
 $basket = $_SESSION['basket'] ?? [];
 
-// Preview availability dates (from GET)
+// Preview availability dates (from GET) with sensible defaults
+$now = new DateTime();
+$defaultStart = $now->format('Y-m-d\TH:i');
+$defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
+
 $previewStartRaw = $_GET['start_datetime'] ?? '';
 $previewEndRaw   = $_GET['end_datetime'] ?? '';
+
+if (trim($previewStartRaw) === '') {
+    $previewStartRaw = $defaultStart;
+}
+
+if (trim($previewEndRaw) === '') {
+    $previewEndRaw = $defaultEnd;
+}
 
 $previewStart = null;
 $previewEnd   = null;
