@@ -426,10 +426,12 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     $dueDate    = $selectedReservation['end_datetime'] ?? '';
                     $dueDisplay = $dueDate ? uk_datetime_display($dueDate) : 'N/A';
 
-                    $assetLines = $assetsText !== '' ? $assetsText : implode(', ', $assetTags);
+                    $assetLines = $assetsText !== '' ? $assetsText : implode(', ', array_filter($assetTags));
+                    $itemsSummary = build_items_summary_text($selectedItems);
                     $bodyLines = [
                         "Reservation #{$selectedReservationId} has been checked out.",
-                        "Items: {$assetLines}",
+                        $itemsSummary !== '' ? "Models: {$itemsSummary}" : '',
+                        "Assets: {$assetLines}",
                         "Return by: {$dueDisplay}",
                         "Checked out by: {$staffName}",
                     ];
