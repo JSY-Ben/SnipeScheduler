@@ -110,14 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $staffEmail = $currentUser['email'] ?? '';
                     $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
                     $assetList  = array_map(function ($a) {
-                        $tag = $a['asset_tag'] ?? '';
-                        $name = $a['name'] ?? '';
+                        $tag   = $a['asset_tag'] ?? '';
                         $model = $a['model'] ?? '';
-                        $label = trim($tag . ' ' . $name);
-                        if ($model !== '') {
-                            $label .= $label !== '' ? " ({$model})" : $model;
-                        }
-                        return trim($label);
+                        return $model !== '' ? "{$tag} ({$model})" : $tag;
                     }, $checkoutAssets);
                     $assetLines = implode(', ', array_filter($assetList));
                     $bodyLines = [

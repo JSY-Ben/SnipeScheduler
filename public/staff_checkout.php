@@ -379,8 +379,9 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     }
                     $seen[$assetIdSel] = true;
                     $assetsToCheckout[] = [
-                        'asset_id'  => $assetIdSel,
-                        'asset_tag' => $choicesById[$assetIdSel]['asset_tag'] ?? ('ID ' . $assetIdSel),
+                        'asset_id'   => $assetIdSel,
+                        'asset_tag'  => $choicesById[$assetIdSel]['asset_tag'] ?? ('ID ' . $assetIdSel),
+                        'model_name' => $item['name'] ?? '',
                     ];
                 }
             }
@@ -402,9 +403,11 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
 
                     // Mark reservation as checked out and store asset tags
                     $assetTags = array_map(function ($a) {
-                        return trim(($a['asset_tag'] ?? '') . ' ' . ($a['name'] ?? ''));
+                        $tag   = $a['asset_tag'] ?? '';
+                        $model = $a['model_name'] ?? '';
+                        return $model !== '' ? "{$tag} ({$model})" : $tag;
                     }, $assetsToCheckout);
-                    $assetsText = implode(', ', $assetTags);
+                    $assetsText = implode(', ', array_filter($assetTags));
 
                     $upd = $pdo->prepare("
                         UPDATE reservations
@@ -427,11 +430,9 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     $dueDisplay = $dueDate ? uk_datetime_display($dueDate) : 'N/A';
 
                     $assetLines = $assetsText !== '' ? $assetsText : implode(', ', array_filter($assetTags));
-                    $itemsSummary = build_items_summary_text($selectedItems);
                     $bodyLines = [
                         "Reservation #{$selectedReservationId} has been checked out.",
-                        $itemsSummary !== '' ? "Models: {$itemsSummary}" : '',
-                        "Assets: {$assetLines}",
+                        "Items: {$assetLines}",
                         "Return by: {$dueDisplay}",
                         "Checked out by: {$staffName}",
                     ];
