@@ -24,6 +24,7 @@ function reserveit_send_mail(string $toEmail, string $toName, string $subject, s
     $user   = $smtp['username'] ?? '';
     $pass   = $smtp['password'] ?? '';
     $enc    = strtolower(trim($smtp['encryption'] ?? '')); // none|ssl|tls
+    $auth   = strtolower(trim($smtp['auth_method'] ?? 'login')); // login|plain|none
     $from   = $smtp['from_email'] ?? '';
     $fromNm = $smtp['from_name'] ?? 'ReserveIT';
 
@@ -73,16 +74,40 @@ function reserveit_send_mail(string $toEmail, string $toName, string $subject, s
             $write('EHLO reserveit.local');
             do {
                 $line = $read();
+                $ehloResp .= $line;
             } while ($line !== false && isset($line[3]) && $line[3] === '-');
         }
 
-        if ($user !== '') {
-            $write('AUTH LOGIN');
-            $expectOk('334', $read);
-            $write(base64_encode($user));
-            $expectOk('334', $read);
-            $write(base64_encode($pass));
-            $expectOk('235', $read);
+        $supports = strtolower($ehloResp);
+        $authSupported = [
+            'login' => strpos($supports, 'auth ') !== false && strpos($supports, 'login') !== false,
+            'plain' => strpos($supports, 'auth ') !== false && strpos($supports, 'plain') !== false,
+        ];
+
+        if ($user !== '' && $auth !== 'none') {
+            $method = $auth;
+            if ($method === 'login' && !$authSupported['login'] && $authSupported['plain']) {
+                $method = 'plain';
+            } elseif ($method === 'plain' && !$authSupported['plain'] && $authSupported['login']) {
+                $method = 'login';
+            }
+
+            if ($method === 'login') {
+                $write('AUTH LOGIN');
+                $expectOk('334', $read);
+                $write(base64_encode($user));
+                $expectOk('334', $read);
+                $write(base64_encode($pass));
+                $expectOk('235', $read);
+            } elseif ($method === 'plain') {
+                $write('AUTH PLAIN');
+                $expectOk('334', $read);
+                $token = base64_encode("\0" . $user . "\0" . $pass);
+                $write($token);
+                $expectOk('235', $read);
+            } else {
+                throw new Exception('No supported SMTP auth methods (login/plain) were accepted by the server.');
+            }
         }
 
         $write('MAIL FROM: <' . $from . '>');

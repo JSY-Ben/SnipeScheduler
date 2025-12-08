@@ -306,6 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'username'   => $post('smtp_username', ''),
             'password'   => $_POST['smtp_password'] ?? '',
             'encryption' => $post('smtp_encryption', 'tls'),
+            'auth_method'=> $post('smtp_auth_method', 'login'),
             'from_email' => $post('smtp_from_email', ''),
             'from_name'  => $post('smtp_from_name', 'ReserveIT'),
         ];
@@ -660,6 +661,18 @@ $staffText = implode("\n", $staffPref);
                                     $enc = strtolower($pref(['smtp', 'encryption'], 'tls'));
                                     foreach (['none', 'ssl', 'tls'] as $opt) {
                                         $sel = $enc === $opt ? 'selected' : '';
+                                        echo "<option value=\"{$opt}\" {$sel}>" . strtoupper($opt) . "</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Auth method</label>
+                                <select name="smtp_auth_method" class="form-select">
+                                    <?php
+                                    $auth = strtolower($pref(['smtp', 'auth_method'], 'login'));
+                                    foreach (['login', 'plain', 'none'] as $opt) {
+                                        $sel = $auth === $opt ? 'selected' : '';
                                         echo "<option value=\"{$opt}\" {$sel}>" . strtoupper($opt) . "</option>";
                                     }
                                     ?>
