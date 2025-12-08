@@ -216,6 +216,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Catalogue – Book Equipment</title>
 
     <link rel="stylesheet"

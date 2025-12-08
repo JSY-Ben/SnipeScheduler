@@ -138,9 +138,9 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    padding: 0.75rem 1rem;
     border-radius: 0.9rem;
-    background: #ffffff;
+    background: linear-gradient(120deg, #ffffff, rgba(255, 255, 255, 0.9));
     border: 1px solid var(--border);
     color: var(--text);
     font-weight: 700;
@@ -148,7 +148,7 @@ body {
 }
 
 .app-nav-toggle:hover {
-    background: rgba(var(--primary-rgb), 0.06);
+    background: rgba(var(--primary-rgb), 0.08);
     color: var(--accent);
 }
 
@@ -581,10 +581,25 @@ form .form-select {
 -------------------------------------------------- */
 
 @media (max-width: 768px) {
+    .page-header h1 {
+        font-size: 1.4rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .page-shell {
+        padding: 1.2rem;
+    }
+
     .app-nav-shell.has-toggle {
         display: flex;
         flex-direction: column;
         gap: 0.6rem;
+        position: sticky;
+        top: 0.5rem;
+        z-index: 40;
     }
 
     .app-nav-shell.has-toggle .app-nav-toggle {
@@ -599,6 +614,8 @@ form .form-select {
         gap: 0.4rem;
         padding: 0.75rem;
         border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 14px 30px rgba(var(--primary-rgb), 0.12);
     }
 
     .app-nav-shell.has-toggle.is-open .app-nav {
@@ -619,16 +636,32 @@ form .form-select {
     .top-bar {
         flex-direction: column;
         align-items: flex-start;
+        padding: 0.8rem 0.9rem;
     }
 
     .top-bar-actions {
         width: 100%;
         justify-content: flex-start;
         flex-wrap: wrap;
+        gap: 0.5rem;
     }
 
     .app-nav {
         flex-wrap: wrap;
+    }
+
+    .filter-panel__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+    }
+
+    .filter-panel .row > [class*="col-"] {
+        width: 100%;
+    }
+
+    .table-responsive {
+        margin-bottom: 1rem;
     }
 }
 

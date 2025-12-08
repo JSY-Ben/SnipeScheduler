@@ -526,6 +526,7 @@ $isStaff = !empty($currentUser['is_admin']);
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Today’s Reservations (Checkout)</title>
 
     <link rel="stylesheet"

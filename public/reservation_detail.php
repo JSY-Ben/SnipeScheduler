@@ -72,6 +72,7 @@ $isStaff = !empty($currentUser['is_admin']);
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Booking #<?= (int)$id ?> – Details</title>
 
     <link rel="stylesheet"
