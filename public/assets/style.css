@@ -57,6 +57,11 @@ body {
     z-index: 1;
 }
 
+.booking-for-alert {
+    position: relative;
+    z-index: 50;
+}
+
 .page-header {
     margin-bottom: 1rem;
     text-align: center;

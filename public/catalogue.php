@@ -269,7 +269,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
 
         <!-- Filters -->
         <?php if ($isStaff): ?>
-            <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between">
+            <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between booking-for-alert">
                 <div class="mb-2 mb-md-0">
                     <strong>Booking for:</strong>
                     <?= h($activeUser['email'] ?? '') ?>
@@ -277,7 +277,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
                     <?php endif; ?>
                 </div>
-                <form method="post" id="booking_user_form" autocomplete="off" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
+                <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
                     <input type="hidden" name="mode" value="set_booking_user">
                     <input type="hidden" name="booking_user_email" id="booking_user_email">
                     <input type="hidden" name="booking_user_name" id="booking_user_name">
@@ -286,10 +286,10 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                id="booking_user_input"
                                class="form-control form-control-sm"
                                placeholder="Start typing email or name"
-                               autocomplete="new-password"
-                               autocapitalize="off"
-                               list="booking_user_list">
-                        <datalist id="booking_user_list"></datalist>
+                               autocomplete="off">
+                        <div class="list-group position-absolute w-100"
+                             id="booking_user_suggestions"
+                             style="z-index: 9999; max-height: 260px; overflow-y: auto; display: none; box-shadow: 0 12px 24px rgba(0,0,0,0.18);"></div>
                     </div>
                     <button class="btn btn-sm btn-primary" type="submit">Use</button>
                     <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1">Revert to logged in user</button>
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const viewBasketBtn = document.getElementById('view-basket-btn');
     const forms = document.querySelectorAll('.add-to-basket-form');
     const bookingInput = document.getElementById('booking_user_input');
-    const bookingList  = document.getElementById('booking_user_list');
+    const bookingList  = document.getElementById('booking_user_suggestions');
     const bookingEmail = document.getElementById('booking_user_email');
     const bookingName  = document.getElementById('booking_user_name');
     let bookingTimer   = null;
@@ -584,6 +584,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function hideBookingSuggestions() {
         if (!bookingList) return;
+        bookingList.style.display = 'none';
         bookingList.innerHTML = '';
     }
 
@@ -591,17 +592,26 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!bookingList) return;
         bookingList.innerHTML = '';
         if (!items || !items.length) {
+            hideBookingSuggestions();
             return;
         }
         items.forEach(function (item) {
             const email = item.email || '';
             const name = item.name || '';
             const label = (name && email && name !== email) ? (name + ' (' + email + ')') : (name || email);
-            const opt = document.createElement('option');
-            opt.value = email;
-            opt.label = label;
-            bookingList.appendChild(opt);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action';
+            btn.textContent = label;
+            btn.addEventListener('click', function () {
+                bookingInput.value = label;
+                bookingEmail.value = email;
+                bookingName.value  = name || email;
+                hideBookingSuggestions();
+            });
+            bookingList.appendChild(btn);
         });
+        bookingList.style.display = 'block';
     }
 
     if (bookingInput && bookingList) {
@@ -628,13 +638,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 250);
         });
 
-        bookingInput.addEventListener('change', function () {
-            const email = bookingInput.value.trim();
-            const match = bookingList ? Array.from(bookingList.options).find(function (opt) {
-                return opt.value === email;
-            }) : null;
-            bookingEmail.value = email;
-            bookingName.value  = match ? match.label : email;
+        bookingInput.addEventListener('blur', function () {
+            setTimeout(hideBookingSuggestions, 150);
         });
     }
 });
