@@ -21,6 +21,22 @@ function format_display_date($val): string
     }
 }
 
+function format_display_datetime($val): string
+{
+    if (is_array($val)) {
+        $val = $val['datetime'] ?? ($val['date'] ?? '');
+    }
+    if (empty($val)) {
+        return '';
+    }
+    try {
+        $dt = new DateTime($val);
+        return $dt->format('d/m/Y H:i');
+    } catch (Throwable $e) {
+        return $val;
+    }
+}
+
 $active    = basename($_SERVER['PHP_SELF']);
 $isStaff   = !empty($currentUser['is_admin']);
 $embedded  = defined('RESERVATIONS_EMBED');
@@ -40,7 +56,7 @@ $assets  = [];
 $search  = trim($_GET['q'] ?? '');
 
 try {
-    $assets = list_checked_out_assets($tab === 'overdue');
+    $assets = list_checked_out_assets($view === 'overdue');
     if ($search !== '') {
         $q = mb_strtolower($search);
         $assets = array_values(array_filter($assets, function ($row) use ($q) {
