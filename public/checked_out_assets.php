@@ -64,20 +64,63 @@ if ($forceRefresh) {
     $cacheTtl = 0;
 }
 
-// Handle renew action (overdue tab only)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_asset_id']) && $view === 'overdue') {
-    $renewId = (int)$_POST['renew_asset_id'];
-    if ($renewId > 0) {
+// Handle renew actions (overdue tab only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $view === 'overdue') {
+    // Renew single
+    if (isset($_POST['renew_asset_id'])) {
+        $renewId = (int)$_POST['renew_asset_id'];
+        if ($renewId > 0) {
+            try {
+                $tomorrowDt = new DateTime('tomorrow');
+                $tomorrow   = $tomorrowDt->format('Y-m-d');
+                update_asset_expected_checkin($renewId, $tomorrow);
+                $messages[] = "Extended expected check-in to " . $tomorrowDt->format('d/m/Y') . " for asset #{$renewId}.";
+            } catch (Throwable $e) {
+                $error = 'Could not renew asset: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'Invalid asset selected for renewal.';
+        }
+    }
+
+    // Renew all visible (filtered) items
+    if (isset($_POST['renew_all']) && $_POST['renew_all'] === '1') {
         try {
+            // Ensure we apply the same filter when renewing all
+            $assetsToRenew = list_checked_out_assets(true);
+            if ($search !== '') {
+                $q = mb_strtolower($search);
+                $assetsToRenew = array_values(array_filter($assetsToRenew, function ($row) use ($q) {
+                    $fields = [
+                        $row['asset_tag'] ?? '',
+            $row['name'] ?? '',
+            $row['model']['name'] ?? '',
+            $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? ''),
+        ];
+                    foreach ($fields as $f) {
+                        if (is_array($f)) {
+                            $f = implode(' ', $f);
+                        }
+                        if (mb_stripos((string)$f, $q) !== false) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }));
+            }
+
             $tomorrowDt = new DateTime('tomorrow');
             $tomorrow   = $tomorrowDt->format('Y-m-d');
-            update_asset_expected_checkin($renewId, $tomorrow);
-            $messages[] = "Extended expected check-in to " . $tomorrowDt->format('d/m/Y') . " for asset #{$renewId}.";
+            foreach ($assetsToRenew as $row) {
+                $aid = (int)($row['id'] ?? 0);
+                if ($aid > 0) {
+                    update_asset_expected_checkin($aid, $tomorrow);
+                }
+            }
+            $messages[] = "Extended expected check-in to " . $tomorrowDt->format('d/m/Y') . " for " . count($assetsToRenew) . " asset(s).";
         } catch (Throwable $e) {
-            $error = 'Could not renew asset: ' . $e->getMessage();
+            $error = 'Could not renew all overdue assets: ' . $e->getMessage();
         }
-    } else {
-        $error = 'Invalid asset selected for renewal.';
     }
 }
 
@@ -220,6 +263,21 @@ function reserveit_checked_out_url(string $base, array $params): string
                 <?= htmlspecialchars($error) ?>
             </div>
         <?php endif; ?>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <?php if ($view === 'overdue' && !empty($assets)): ?>
+                <form method="post" class="mb-0 d-flex gap-2 align-items-center">
+                    <input type="hidden" name="view" value="overdue">
+                    <input type="hidden" name="renew_all" value="1">
+                    <?php if ($search !== ''): ?>
+                        <input type="hidden" name="q" value="<?= h($search) ?>">
+                    <?php endif; ?>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        Renew all shown to tomorrow
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
 
         <?php if (!empty($messages)): ?>
             <div class="alert alert-success">
