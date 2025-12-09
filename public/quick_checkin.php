@@ -138,11 +138,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $perUserSummary[] = ($info['name'] ?? $email) . ': ' . implode(', ', $info['assets']);
                     }
 
-                    $bodyLines = [
-                        'You checked in the following assets (by user):',
-                        implode('; ', $perUserSummary),
-                        $note !== '' ? "Note: {$note}" : '',
-                    ];
+                    $bodyLines = [];
+                    if (!empty($perUserSummary)) {
+                        $bodyLines[] = 'You checked in the following assets (by user):';
+                        $bodyLines[] = implode('; ', $perUserSummary);
+                    } else {
+                        // Fallback when we have no user information
+                        $bodyLines[] = 'You checked in the following assets:';
+                        $bodyLines[] = implode(', ', $assetTags);
+                    }
+                    if ($note !== '') {
+                        $bodyLines[] = "Note: {$note}";
+                    }
                     reserveit_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $bodyLines);
                 }
 
