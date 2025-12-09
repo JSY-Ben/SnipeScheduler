@@ -29,8 +29,9 @@ function uk_datetime(?string $isoDatetime): string
     return $dt ? $dt->format('d/m/Y') : $isoDatetime;
 }
 
-$active  = basename($_SERVER['PHP_SELF']);
-$isStaff = !empty($currentUser['is_admin']);
+$active        = basename($_SERVER['PHP_SELF']);
+$isStaff       = !empty($currentUser['is_admin']);
+$currentUserId = (string)($currentUser['id'] ?? '');
 
 $userName = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
 
@@ -39,15 +40,20 @@ try {
     $sql = "
         SELECT *
         FROM reservations
-        WHERE user_name = :user_name
+        WHERE user_id = :user_id
         ORDER BY start_datetime DESC
     ";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([':user_name' => $userName]);
+    $stmt->execute([':user_id' => $currentUserId]);
     $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $reservations = [];
     $loadError = $e->getMessage();
+}
+
+$deletedMsg = '';
+if (!empty($_GET['deleted'])) {
+    $deletedMsg = 'Reservation #' . (int)$_GET['deleted'] . ' has been deleted.';
 }
 ?>
 <!DOCTYPE html>
@@ -87,6 +93,12 @@ try {
                 <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
             </div>
         </div>
+
+        <?php if (!empty($deletedMsg)): ?>
+            <div class="alert alert-success">
+                <?= htmlspecialchars($deletedMsg) ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($loadError ?? '')): ?>
             <div class="alert alert-danger">
@@ -155,6 +167,17 @@ try {
                                 </table>
                             </div>
                         <?php endif; ?>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <form method="post"
+                                  action="delete_reservation.php"
+                                  onsubmit="return confirm('Delete this reservation and all its items? This cannot be undone.');">
+                                <input type="hidden" name="reservation_id" value="<?= $resId ?>">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                    Delete reservation
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             <?php endforeach; ?>
