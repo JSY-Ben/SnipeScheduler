@@ -208,9 +208,9 @@ function reserveit_checked_out_url(string $base, array $params): string
                                 <td><?= h($name) ?></td>
                                 <td><?= h($model) ?></td>
                                 <td><?= h($user) ?></td>
-                                <td><?= h(format_display_date($checkedOut)) ?></td>
+                                <td><?= h(format_display_datetime($checkedOut)) ?></td>
                                 <td class="<?= ($view === 'overdue' ? 'text-danger fw-semibold' : '') ?>">
-                                    <?= h(format_display_date($expected)) ?>
+                                    <?= h(format_display_datetime($expected)) ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
