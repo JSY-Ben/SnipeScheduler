@@ -42,6 +42,7 @@ $isStaff   = !empty($currentUser['is_admin']);
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'checked_out_assets.php';
 $baseQuery = $embedded ? ['tab' => 'checked_out'] : [];
+$messages  = [];
 
 if (!$isStaff) {
     http_response_code(403);
@@ -49,11 +50,27 @@ if (!$isStaff) {
     exit;
 }
 
-$viewRaw = $_GET['view'] ?? ($_GET['tab'] ?? 'all');
+$viewRaw = $_REQUEST['view'] ?? ($_REQUEST['tab'] ?? 'all');
 $view    = $viewRaw === 'overdue' ? 'overdue' : 'all';
 $error   = '';
 $assets  = [];
 $search  = trim($_GET['q'] ?? '');
+
+// Handle renew action (overdue tab only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['renew_asset_id']) && $view === 'overdue') {
+    $renewId = (int)$_POST['renew_asset_id'];
+    if ($renewId > 0) {
+        try {
+            $tomorrow = (new DateTime('tomorrow'))->format('Y-m-d');
+            update_asset_expected_checkin($renewId, $tomorrow);
+            $messages[] = "Extended expected check-in to {$tomorrow} for asset #{$renewId}.";
+        } catch (Throwable $e) {
+            $error = 'Could not renew asset: ' . $e->getMessage();
+        }
+    } else {
+        $error = 'Invalid asset selected for renewal.';
+    }
+}
 
 try {
     $assets = list_checked_out_assets($view === 'overdue');
@@ -189,6 +206,16 @@ function reserveit_checked_out_url(string $base, array $params): string
             </div>
         <?php endif; ?>
 
+        <?php if (!empty($messages)): ?>
+            <div class="alert alert-success">
+                <ul class="mb-0">
+                    <?php foreach ($messages as $m): ?>
+                        <li><?= h($m) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+
         <?php if (empty($assets) && !$error): ?>
             <div class="alert alert-secondary">
                 No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out requestable assets.
@@ -204,6 +231,9 @@ function reserveit_checked_out_url(string $base, array $params): string
                             <th>User</th>
                             <th>Assigned Since</th>
                             <th>Expected Check-in</th>
+                            <?php if ($view === 'overdue'): ?>
+                                <th style="width: 140px;"></th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -228,6 +258,19 @@ function reserveit_checked_out_url(string $base, array $params): string
                                 <td class="<?= ($view === 'overdue' ? 'text-danger fw-semibold' : '') ?>">
                                     <?= h(format_display_date($expected)) ?>
                                 </td>
+                                <?php if ($view === 'overdue'): ?>
+                                    <td>
+                                        <form method="post" class="d-inline">
+                                            <input type="hidden" name="view" value="overdue">
+                                            <input type="hidden" name="renew_asset_id" value="<?= (int)($a['id'] ?? 0) ?>">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    <?php if (empty($a['id'])): ?>disabled<?php endif; ?>>
+                                                Renew to tomorrow
+                                            </button>
+                                        </form>
+                                    </td>
+                                <?php endif; ?>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

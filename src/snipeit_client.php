@@ -645,6 +645,49 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = '', ?s
 }
 
 /**
+ * Update the expected check-in date for an asset.
+ *
+ * @param int    $assetId
+ * @param string $expectedDate ISO date (YYYY-MM-DD)
+ * @return void
+ * @throws Exception
+ */
+function update_asset_expected_checkin(int $assetId, string $expectedDate): void
+{
+    if ($assetId <= 0) {
+        throw new InvalidArgumentException('Invalid asset ID.');
+    }
+    $expectedDate = trim($expectedDate);
+    if ($expectedDate === '') {
+        throw new InvalidArgumentException('Expected check-in date cannot be empty.');
+    }
+
+    $payload = [
+        'expected_checkin' => $expectedDate,
+    ];
+
+    $resp = snipeit_request('PATCH', 'hardware/' . $assetId, $payload);
+    $status = $resp['status'] ?? 'success';
+    $messagesField = $resp['messages'] ?? ($resp['message'] ?? '');
+    $flatMessages  = [];
+    if (is_array($messagesField)) {
+        array_walk_recursive($messagesField, function ($val) use (&$flatMessages) {
+            if (is_string($val) && trim($val) !== '') {
+                $flatMessages[] = $val;
+            }
+        });
+    } elseif (is_string($messagesField) && trim($messagesField) !== '') {
+        $flatMessages[] = $messagesField;
+    }
+    $message = $flatMessages ? implode('; ', $flatMessages) : 'Unknown API response';
+    $hasExplicitError = is_array($messagesField) && isset($messagesField['error']);
+
+    if ($status !== 'success' || $hasExplicitError) {
+        throw new Exception('Failed to update expected check-in: ' . $message);
+    }
+}
+
+/**
  * Check in a single asset in Snipe-IT by ID.
  *
  * @param int    $assetId
