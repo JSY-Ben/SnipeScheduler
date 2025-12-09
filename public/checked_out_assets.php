@@ -307,8 +307,8 @@ function reserveit_checked_out_url(string $base, array $params): string
         url.searchParams.set('view', 'overdue');
         url.searchParams.set('_', Date.now().toString());
         url.searchParams.set('refresh', '1');
-        // Force no-cache reload
-        window.location.reload(true);
+        // Force no-cache reload with refresh flag
+        window.location.replace(url.toString());
     }, 4000);
 </script>
 <?php endif; ?>
