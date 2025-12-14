@@ -6,7 +6,9 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/footer.php';
 
 $config   = load_config();
+$authCfg  = $config['auth'] ?? [];
 $isStaff  = !empty($currentUser['is_admin']);
+$ldapEnabled = array_key_exists('ldap_enabled', $authCfg) ? !empty($authCfg['ldap_enabled']) : true;
 
 $bookingOverride = $_SESSION['booking_user_override'] ?? null;
 $activeUser      = $bookingOverride ?: $currentUser;
@@ -18,6 +20,12 @@ $debugOn  = !empty($appCfg['debug']);
 // Staff-only LDAP autocomplete endpoint
 if ($isStaff && ($_GET['ajax'] ?? '') === 'ldap_user_search') {
     header('Content-Type: application/json');
+
+    if (!$ldapEnabled) {
+        http_response_code(403);
+        echo json_encode(['error' => 'LDAP search is disabled.']);
+        exit;
+    }
 
     $q = trim($_GET['q'] ?? '');
     if ($q === '' || strlen($q) < 2) {

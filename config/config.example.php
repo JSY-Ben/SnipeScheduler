@@ -58,10 +58,27 @@ return [
     ],
 
     'auth' => [
+        'ldap_enabled' => true,
+        'google_oauth_enabled' => false,
         // Accepts a single CN string or an array of CNs
         'staff_group_cn' => [
             // 'ICT Staff',
             // 'Another Staff Group',
+        ],
+        // Optional: treat these Google accounts as staff when using Google OAuth
+        'google_staff_emails' => [
+            // 'admin@example.com',
+        ],
+    ],
+
+    'google_oauth' => [
+        'client_id'     => '',
+        'client_secret' => '',
+        // Leave blank to auto-detect the login_process.php callback URL
+        'redirect_uri'  => '',
+        // Optional restriction to specific Google Workspace domains
+        'allowed_domains' => [
+            // 'example.com',
         ],
     ],
 

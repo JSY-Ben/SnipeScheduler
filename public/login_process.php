@@ -8,10 +8,14 @@ session_start();
 
 $config   = load_config();
 
-$ldapCfg   = $config['ldap'];
-$authCfg   = $config['auth'];
+$ldapCfg   = $config['ldap'] ?? [];
+$googleCfg = $config['google_oauth'] ?? [];
+$authCfg   = $config['auth'] ?? [];
 $appCfg    = $config['app'] ?? [];
 $debugOn   = !empty($appCfg['debug']);
+
+$ldapEnabled   = array_key_exists('ldap_enabled', $authCfg) ? !empty($authCfg['ldap_enabled']) : true;
+$googleEnabled = !empty($authCfg['google_oauth_enabled']);
 
 // Staff group CN(s) from config (string or array)
 $staffCns = $authCfg['staff_group_cn'] ?? '';
@@ -19,6 +23,207 @@ if (!is_array($staffCns)) {
     $staffCns = $staffCns !== '' ? [$staffCns] : [];
 }
 $staffCns = array_values(array_filter(array_map('trim', $staffCns), 'strlen'));
+$googleStaffEmails = $authCfg['google_staff_emails'] ?? [];
+if (!is_array($googleStaffEmails)) {
+    $googleStaffEmails = [];
+}
+$googleStaffEmails = array_values(array_filter(array_map('strtolower', array_map('trim', $googleStaffEmails))));
+
+$provider = strtolower($_GET['provider'] ?? $_POST['provider'] ?? 'ldap');
+
+$redirectWithError = static function (string $message) {
+    $_SESSION['login_error'] = $message;
+    header('Location: login.php');
+    exit;
+};
+
+$upsertUser = static function (PDO $pdo, string $email, string $fullName): int {
+    $userTable = 'users';
+    $userIdCol = 'user_id';
+
+    $stmt = $pdo->prepare("SELECT * FROM {$userTable} WHERE email = :email LIMIT 1");
+    $stmt->execute([':email' => $email]);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($existing) {
+        $update = $pdo->prepare("
+            UPDATE {$userTable}
+               SET name = :name
+             WHERE id = :id
+        ");
+        $update->execute([
+            ':name' => $fullName,
+            ':id'   => $existing['id'],
+        ]);
+        return (int)$existing['id'];
+    }
+
+    $userIdHex = sprintf('%u', crc32(strtolower($email)));
+    $insert = $pdo->prepare("
+        INSERT INTO {$userTable} ({$userIdCol}, name, email, created_at)
+        VALUES (:user_id, :name, :email, NOW())
+    ");
+    $insert->execute([
+        ':user_id' => $userIdHex,
+        ':name'    => $fullName,
+        ':email'   => $email,
+    ]);
+    return (int)$pdo->lastInsertId();
+};
+
+if ($provider === 'google') {
+    if (!$googleEnabled) {
+        $redirectWithError('Google sign-in is not available.');
+    }
+
+    $clientId     = trim($googleCfg['client_id'] ?? '');
+    $clientSecret = trim($googleCfg['client_secret'] ?? '');
+
+    if ($clientId === '' || $clientSecret === '') {
+        $redirectWithError('Google sign-in is not configured.');
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host   = $_SERVER['HTTP_HOST'] ?? '';
+    $base   = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+    $fallbackRedirect = $scheme . '://' . $host . $base . '/login_process.php?provider=google';
+    $redirectUri = trim($googleCfg['redirect_uri'] ?? '') ?: $fallbackRedirect;
+
+    $allowedDomains = $googleCfg['allowed_domains'] ?? [];
+    if (!is_array($allowedDomains)) {
+        $allowedDomains = [];
+    }
+    $allowedDomains = array_values(array_filter(array_map('strtolower', array_map('trim', $allowedDomains))));
+
+    if (!isset($_GET['code'])) {
+        $state = bin2hex(random_bytes(16));
+        $_SESSION['google_oauth_state'] = $state;
+
+        $authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
+            'client_id'     => $clientId,
+            'redirect_uri'  => $redirectUri,
+            'response_type' => 'code',
+            'scope'         => 'openid email profile',
+            'access_type'   => 'online',
+            'prompt'        => 'select_account',
+            'state'         => $state,
+        ]);
+
+        header('Location: ' . $authUrl);
+        exit;
+    }
+
+    $state = $_GET['state'] ?? '';
+    if ($state === '' || empty($_SESSION['google_oauth_state']) || !hash_equals($_SESSION['google_oauth_state'], $state)) {
+        unset($_SESSION['google_oauth_state']);
+        $redirectWithError('Google sign-in failed. Please try again.');
+    }
+    unset($_SESSION['google_oauth_state']);
+
+    $code = trim($_GET['code'] ?? '');
+    if ($code === '') {
+        $redirectWithError('Google sign-in failed (no code returned).');
+    }
+
+    $tokenCh = curl_init('https://oauth2.googleapis.com/token');
+    curl_setopt_array($tokenCh, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS     => http_build_query([
+            'code'          => $code,
+            'client_id'     => $clientId,
+            'client_secret' => $clientSecret,
+            'redirect_uri'  => $redirectUri,
+            'grant_type'    => 'authorization_code',
+        ]),
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_CONNECTTIMEOUT => 5,
+    ]);
+    $tokenRaw = curl_exec($tokenCh);
+    if ($tokenRaw === false) {
+        $err = curl_error($tokenCh);
+        curl_close($tokenCh);
+        $redirectWithError($debugOn ? 'Google token request failed: ' . $err : 'Google sign-in failed.');
+    }
+    $tokenCode = curl_getinfo($tokenCh, CURLINFO_HTTP_CODE);
+    curl_close($tokenCh);
+
+    $tokenData = json_decode($tokenRaw, true);
+    if ($tokenCode >= 400 || !$tokenData || !empty($tokenData['error'])) {
+        $msg = $tokenData['error_description'] ?? $tokenData['error'] ?? 'Unexpected response';
+        $redirectWithError($debugOn ? 'Google token error: ' . $msg : 'Google sign-in failed.');
+    }
+
+    $accessToken = $tokenData['access_token'] ?? '';
+    if ($accessToken === '') {
+        $redirectWithError('Google sign-in failed (no access token).');
+    }
+
+    $infoCh = curl_init('https://www.googleapis.com/oauth2/v3/userinfo');
+    curl_setopt_array($infoCh, [
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $accessToken],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_CONNECTTIMEOUT => 4,
+    ]);
+    $infoRaw = curl_exec($infoCh);
+    if ($infoRaw === false) {
+        $err = curl_error($infoCh);
+        curl_close($infoCh);
+        $redirectWithError($debugOn ? 'Google profile request failed: ' . $err : 'Google sign-in failed.');
+    }
+    $infoCode = curl_getinfo($infoCh, CURLINFO_HTTP_CODE);
+    curl_close($infoCh);
+
+    $info = json_decode($infoRaw, true);
+    if ($infoCode >= 400 || !$info || empty($info['email'])) {
+        $redirectWithError($debugOn ? 'Could not read Google profile (HTTP ' . $infoCode . ')' : 'Google sign-in failed.');
+    }
+
+    $email = strtolower(trim($info['email']));
+    if (!$email) {
+        $redirectWithError('Google sign-in failed (no email returned).');
+    }
+
+    if (!empty($allowedDomains)) {
+        $domain = strtolower((string)substr(strrchr($email, '@'), 1));
+        if ($domain === '' || !in_array($domain, $allowedDomains, true)) {
+            $redirectWithError('This Google account is not permitted to sign in.');
+        }
+    }
+
+    $firstName = $info['given_name'] ?? '';
+    $lastName  = $info['family_name'] ?? '';
+    $fullName  = trim($info['name'] ?? ($firstName . ' ' . $lastName));
+    if ($fullName === '') {
+        $fullName = $email;
+    }
+
+    try {
+        $userId = $upsertUser($pdo, $email, $fullName);
+    } catch (Throwable $e) {
+        $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable (database error).');
+    }
+
+    $isStaff = in_array($email, $googleStaffEmails, true);
+
+    $_SESSION['user'] = [
+        'id'           => $userId,
+        'email'        => $email,
+        'username'     => $email,
+        'first_name'   => $firstName ?: $email,
+        'last_name'    => $lastName ?? '',
+        'display_name' => $fullName,
+        'is_admin'     => $isStaff,
+    ];
+
+    header('Location: index.php');
+    exit;
+}
+
+if (!$ldapEnabled) {
+    $redirectWithError('LDAP sign-in is disabled.');
+}
 
 /**
  * Polyfill ldap_escape (older PHP builds)
@@ -51,9 +256,7 @@ $email    = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
 
 if ($email === '' || $password === '') {
-    $_SESSION['login_error'] = 'Please enter your email address and password.';
-    header('Location: login.php');
-    exit;
+    $redirectWithError('Please enter your email address and password.');
 }
 
 // ------------------------------------------------------------------
@@ -71,9 +274,7 @@ if (!empty($ldapCfg['ignore_cert'])) {
 
 $ldap = @ldap_connect($ldapCfg['host']);
 if (!$ldap) {
-    $_SESSION['login_error'] = 'Login system is currently unavailable (cannot connect to LDAP).';
-    header('Location: login.php');
-    exit;
+    $redirectWithError('Login system is currently unavailable (cannot connect to LDAP).');
 }
 
 ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
@@ -86,11 +287,9 @@ ldap_set_option($ldap, LDAP_OPT_NETWORK_TIMEOUT, 5);
 if (!@ldap_bind($ldap, $ldapCfg['bind_dn'], $ldapCfg['bind_password'])) {
     ldap_get_option($ldap, LDAP_OPT_DIAGNOSTIC_MESSAGE, $diagMsg);
     error_log('LDAP service bind failed: ' . ldap_error($ldap) . ' (' . ($diagMsg ?? 'no detail') . ')');
-    $_SESSION['login_error'] = $debugOn
+    $redirectWithError($debugOn
         ? 'LDAP service bind failed: ' . ldap_error($ldap)
-        : 'Login system is currently unavailable.';
-    header('Location: login.php');
-    exit;
+        : 'Login system is currently unavailable.');
 }
 
 // ------------------------------------------------------------------
@@ -117,20 +316,16 @@ $search  = @ldap_search($ldap, $ldapCfg['base_dn'], $filter, $attrs);
 $entries = $search ? ldap_get_entries($ldap, $search) : ['count' => 0];
 
 if (($entries['count'] ?? 0) !== 1) {
-    $_SESSION['login_error'] = 'Incorrect email address or password.';
-    header('Location: login.php');
-    exit;
+    $redirectWithError('Incorrect email address or password.');
 }
 
 $user   = $entries[0];
 $userDn = $user['distinguishedname'][0] ?? null;
 
 if (empty($userDn)) {
-    $_SESSION['login_error'] = $debugOn
+    $redirectWithError($debugOn
         ? 'LDAP: User DN not found for this account.'
-        : 'Incorrect email address or password.';
-    header('Location: login.php');
-    exit;
+        : 'Incorrect email address or password.');
 }
 
 // ------------------------------------------------------------------
@@ -139,9 +334,7 @@ if (empty($userDn)) {
 if (!@ldap_bind($ldap, $userDn, $password)) {
     ldap_get_option($ldap, LDAP_OPT_DIAGNOSTIC_MESSAGE, $diagMsg);
     error_log('LDAP user bind failed for ' . $email . ': ' . ldap_error($ldap) . ' (' . ($diagMsg ?? 'no detail') . ')');
-    $_SESSION['login_error'] = 'Incorrect email address or password.';
-    header('Location: login.php');
-    exit;
+    $redirectWithError('Incorrect email address or password.');
 }
 
 // ------------------------------------------------------------------
@@ -189,48 +382,11 @@ if ($staffCns && !empty($user['memberof']) && is_array($user['memberof'])) {
 // `user_id` must be UNIQUE, so we derive a stable numeric ID from email.
 // ------------------------------------------------------------------
 try {
-    $userTable = 'users';
-    $userIdCol = 'user_id';
-
-    // Look up existing record by email
-    $stmt = $pdo->prepare("SELECT * FROM {$userTable} WHERE email = :email LIMIT 1");
-    $stmt->execute([':email' => $mail]);
-    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($existing) {
-        // Update `name` only (email is the key)
-        $update = $pdo->prepare("
-            UPDATE {$userTable}
-               SET name = :name
-             WHERE id = :id
-        ");
-        $update->execute([
-            ':name' => $fullName,
-            ':id'   => $existing['id'],
-        ]);
-        $userId = (int)$existing['id'];
-    } else {
-        // Create a stable numeric user_id from the email (for the UNIQUE constraint)
-        // e.g. user_id = crc32(lower(email))
-        $userIdHex = sprintf('%u', crc32(strtolower($mail)));
-
-        $insert = $pdo->prepare("
-            INSERT INTO {$userTable} ({$userIdCol}, name, email, created_at)
-            VALUES (:user_id, :name, :email, NOW())
-        ");
-        $insert->execute([
-            ':user_id' => $userIdHex,
-            ':name'       => $fullName,
-            ':email'      => $mail,
-        ]);
-        $userId = (int)$pdo->lastInsertId();
-    }
+    $userId = $upsertUser($pdo, $mail, $fullName);
 } catch (Throwable $e) {
-    $_SESSION['login_error'] = $debugOn
+    $redirectWithError($debugOn
         ? 'Login system is currently unavailable (database error): ' . $e->getMessage()
-        : 'Login system is currently unavailable (database error).';
-    header('Location: login.php');
-    exit;
+        : 'Login system is currently unavailable (database error).');
 }
 
 // ------------------------------------------------------------------
