@@ -135,7 +135,7 @@ if (!empty($_SESSION['user']['email'])) {
             <?php endif; ?>
         <?php endif; ?>
 
-        <?php if (!$showGoogle && !$showLdap): ?>
+        <?php if (!$showGoogle && !$showMicrosoft && !$showLdap): ?>
             <div class="alert alert-warning mt-3">
                 No authentication methods are enabled. Please contact an administrator.
             </div>
