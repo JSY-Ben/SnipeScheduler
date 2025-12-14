@@ -299,29 +299,49 @@ if ($provider === 'microsoft') {
     }
     $allowedDomains = array_values(array_filter(array_map('strtolower', array_map('trim', $allowedDomains))));
 
-    if (!isset($_GET['code'])) {
+    if (!isset($_SESSION['ms_oauth_retry'])) {
+        $_SESSION['ms_oauth_retry'] = 0;
+    }
+
+    $startMicrosoftAuth = function (bool $forcePrompt = false) use ($tenant, $clientId, $redirectUri) {
         $state = bin2hex(random_bytes(16));
         $_SESSION['ms_oauth_state'] = $state;
+        $_SESSION['ms_oauth_retry'] = $_SESSION['ms_oauth_retry'] ?? 0;
 
-        $authUrl = 'https://login.microsoftonline.com/' . rawurlencode($tenant) . '/oauth2/v2.0/authorize?' . http_build_query([
+        $params = [
             'client_id'     => $clientId,
             'redirect_uri'  => $redirectUri,
             'response_type' => 'code',
             'response_mode' => 'query',
             'scope'         => 'openid profile email User.Read',
             'state'         => $state,
-        ]);
+            'prompt'        => 'select_account',
+        ];
 
+        if ($forcePrompt) {
+            $params['prompt'] = 'select_account';
+        }
+
+        $authUrl = 'https://login.microsoftonline.com/' . rawurlencode($tenant) . '/oauth2/v2.0/authorize?' . http_build_query($params);
         header('Location: ' . $authUrl);
         exit;
+    };
+
+    if (!isset($_GET['code'])) {
+        $startMicrosoftAuth(false);
     }
 
     $state = $_GET['state'] ?? '';
     if ($state === '' || empty($_SESSION['ms_oauth_state']) || !hash_equals($_SESSION['ms_oauth_state'], $state)) {
         unset($_SESSION['ms_oauth_state']);
+        if (($_SESSION['ms_oauth_retry'] ?? 0) < 1) {
+            $_SESSION['ms_oauth_retry'] = ($_SESSION['ms_oauth_retry'] ?? 0) + 1;
+            $startMicrosoftAuth(true);
+        }
+        $_SESSION['ms_oauth_retry'] = 0;
         $redirectWithError('Microsoft sign-in failed. Please try again.');
     }
-    unset($_SESSION['ms_oauth_state']);
+    unset($_SESSION['ms_oauth_state'], $_SESSION['ms_oauth_retry']);
 
     $code = trim($_GET['code'] ?? '');
     if ($code === '') {
