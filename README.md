@@ -9,7 +9,7 @@ Please note - this app is still in an alpha stage of development as a product. I
 
 ReserveIT is a PHP/MySQL web app that layers equipment booking and checkout workflows on top of Snipe-IT. It has been very deliberately designed to use the Snipe-IT API for all functions and not the Snipe-IT database directly. This allows it to sit on a separate server to your Snipe-IT Installation, and doesn't require direct access to the Snipe-IT server from the user endpoint. As long as this app can access your Snipe-IT API from the server side, this app should function. Images from Snipe-IT are delivered via an image proxy.  
 
-Due to the fact that the Snipe-IT API is used for all functions, there is currently a requirement for this app and Snipe-IT to be configured to use an LDAP/Active Directory Database for authentication. There is currently no local user database on this app yet. However I am open to implementing this if you feel this would help. Please do ask! 
+Due to the fact that the Snipe-IT API is used for all functions, there is currently a requirement for this app and Snipe-IT to be configured to use either LDAP, Google OAuth or Microsoft Entra OAuth for authentication. There is currently no local user signup or login available on this app yet. However I am open to implementing this if you feel this would help. Please do ask! 
 
 In the app, Users can request equipment, and staff can manage reservations, checkouts, and checked-out assets from a unified “Reservations” hub.
 
@@ -18,20 +18,20 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 - Staff “Reservations” hub with tabs for Today’s Reservations (checkout), Checked Out Reservations, and Reservation History.
 - Quick checkout/checkin flows for ad-hoc asset handling.
 - Snipe-IT integration for model and asset data
-- LDAP/AD Integration for authentication.
+- LDAP/AD, Google OAuth and Microsoft Entra Integration for authentication.
 
 ## System requirements
 - PHP 8.0+ with extensions: pdo_mysql, curl, ldap, mbstring, openssl, json.
 - MySQL/MariaDB database for the booking tables.
 - Web server: Apache or Nginx (PHP-FPM or mod_php).
-- Snipe-IT instance with API access token and LDAP Integration enabled.
+- Snipe-IT instance with API access token and either LDAP, Google OAuth or Microsoft Entra Authentication enabled.
 
 ## Installation
 1. Clone or copy this repository to your web root.
 2. Ensure the web server user can write to `config/` (for `config.php`) and create `config/cache/` if needed.
 3. Point your web server at the `public/` directory.
 4. Visit `public/install.php` in your browser:
-   - Fill in database, Snipe-IT API, and LDAP connection details (tests are available inline).
+   - Fill in database, Snipe-IT API, and at least one of the authentication (LDAP/Google/Entra) methods (tests are available inline).
    - Generate `config/config.php` and optionally create the database from `schema.sql`.
    - Remove or restrict access to `install.php` after successful setup.
 5. If you prefer manual configuration, copy `config/config.example.php` to `config/config.php` and update values. Then import `schema.sql` into your database.
@@ -55,7 +55,7 @@ For an asset on Snipe-IT to be made available on this app for reservation, both 
 
 ## Setting up Admins/Staff
 
-As mentioned, this app uses LDAP for authentication. When installing this app, please make sure to add LDAP/AD Groups on the initial config that contain your users that you wish to be admins/staff. Standard users only have access to reservations, whereas LDAP/AD groups assigned to the staff section of this app can checkout/checkin equipment. 
+As mentioned, this app uses LDAP, Google OAuth or Microsoft Entra for authentication. When installing this app, please make sure to add Users/Groups on the initial config that contain your users that you wish to be admins/staff. Standard users only have access to reservations, whereas specified Groups/Users assigned to the staff section of this app can checkout/checkin equipment. 
 
 ## CRON Scripts
 
