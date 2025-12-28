@@ -166,26 +166,14 @@ function google_directory_search(string $q, array $config): array
 
 function entra_directory_search(string $q, array $config): array
 {
-    $dirCfg = $config['entra_directory'] ?? [];
-    $msCfg  = $config['microsoft_oauth'] ?? [];
-
-    $tenant = trim($dirCfg['tenant'] ?? ($msCfg['tenant'] ?? ''));
-    $clientId = trim($dirCfg['client_id'] ?? ($msCfg['client_id'] ?? ''));
-    $clientSecret = trim($dirCfg['client_secret'] ?? ($msCfg['client_secret'] ?? ''));
-
-    if ($tenant === '' || $clientId === '' || $clientSecret === '') {
+    $accessToken = $_SESSION['ms_access_token'] ?? '';
+    if ($accessToken === '') {
         return [];
     }
-
-    $token = http_post_form_json('https://login.microsoftonline.com/' . rawurlencode($tenant) . '/oauth2/v2.0/token', [
-        'client_id'     => $clientId,
-        'client_secret' => $clientSecret,
-        'scope'         => 'https://graph.microsoft.com/.default',
-        'grant_type'    => 'client_credentials',
-    ]);
-    $accessToken = $token['access_token'] ?? '';
-    if ($accessToken === '') {
-        throw new Exception('Entra token response missing access token.');
+    $expiresAt = (int)($_SESSION['ms_access_token_expires_at'] ?? 0);
+    if ($expiresAt > 0 && $expiresAt <= time()) {
+        unset($_SESSION['ms_access_token'], $_SESSION['ms_access_token_expires_at']);
+        return [];
     }
 
     $qEsc = str_replace("'", "''", $q);
@@ -228,6 +216,11 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
     if (!$ldapEnabled && !$googleEnabled && !$msEnabled) {
         http_response_code(403);
         echo json_encode(['error' => 'Directory search is disabled.']);
+        exit;
+    }
+    if ($msEnabled && !$ldapEnabled && !$googleEnabled && empty($_SESSION['ms_access_token'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Microsoft directory search requires signing in with Microsoft.']);
         exit;
     }
 

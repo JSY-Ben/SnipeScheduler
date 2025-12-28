@@ -313,7 +313,7 @@ if ($provider === 'microsoft') {
             'redirect_uri'  => $redirectUri,
             'response_type' => 'code',
             'response_mode' => 'query',
-            'scope'         => 'openid profile email User.Read',
+            'scope'         => 'openid profile email User.Read User.Read.All',
             'state'         => $state,
             'prompt'        => 'select_account',
         ];
@@ -355,7 +355,7 @@ if ($provider === 'microsoft') {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POSTFIELDS     => http_build_query([
             'client_id'     => $clientId,
-            'scope'         => 'openid profile email User.Read',
+            'scope'         => 'openid profile email User.Read User.Read.All',
             'code'          => $code,
             'redirect_uri'  => $redirectUri,
             'grant_type'    => 'authorization_code',
@@ -383,6 +383,11 @@ if ($provider === 'microsoft') {
     if ($accessToken === '') {
         $redirectWithError('Microsoft sign-in failed (no access token).');
     }
+    $expiresIn = (int)($tokenData['expires_in'] ?? 0);
+    if ($expiresIn > 0) {
+        $_SESSION['ms_access_token_expires_at'] = time() + $expiresIn;
+    }
+    $_SESSION['ms_access_token'] = $accessToken;
 
     $infoCh = curl_init('https://graph.microsoft.com/v1.0/me?$select=displayName,givenName,surname,mail,userPrincipalName');
     curl_setopt_array($infoCh, [
