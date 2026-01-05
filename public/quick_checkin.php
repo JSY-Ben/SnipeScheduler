@@ -121,13 +121,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if (empty($errors)) {
+                $assetLineItems = array_map(static function (string $item): string {
+                    return '- ' . $item;
+                }, array_values(array_filter($assetTags, static function (string $item): bool {
+                    return $item !== '';
+                })));
+
                 // Notify original users
                 foreach ($userBuckets as $email => $info) {
-                    $bodyLines = [
-                        'The following assets have been checked in:',
-                        implode(', ', $info['assets']),
-                        $note !== '' ? "Note: {$note}" : '',
-                    ];
+                    $userAssetLines = array_map(static function (string $item): string {
+                        return '- ' . $item;
+                    }, array_values(array_filter($info['assets'], static function (string $item): bool {
+                        return $item !== '';
+                    })));
+                    $bodyLines = array_merge(
+                        ['The following assets have been checked in:'],
+                        $userAssetLines,
+                        $note !== '' ? ["Note: {$note}"] : []
+                    );
                     layout_send_notification($email, $info['name'], 'Assets checked in', $bodyLines);
                 }
                 // Notify staff performing check-in
@@ -135,17 +146,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Build per-user summary for staff so they can see who had the assets
                     $perUserSummary = [];
                     foreach ($userBuckets as $email => $info) {
-                        $perUserSummary[] = ($info['name'] ?? $email) . ': ' . implode(', ', $info['assets']);
+                        $perUserSummary[] = '- ' . ($info['name'] ?? $email) . ': ' . implode(', ', $info['assets']);
                     }
 
                     $bodyLines = [];
+                    $bodyLines[] = 'You checked in the following assets:';
+                    $bodyLines = array_merge($bodyLines, $assetLineItems);
                     if (!empty($perUserSummary)) {
-                        $bodyLines[] = 'You checked in the following assets (by user):';
-                        $bodyLines[] = implode('; ', $perUserSummary);
-                    } else {
-                        // Fallback when we have no user information
-                        $bodyLines[] = 'You checked in the following assets:';
-                        $bodyLines[] = implode(', ', $assetTags);
+                        $bodyLines[] = 'By user:';
+                        $bodyLines = array_merge($bodyLines, $perUserSummary);
                     }
                     if ($note !== '') {
                         $bodyLines[] = "Note: {$note}";
