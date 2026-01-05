@@ -94,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
             $assetTags  = [];
             $userBuckets = [];
+            $userLookupCache = [];
 
             foreach ($checkinAssets as $asset) {
                 $assetId  = (int)$asset['id'];
@@ -107,10 +108,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $assignedEmail = $asset['assigned_email'] ?? '';
                     $assignedName  = $asset['assigned_name'] ?? '';
+                    if ($assignedEmail === '' && $assignedName !== '') {
+                        $cacheKey = strtolower(trim($assignedName));
+                        if (isset($userLookupCache[$cacheKey])) {
+                            $assignedEmail = $userLookupCache[$cacheKey];
+                        } else {
+                            try {
+                                $matchedUser = find_single_user_by_email_or_name($assignedName);
+                                $matchedEmail = $matchedUser['email'] ?? ($matchedUser['username'] ?? '');
+                                if ($matchedEmail !== '') {
+                                    $assignedEmail = $matchedEmail;
+                                    $userLookupCache[$cacheKey] = $matchedEmail;
+                                }
+                            } catch (Throwable $e) {
+                                // Skip lookup failure; user email may be unavailable.
+                            }
+                        }
+                    }
+
                     if ($assignedEmail !== '') {
                         if (!isset($userBuckets[$assignedEmail])) {
+                            $displayName = $assignedName !== '' ? $assignedName : $assignedEmail;
                             $userBuckets[$assignedEmail] = [
-                                'name' => $assignedName !== '' ? $assignedName : $assignedEmail,
+                                'name' => $displayName,
                                 'assets' => [],
                             ];
                         }
@@ -137,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $bodyLines = array_merge(
                         ['The following assets have been checked in:'],
                         $userAssetLines,
+                        $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
                         $note !== '' ? ["Note: {$note}"] : []
                     );
                     layout_send_notification($email, $info['name'], 'Assets checked in', $bodyLines);
@@ -146,7 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Build per-user summary for staff so they can see who had the assets
                     $perUserSummary = [];
                     foreach ($userBuckets as $email => $info) {
-                        $perUserSummary[] = '- ' . ($info['name'] ?? $email) . ': ' . implode(', ', $info['assets']);
+                        $label = ($info['name'] ?? $email);
+                        if ($label !== $email) {
+                            $label .= " <{$email}>";
+                        }
+                        $perUserSummary[] = '- ' . $label . ': ' . implode(', ', $info['assets']);
                     }
 
                     $bodyLines = [];
