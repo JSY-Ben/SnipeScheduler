@@ -680,3 +680,25 @@ form .form-select {
     75%  { transform: scale(1.05); box-shadow: 0 0 0.5rem rgba(0,0,0,0.2); }
     100% { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
 }
+
+.basket-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1050;
+    background: #1f2937;
+    color: #ffffff;
+    padding: 10px 14px;
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.basket-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}

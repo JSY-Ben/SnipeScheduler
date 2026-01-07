@@ -762,6 +762,12 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
     </div>
 </div>
 
+<div id="basket-toast"
+     class="basket-toast"
+     role="status"
+     aria-live="polite"
+     aria-hidden="true"></div>
+
 <!-- AJAX add-to-basket + update basket count text -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -771,8 +777,24 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookingList  = document.getElementById('booking_user_suggestions');
     const bookingEmail = document.getElementById('booking_user_email');
     const bookingName  = document.getElementById('booking_user_name');
+    const basketToast  = document.getElementById('basket-toast');
     let bookingTimer   = null;
     let bookingQuery   = '';
+    let basketToastTimer = null;
+
+    function showBasketToast(message) {
+        if (!basketToast) return;
+        basketToast.textContent = message;
+        basketToast.setAttribute('aria-hidden', 'false');
+        basketToast.classList.add('show');
+        if (basketToastTimer) {
+            clearTimeout(basketToastTimer);
+        }
+        basketToastTimer = setTimeout(function () {
+            basketToast.classList.remove('show');
+            basketToast.setAttribute('aria-hidden', 'true');
+        }, 2200);
+    }
 
     forms.forEach(function (form) {
         form.addEventListener('submit', function (e) {
@@ -806,6 +828,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                             viewBasketBtn.textContent = 'View basket';
                         }
+                        showBasketToast('Added to basket');
                     }
                 })
                 .catch(function () {
