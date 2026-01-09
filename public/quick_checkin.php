@@ -33,6 +33,7 @@ if (($_GET['ajax'] ?? '') === 'asset_search') {
             $results[] = [
                 'asset_tag' => $row['asset_tag'] ?? '',
                 'name'      => $row['name'] ?? '',
+                'model'     => $row['model']['name'] ?? '',
             ];
         }
         echo json_encode(['results' => $results]);
@@ -556,8 +557,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             items.forEach((item) => {
                 const tag = item.asset_tag || '';
-                const name = item.name || '';
-                const label = name !== '' ? `${tag} [${name}]` : tag;
+                const model = item.model || '';
+                const label = model !== '' ? `${tag} [${model}]` : tag;
 
                 const btn = document.createElement('button');
                 btn.type = 'button';
