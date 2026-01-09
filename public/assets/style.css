@@ -496,6 +496,27 @@ form .form-select {
 
 .pagination .page-link {
     font-size: 0.9rem;
+    color: var(--primary-strong);
+    border-color: rgba(var(--primary-rgb), 0.25);
+}
+
+.pagination .page-link:hover,
+.pagination .page-link:focus {
+    color: var(--primary-strong);
+    background: rgba(var(--primary-rgb), 0.12);
+    border-color: rgba(var(--primary-rgb), 0.4);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.18);
+}
+
+.pagination .page-item.active .page-link {
+    color: #ffffff;
+    background: linear-gradient(120deg, var(--primary-strong), var(--primary-soft));
+    border-color: rgba(var(--primary-rgb), 0.55);
+}
+
+.pagination .page-item.disabled .page-link {
+    color: rgba(var(--primary-rgb), 0.5);
+    border-color: rgba(var(--primary-rgb), 0.2);
 }
 
 /* --------------------------------------------------
