@@ -353,6 +353,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
     $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
     $app['api_cache_ttl_seconds'] = max(0, (int)$post('app_api_cache_ttl', $app['api_cache_ttl_seconds'] ?? 60));
+    $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
+    $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
 
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -947,6 +949,15 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <label class="form-label">Missed cutoff minutes</label>
                                 <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
                                 <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Overdue report recipient email</label>
+                                <input type="email" name="app_overdue_staff_email" class="form-control" value="<?= h($cfg(['app', 'overdue_staff_email'], '')) ?>">
+                                <div class="form-text">Used by `scripts/email_overdue_staff.php` (cron recommended).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Overdue report recipient name</label>
+                                <input type="text" name="app_overdue_staff_name" class="form-control" value="<?= h($cfg(['app', 'overdue_staff_name'], '')) ?>">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Logo URL</label>

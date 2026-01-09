@@ -21,9 +21,14 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';
 
-// Configure the staff recipient here (UPN/email and display name).
-$staffEmail = 'staff@example.com';
-$staffName  = 'Staff Overdue Reports';
+$config = load_config();
+$staffEmail = trim($config['app']['overdue_staff_email'] ?? '');
+$staffName  = trim($config['app']['overdue_staff_name'] ?? '');
+
+if ($staffEmail === '') {
+    fwrite(STDERR, "[error] Overdue staff recipient email is not configured in settings.\n");
+    exit(1);
+}
 
 function build_overdue_email_staff(array $rows, string $subject, array $config): array
 {
@@ -106,7 +111,6 @@ foreach ($assets as $a) {
     ];
 }
 
-$config = load_config();
 $appName = $config['app']['name'] ?? 'SnipeScheduler';
 $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
