@@ -952,12 +952,13 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
-                                <input type="email" name="app_overdue_staff_email" class="form-control" value="<?= h($cfg(['app', 'overdue_staff_email'], '')) ?>">
-                                <div class="form-text">Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends an email to the set recipient with a list of overdue assets.</div>
+                                <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
+                                <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
-                                <input type="text" name="app_overdue_staff_name" class="form-control" value="<?= h($cfg(['app', 'overdue_staff_name'], '')) ?>">
+                                <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
+                                <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Logo URL</label>

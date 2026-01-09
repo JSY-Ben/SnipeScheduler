@@ -22,10 +22,25 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';
 
 $config = load_config();
-$staffEmail = trim($config['app']['overdue_staff_email'] ?? '');
-$staffName  = trim($config['app']['overdue_staff_name'] ?? '');
+$staffEmailRaw = trim((string)($config['app']['overdue_staff_email'] ?? ''));
+$staffNameRaw  = trim((string)($config['app']['overdue_staff_name'] ?? ''));
 
-if ($staffEmail === '') {
+$splitList = static function (string $raw): array {
+    $parts = preg_split('/[\r\n,;]+/', $raw) ?: [];
+    $out = [];
+    foreach ($parts as $part) {
+        $val = trim($part);
+        if ($val !== '') {
+            $out[] = $val;
+        }
+    }
+    return $out;
+};
+
+$staffEmails = $splitList($staffEmailRaw);
+$staffNames  = $splitList($staffNameRaw);
+
+if (empty($staffEmails)) {
     fwrite(STDERR, "[error] Overdue staff recipient email is not configured in settings.\n");
     exit(1);
 }
@@ -116,18 +131,26 @@ $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
 
 try {
-    $ok = layout_send_mail(
-        $staffEmail,
-        $staffName !== '' ? $staffName : $staffEmail,
-        $subject,
-        $textBody,
-        $config,
-        $htmlBody
-    );
-    if ($ok) {
-        echo "[sent] Overdue report sent to {$staffEmail}\n";
-    } else {
-        throw new RuntimeException('Email send failed (see logs).');
+    $sentCount = 0;
+    foreach ($staffEmails as $idx => $email) {
+        $name = $staffNames[$idx] ?? '';
+        if ($name === '' && count($staffNames) === 1) {
+            $name = $staffNames[0];
+        }
+        $ok = layout_send_mail(
+            $email,
+            $name !== '' ? $name : $email,
+            $subject,
+            $textBody,
+            $config,
+            $htmlBody
+        );
+        if ($ok) {
+            $sentCount++;
+            echo "[sent] Overdue report sent to {$email}\n";
+        } else {
+            throw new RuntimeException('Email send failed (see logs).');
+        }
     }
 } catch (Throwable $e) {
     fwrite(STDERR, "[error] Failed to send overdue report: {$e->getMessage()}\n");
