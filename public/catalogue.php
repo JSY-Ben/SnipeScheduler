@@ -345,6 +345,56 @@ function label_safe(?string $str): string
     return htmlspecialchars($decoded, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function format_overdue_date($val): string
+{
+    if (is_array($val)) {
+        $val = $val['datetime'] ?? ($val['date'] ?? '');
+    }
+    if (empty($val)) {
+        return '';
+    }
+    try {
+        $dt = new DateTime($val);
+        return $dt->format('d/m/Y');
+    } catch (Throwable $e) {
+        return (string)$val;
+    }
+}
+
+function normalize_lookup_key(?string $value): string
+{
+    return strtolower(trim($value ?? ''));
+}
+
+function row_assigned_to_matches_user(array $row, array $keys, int $userId): bool
+{
+    $assigned = $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? '');
+    $assignedId = 0;
+    $assignedKeys = [];
+
+    if (is_array($assigned)) {
+        $assignedId = (int)($assigned['id'] ?? 0);
+        $assignedKeys[] = $assigned['email'] ?? '';
+        $assignedKeys[] = $assigned['username'] ?? '';
+        $assignedKeys[] = $assigned['name'] ?? '';
+    } elseif (is_string($assigned)) {
+        $assignedKeys[] = $assigned;
+    }
+
+    if ($userId > 0 && $assignedId === $userId) {
+        return true;
+    }
+
+    foreach ($assignedKeys as $key) {
+        $norm = normalize_lookup_key($key);
+        if ($norm !== '' && in_array($norm, $keys, true)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // ---------------------------------------------------------------------
 // Current basket count (for "View basket (X)")
 // ---------------------------------------------------------------------
@@ -352,6 +402,59 @@ $basket       = $_SESSION['basket'] ?? [];
 $basketCount  = 0;
 foreach ($basket as $qty) {
     $basketCount += (int)$qty;
+}
+
+// ---------------------------------------------------------------------
+// Block catalogue if active user has overdue assets in Snipe-IT
+// ---------------------------------------------------------------------
+$overdueAssets = [];
+$overdueErr = '';
+$catalogueBlocked = false;
+
+$activeUserEmail = trim($activeUser['email'] ?? '');
+$activeUserUsername = trim($activeUser['username'] ?? '');
+$activeUserDisplay = trim($activeUser['display_name'] ?? '');
+$activeUserName = trim(trim($activeUser['first_name'] ?? '') . ' ' . trim($activeUser['last_name'] ?? ''));
+$lookupKeys = array_values(array_filter(array_unique(array_map('normalize_lookup_key', [
+    $activeUserEmail,
+    $activeUserUsername,
+    $activeUserDisplay,
+    $activeUserName,
+])), 'strlen'));
+
+try {
+    $snipeUserId = 0;
+    $lookupQueries = array_values(array_filter(array_unique([
+        $activeUserEmail,
+        $activeUserUsername,
+        $activeUserDisplay,
+        $activeUserName,
+    ]), 'strlen'));
+
+    foreach ($lookupQueries as $query) {
+        try {
+            $matched = find_single_user_by_email_or_name($query);
+            $snipeUserId = (int)($matched['id'] ?? 0);
+            if ($snipeUserId > 0) {
+                break;
+            }
+        } catch (Throwable $e) {
+            // Try next identifier.
+        }
+    }
+
+    $overdueCandidates = list_checked_out_assets(true);
+    foreach ($overdueCandidates as $row) {
+        if (row_assigned_to_matches_user($row, $lookupKeys, $snipeUserId)) {
+            $overdueAssets[] = $row;
+        }
+    }
+
+    if (!empty($overdueAssets)) {
+        $catalogueBlocked = true;
+    }
+} catch (Throwable $e) {
+    $overdueErr = $debugOn ? $e->getMessage() : 'Unable to check overdue items at the moment.';
 }
 
 // ---------------------------------------------------------------------
@@ -378,11 +481,13 @@ $perPage = defined('CATALOGUE_ITEMS_PER_PAGE')
 $categories   = [];
 $categoryErr  = '';
 $allowedCategoryMap = [];
-try {
-    $categories = get_model_categories();
-} catch (Throwable $e) {
-    $categories  = [];
-    $categoryErr = $e->getMessage();
+if (!$catalogueBlocked) {
+    try {
+        $categories = get_model_categories();
+    } catch (Throwable $e) {
+        $categories  = [];
+        $categoryErr = $e->getMessage();
+    }
 }
 
 // Optional admin-controlled allowlist for categories shown in the filter
@@ -412,27 +517,29 @@ if (!empty($allowedCategoryMap) && $category !== null && !isset($allowedCategory
     $category = null;
 }
 
-try {
-    $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds);
+if (!$catalogueBlocked) {
+    try {
+        $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds);
 
-    if (isset($data['rows']) && is_array($data['rows'])) {
-        $models = $data['rows'];
-    }
+        if (isset($data['rows']) && is_array($data['rows'])) {
+            $models = $data['rows'];
+        }
 
-    if (isset($data['total'])) {
-        $totalModels = (int)$data['total'];
-    } else {
-        $totalModels = count($models);
-    }
+        if (isset($data['total'])) {
+            $totalModels = (int)$data['total'];
+        } else {
+            $totalModels = count($models);
+        }
 
-    if ($perPage > 0) {
-        $totalPages = max(1, (int)ceil($totalModels / $perPage));
-    } else {
-        $totalPages = 1;
+        if ($perPage > 0) {
+            $totalPages = max(1, (int)ceil($totalModels / $perPage));
+        } else {
+            $totalPages = 1;
+        }
+    } catch (Throwable $e) {
+        $models   = [];
+        $modelErr = $e->getMessage();
     }
-} catch (Throwable $e) {
-    $models   = [];
-    $modelErr = $e->getMessage();
 }
 
 // Apply allowlist if configured; otherwise show all categories returned by Snipe-IT
@@ -469,6 +576,12 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
         <!-- App navigation -->
         <?= layout_render_nav($active, $isStaff) ?>
 
+        <?php if ($overdueErr): ?>
+            <div class="alert alert-warning">
+                <?= h($overdueErr) ?>
+            </div>
+        <?php endif; ?>
+
         <!-- Top bar -->
         <div class="top-bar mb-3">
             <div class="top-bar-user">
@@ -487,16 +600,42 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </div>
         </div>
 
-        <?php if ($categoryErr): ?>
-            <div class="alert alert-warning">
-                Could not load categories from Snipe-IT: <?= htmlspecialchars($categoryErr) ?>
+        <?php if ($catalogueBlocked): ?>
+            <div class="alert alert-danger">
+                <div class="fw-semibold mb-2">Catalogue unavailable</div>
+                <div class="mb-2">
+                    You have overdue items in Snipe-IT. Please return them before booking more equipment.
+                </div>
+                <ul class="mb-0">
+                    <?php foreach ($overdueAssets as $asset): ?>
+                        <?php
+                            $tag = $asset['asset_tag'] ?? 'Unknown tag';
+                            $modelName = $asset['model']['name'] ?? '';
+                            $expected = $asset['_expected_checkin_norm'] ?? ($asset['expected_checkin'] ?? '');
+                            $due = format_overdue_date($expected);
+                        ?>
+                        <li>
+                            <?= h($tag) ?>
+                            <?= $modelName !== '' ? ' (' . h($modelName) . ')' : '' ?>
+                            <?= $due !== '' ? ' — due ' . h($due) : '' ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         <?php endif; ?>
 
-        <?php if ($modelErr): ?>
-            <div class="alert alert-danger">
-                Error talking to Snipe-IT (models): <?= htmlspecialchars($modelErr) ?>
-            </div>
+        <?php if (!$catalogueBlocked): ?>
+            <?php if ($categoryErr): ?>
+                <div class="alert alert-warning">
+                    Could not load categories from Snipe-IT: <?= htmlspecialchars($categoryErr) ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($modelErr): ?>
+                <div class="alert alert-danger">
+                    Error talking to Snipe-IT (models): <?= htmlspecialchars($modelErr) ?>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <!-- Filters -->
@@ -529,6 +668,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </div>
         <?php endif; ?>
 
+        <?php if (!$catalogueBlocked): ?>
         <form class="filter-panel mb-4" method="get" action="catalogue.php">
             <div class="filter-panel__header d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
@@ -588,14 +728,15 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                 </div>
             </div>
         </form>
+        <?php endif; ?>
 
-        <?php if (empty($models) && !$modelErr): ?>
+        <?php if (!$catalogueBlocked && empty($models) && !$modelErr): ?>
             <div class="alert alert-info">
                 No models found. Try adjusting your filters.
             </div>
         <?php endif; ?>
 
-        <?php if (!empty($models)): ?>
+        <?php if (!$catalogueBlocked && !empty($models)): ?>
             <div class="row g-3">
                 <?php foreach ($models as $model): ?>
                     <?php
