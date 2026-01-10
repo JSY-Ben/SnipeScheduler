@@ -844,7 +844,6 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         ]);
                         $row = $stmt->fetch(PDO::FETCH_ASSOC);
                         $pendingQty   = $row ? (int)$row['pending_qty'] : 0;
-                        $completedQty = $row ? (int)$row['completed_qty'] : 0;
 
                         // How many are actually still checked out (from local cache)
                         if (array_key_exists($modelId, $checkedOutCounts)) {
@@ -852,9 +851,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         } else {
                             $activeCheckedOut = count_checked_out_assets_by_model($modelId);
                         }
-                        $bookedFromCompleted = min($completedQty, $activeCheckedOut);
 
-                        $booked = $pendingQty + $bookedFromCompleted;
+                        $booked = $pendingQty + $activeCheckedOut;
                         $freeNow = max(0, $assetCount - $booked);
                         $maxQty = $freeNow;
                         $isRequestable = $assetCount > 0;
