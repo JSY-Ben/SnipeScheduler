@@ -18,9 +18,7 @@ $activeUser      = $bookingOverride ?: $currentUser;
 $ldapCfg  = $config['ldap'] ?? [];
 $appCfg   = $config['app'] ?? [];
 $debugOn  = !empty($appCfg['debug']);
-$overdueCacheTtl = isset($appCfg['overdue_check_cache_seconds'])
-    ? max(0, (int)$appCfg['overdue_check_cache_seconds'])
-    : 120;
+$overdueCacheTtl = 0;
 
 if (($_GET['ajax'] ?? '') === 'overdue_check') {
     header('Content-Type: application/json');
