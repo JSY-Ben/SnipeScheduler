@@ -536,21 +536,19 @@ function count_requestable_assets_by_model(int $modelId): int
  */
 function count_checked_out_assets_by_model(int $modelId): int
 {
-    $assets = list_assets_by_model($modelId, 500);
-    $count = 0;
-    foreach ($assets as $a) {
-        $assigned = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
-        $statusRaw = $a['status_label'] ?? '';
-        if (is_array($statusRaw)) {
-            $statusRaw = $statusRaw['name'] ?? ($statusRaw['status_meta'] ?? '');
-        }
-        $status = strtolower((string)$statusRaw);
-
-        if (!empty($assigned) || strpos($status, 'checked out') !== false) {
-            $count++;
-        }
+    if ($modelId <= 0) {
+        throw new InvalidArgumentException('Model ID must be positive.');
     }
-    return $count;
+
+    require_once SRC_PATH . '/db.php';
+
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*)
+          FROM checked_out_asset_cache
+         WHERE model_id = :model_id
+    ");
+    $stmt->execute([':model_id' => $modelId]);
+    return (int)$stmt->fetchColumn();
 }
 
 /**
@@ -767,14 +765,14 @@ function checkin_asset(int $assetId, string $note = ''): void
 }
 
 /**
- * Fetch checked-out assets (requestable only), paging through hardware.
+ * Fetch checked-out assets (requestable only) directly from Snipe-IT.
  *
  * @param bool $overdueOnly
  * @param int $maxResults Safety cap for total hardware rows fetched (0 to use config)
  * @return array
  * @throws Exception
  */
-function list_checked_out_assets(bool $overdueOnly = false, int $maxResults = 0): array
+function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $maxResults = 0): array
 {
     if ($maxResults <= 0) {
         $config = load_config();
@@ -851,4 +849,97 @@ function list_checked_out_assets(bool $overdueOnly = false, int $maxResults = 0)
     }
 
     return $filtered;
+}
+
+/**
+ * Fetch checked-out assets from the local cache table.
+ *
+ * @param bool $overdueOnly
+ * @return array
+ * @throws Exception
+ */
+function list_checked_out_assets(bool $overdueOnly = false): array
+{
+    require_once SRC_PATH . '/db.php';
+
+    $sql = "
+        SELECT
+            asset_id,
+            asset_tag,
+            asset_name,
+            model_id,
+            model_name,
+            assigned_to_id,
+            assigned_to_name,
+            assigned_to_email,
+            assigned_to_username,
+            status_label,
+            last_checkout,
+            expected_checkin
+        FROM checked_out_asset_cache
+    ";
+    $stmt = $pdo->query($sql);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) {
+        return [];
+    }
+
+    $now = time();
+    $results = [];
+    foreach ($rows as $row) {
+        $expectedCheckin = $row['expected_checkin'] ?? '';
+        if ($overdueOnly) {
+            $normalizedExpected = $expectedCheckin;
+            if (is_string($expectedCheckin) && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $expectedCheckin)) {
+                $normalizedExpected = $expectedCheckin . ' 23:59:59';
+            }
+            $expTs = $normalizedExpected ? strtotime($normalizedExpected) : null;
+            if (!$expTs || $expTs > $now) {
+                continue;
+            }
+        }
+
+        $assigned = [];
+        $assignedId = (int)($row['assigned_to_id'] ?? 0);
+        if ($assignedId > 0) {
+            $assigned['id'] = $assignedId;
+        }
+        $assignedEmail = $row['assigned_to_email'] ?? '';
+        $assignedName = $row['assigned_to_name'] ?? '';
+        $assignedUsername = $row['assigned_to_username'] ?? '';
+        if ($assignedEmail !== '') {
+            $assigned['email'] = $assignedEmail;
+        }
+        if ($assignedUsername !== '') {
+            $assigned['username'] = $assignedUsername;
+        }
+        if ($assignedName !== '') {
+            $assigned['name'] = $assignedName;
+        }
+
+        $item = [
+            'id' => (int)($row['asset_id'] ?? 0),
+            'asset_tag' => $row['asset_tag'] ?? '',
+            'name' => $row['asset_name'] ?? '',
+            'model' => [
+                'id' => (int)($row['model_id'] ?? 0),
+                'name' => $row['model_name'] ?? '',
+            ],
+            'status_label' => $row['status_label'] ?? '',
+            'last_checkout' => $row['last_checkout'] ?? '',
+            'expected_checkin' => $expectedCheckin,
+            '_last_checkout_norm' => $row['last_checkout'] ?? '',
+            '_expected_checkin_norm' => $expectedCheckin,
+        ];
+
+        if (!empty($assigned)) {
+            $item['assigned_to'] = $assigned;
+        } elseif ($assignedName !== '') {
+            $item['assigned_to_fullname'] = $assignedName;
+        }
+
+        $results[] = $item;
+    }
+
+    return $results;
 }

@@ -75,6 +75,30 @@ CREATE TABLE IF NOT EXISTS reservation_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------
+-- Cached checked-out assets (from Snipe-IT sync)
+-- ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS checked_out_asset_cache (
+    asset_id INT UNSIGNED NOT NULL,
+    asset_tag VARCHAR(255) NOT NULL,
+    asset_name VARCHAR(255) NOT NULL,
+    model_id INT UNSIGNED NOT NULL,
+    model_name VARCHAR(255) NOT NULL,
+    assigned_to_id INT UNSIGNED DEFAULT NULL,
+    assigned_to_name VARCHAR(255) DEFAULT NULL,
+    assigned_to_email VARCHAR(255) DEFAULT NULL,
+    assigned_to_username VARCHAR(255) DEFAULT NULL,
+    status_label VARCHAR(255) DEFAULT NULL,
+    last_checkout VARCHAR(32) DEFAULT NULL,
+    expected_checkin VARCHAR(32) DEFAULT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (asset_id),
+    KEY idx_checked_out_model (model_id),
+    KEY idx_checked_out_expected (expected_checkin),
+    KEY idx_checked_out_updated (updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------
 -- Optional: simple schema versioning
 -- ------------------------------------------------------
 CREATE TABLE IF NOT EXISTS schema_version (
