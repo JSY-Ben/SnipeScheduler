@@ -254,6 +254,20 @@ function layout_checked_out_url(string $base, array $params): string
                        placeholder="Filter by asset tag, name, model, or user">
             </div>
             <div class="col-md-3">
+                <select id="checked-out-sort" class="form-select" aria-label="Sort checked-out assets">
+                    <option value="expected_asc">Expected check-in (soonest first)</option>
+                    <option value="expected_desc">Expected check-in (latest first)</option>
+                    <option value="tag_asc">Asset tag (A–Z)</option>
+                    <option value="tag_desc">Asset tag (Z–A)</option>
+                    <option value="model_asc">Model (A–Z)</option>
+                    <option value="model_desc">Model (Z–A)</option>
+                    <option value="user_asc">User (A–Z)</option>
+                    <option value="user_desc">User (Z–A)</option>
+                    <option value="checkout_desc">Assigned since (newest first)</option>
+                    <option value="checkout_asc">Assigned since (oldest first)</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <button type="submit" class="btn btn-primary">Filter</button>
             </div>
         </form>
@@ -321,8 +335,15 @@ function layout_checked_out_url(string $base, array $params): string
                                 }
                                 $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
                                 $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
+                                $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
+                                $expectedTs   = $expected ? strtotime($expected) : 0;
                             ?>
-                            <tr>
+                            <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
+                                data-asset-name="<?= h(strtolower($name)) ?>"
+                                data-model="<?= h(strtolower($model)) ?>"
+                                data-user="<?= h(strtolower($user)) ?>"
+                                data-expected-ts="<?= (int)$expectedTs ?>"
+                                data-checkout-ts="<?= (int)$checkedOutTs ?>">
                                 <td><?= h($atag) ?></td>
                                 <td><?= h($name) ?></td>
                                 <td><?= h($model) ?></td>
@@ -350,6 +371,110 @@ function layout_checked_out_url(string $base, array $params): string
                 </table>
             </div>
         <?php endif; ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const sortSelect = document.getElementById('checked-out-sort');
+    const table = document.querySelector('.table-responsive table');
+    if (!sortSelect || !table) return;
+
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    function getText(row, key) {
+        return (row.dataset[key] || '').toString();
+    }
+
+    function getNumber(row, key) {
+        const val = parseInt(row.dataset[key] || '0', 10);
+        return Number.isNaN(val) ? 0 : val;
+    }
+
+    function compareValues(a, b, asc) {
+        if (a < b) return asc ? -1 : 1;
+        if (a > b) return asc ? 1 : -1;
+        return 0;
+    }
+
+    function sortRows(value) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        let key = '';
+        let asc = true;
+
+        switch (value) {
+            case 'expected_desc':
+                key = 'expectedTs';
+                asc = false;
+                break;
+            case 'expected_asc':
+                key = 'expectedTs';
+                asc = true;
+                break;
+            case 'tag_desc':
+                key = 'assetTag';
+                asc = false;
+                break;
+            case 'tag_asc':
+                key = 'assetTag';
+                asc = true;
+                break;
+            case 'model_desc':
+                key = 'model';
+                asc = false;
+                break;
+            case 'model_asc':
+                key = 'model';
+                asc = true;
+                break;
+            case 'user_desc':
+                key = 'user';
+                asc = false;
+                break;
+            case 'user_asc':
+                key = 'user';
+                asc = true;
+                break;
+            case 'checkout_asc':
+                key = 'checkoutTs';
+                asc = true;
+                break;
+            case 'checkout_desc':
+                key = 'checkoutTs';
+                asc = false;
+                break;
+            default:
+                key = 'expectedTs';
+                asc = true;
+        }
+
+        rows.sort(function (ra, rb) {
+            if (key === 'expectedTs') {
+                const aVal = getNumber(ra, 'expectedTs') || Number.MAX_SAFE_INTEGER;
+                const bVal = getNumber(rb, 'expectedTs') || Number.MAX_SAFE_INTEGER;
+                return compareValues(aVal, bVal, asc);
+            }
+            if (key === 'checkoutTs') {
+                const aVal = getNumber(ra, 'checkoutTs') || 0;
+                const bVal = getNumber(rb, 'checkoutTs') || 0;
+                return compareValues(aVal, bVal, asc);
+            }
+
+            const aText = getText(ra, key);
+            const bText = getText(rb, key);
+            return compareValues(aText, bText, asc);
+        });
+
+        rows.forEach(function (row) {
+            tbody.appendChild(row);
+        });
+    }
+
+    sortRows('expected_asc');
+    sortSelect.value = 'expected_asc';
+    sortSelect.addEventListener('change', function () {
+        sortRows(sortSelect.value);
+    });
+});
+</script>
 <?php if (!$embedded): ?>
     </div>
 </div>
