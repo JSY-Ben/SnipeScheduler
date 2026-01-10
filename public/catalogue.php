@@ -18,6 +18,9 @@ $activeUser      = $bookingOverride ?: $currentUser;
 $ldapCfg  = $config['ldap'] ?? [];
 $appCfg   = $config['app'] ?? [];
 $debugOn  = !empty($appCfg['debug']);
+$overdueCacheTtl = isset($appCfg['overdue_check_cache_seconds'])
+    ? max(0, (int)$appCfg['overdue_check_cache_seconds'])
+    : 120;
 
 if (($_GET['ajax'] ?? '') === 'overdue_check') {
     header('Content-Type: application/json');
@@ -36,7 +39,7 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
 
     $cacheBucket = $_SESSION['overdue_check_cache'] ?? [];
     $cached = is_array($cacheBucket) && isset($cacheBucket[$cacheKey]) ? $cacheBucket[$cacheKey] : null;
-    if (is_array($cached) && isset($cached['ts'], $cached['data']) && (time() - (int)$cached['ts']) <= 120) {
+    if (is_array($cached) && isset($cached['ts'], $cached['data']) && $overdueCacheTtl > 0 && (time() - (int)$cached['ts']) <= $overdueCacheTtl) {
         echo json_encode($cached['data']);
         exit;
     }
@@ -89,10 +92,12 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
             'blocked' => !empty($overdueAssets),
             'assets'  => $overdueAssets,
         ];
-        $_SESSION['overdue_check_cache'][$cacheKey] = [
-            'ts'   => time(),
-            'data' => $payload,
-        ];
+        if ($overdueCacheTtl > 0) {
+            $_SESSION['overdue_check_cache'][$cacheKey] = [
+                'ts'   => time(),
+                'data' => $payload,
+            ];
+        }
         echo json_encode($payload);
     } catch (Throwable $e) {
         $payload = [
@@ -100,10 +105,12 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
             'assets'  => [],
             'error'   => $debugOn ? $e->getMessage() : 'Unable to check overdue items at the moment.',
         ];
-        $_SESSION['overdue_check_cache'][$cacheKey] = [
-            'ts'   => time(),
-            'data' => $payload,
-        ];
+        if ($overdueCacheTtl > 0) {
+            $_SESSION['overdue_check_cache'][$cacheKey] = [
+                'ts'   => time(),
+                'data' => $payload,
+            ];
+        }
         echo json_encode($payload);
     }
     exit;
@@ -495,7 +502,7 @@ foreach ($basket as $qty) {
 }
 
 // ---------------------------------------------------------------------
-// Cached overdue state (2-minute session cache)
+// Cached overdue state (session cache)
 // ---------------------------------------------------------------------
 $overdueAssets = [];
 $overdueErr = '';
@@ -509,7 +516,7 @@ if ($cacheKey === '') {
 }
 $cacheBucket = $_SESSION['overdue_check_cache'] ?? [];
 $cached = is_array($cacheBucket) && isset($cacheBucket[$cacheKey]) ? $cacheBucket[$cacheKey] : null;
-if (is_array($cached) && isset($cached['ts'], $cached['data']) && (time() - (int)$cached['ts']) <= 120) {
+if (is_array($cached) && isset($cached['ts'], $cached['data']) && $overdueCacheTtl > 0 && (time() - (int)$cached['ts']) <= $overdueCacheTtl) {
     $cachedData = $cached['data'];
     $catalogueBlocked = !empty($cachedData['blocked']);
     $overdueAssets = $cachedData['assets'] ?? [];

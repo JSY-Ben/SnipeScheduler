@@ -355,6 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['api_cache_ttl_seconds'] = max(0, (int)$post('app_api_cache_ttl', $app['api_cache_ttl_seconds'] ?? 60));
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
+    $app['overdue_check_cache_seconds'] = max(0, (int)$post('app_overdue_check_cache_seconds', $app['overdue_check_cache_seconds'] ?? 120));
 
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -883,6 +884,11 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <label class="form-label">API cache TTL (seconds)</label>
                                 <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
                                 <div class="form-text">Cache Snipe-IT GET responses. Set 0 to disable.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Overdue check cache (seconds)</label>
+                                <input type="number" name="app_overdue_check_cache_seconds" class="form-control" min="0" value="<?= (int)$cfg(['app', 'overdue_check_cache_seconds'], 120) ?>">
+                                <div class="form-text">Caches overdue-user checks per session to speed up catalogue loads. Set 0 to disable.</div>
                             </div>
                         </div>
                     </div>
