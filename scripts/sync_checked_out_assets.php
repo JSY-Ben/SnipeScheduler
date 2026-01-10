@@ -26,7 +26,9 @@ try {
 }
 
 try {
-    $pdo->beginTransaction();
+    if (!$pdo->beginTransaction()) {
+        throw new RuntimeException('Could not start database transaction.');
+    }
     $pdo->exec('TRUNCATE TABLE checked_out_asset_cache');
 
     $stmt = $pdo->prepare("
@@ -116,7 +118,9 @@ try {
         ]);
     }
 
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
     echo "[done] Synced " . count($assets) . " checked-out asset(s).\n";
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
