@@ -54,6 +54,15 @@ a:visited {
     color: var(--primary);
 }
 
+input[type="checkbox"] {
+    accent-color: var(--primary);
+}
+
+.form-check-input:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
 .page-shell {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.96));
     border-radius: 1.1rem;
