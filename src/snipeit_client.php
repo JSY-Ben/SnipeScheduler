@@ -776,10 +776,6 @@ function checkin_asset(int $assetId, string $note = ''): void
 function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $maxResults = 0): array
 {
     if ($maxResults <= 0) {
-        $config = load_config();
-        $maxResults = (int)($config['app']['checked_out_scan_limit'] ?? 2000);
-    }
-    if ($maxResults <= 0) {
         $maxResults = PHP_INT_MAX;
     }
     $all = [];

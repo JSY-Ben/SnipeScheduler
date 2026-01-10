@@ -126,7 +126,6 @@ return [
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'overdue_check_cache_seconds' => 120, // cache overdue-user checks in the catalogue (seconds)
-        'checked_out_scan_limit' => 2000, // max hardware records scanned for checked-out assets (0 = no cap)
     ],
 
     'catalogue' => [

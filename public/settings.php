@@ -356,7 +356,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['overdue_check_cache_seconds'] = max(0, (int)$post('app_overdue_check_cache_seconds', $app['overdue_check_cache_seconds'] ?? 120));
-    $app['checked_out_scan_limit'] = max(1, (int)$post('app_checked_out_scan_limit', $app['checked_out_scan_limit'] ?? 2000));
 
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -890,11 +889,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <label class="form-label">Overdue check cache (seconds)</label>
                                 <input type="number" name="app_overdue_check_cache_seconds" class="form-control" min="0" value="<?= (int)$cfg(['app', 'overdue_check_cache_seconds'], 120) ?>">
                                 <div class="form-text">Caches overdue-user checks per session to speed up catalogue loads. Set 0 to disable.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Checked-out scan limit</label>
-                                <input type="number" name="app_checked_out_scan_limit" class="form-control" min="0" value="<?= (int)$cfg(['app', 'checked_out_scan_limit'], 2000) ?>">
-                                <div class="form-text">Max hardware records to scan when listing checked-out assets (higher can be slower). Set 0 for no cap.</div>
                             </div>
                         </div>
                     </div>
