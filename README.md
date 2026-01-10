@@ -49,6 +49,7 @@ In the app, Users can request equipment, and staff can manage reservations, chec
    - Generate `config/config.php` and optionally create the database from `schema.sql`.
    - Remove or restrict access to `install.php` after successful setup.
 5. If you prefer manual configuration, copy `config/config.example.php` to `config/config.php` and update values. Then import `schema.sql` into your database.
+6. Certain CRON Scripts must be run at regular intervals for this app to function correctly. Please see the CRON Scripts section below.
 
 ## General usage
 - Users:
@@ -73,4 +74,11 @@ As mentioned, this app uses LDAP, Google OAuth or Microsoft Entra for authentica
 
 ## CRON Scripts
 
-In the scripts folder of this app, there are certain PHP scripts you can run as a cron or via PHP CLI. The 'cron_mark_missed.php' script will automatically mark all reservations not checked out after a specified time period (set on the settings age) as missed and release them to be booked again. By default, this is set to 1 hour. The email_overdue_staff and users.php scripts will automatically email users that have overdue equipment and inform staff specified on the settings page of currently overdue reservations.
+In the scripts folder of this app, there are certain PHP scripts you must run as a cron or via PHP CLI at regular intervals for this app to function correctly. The shorter duration between each running of the scripts will dicate how up-to-date your equipment availability information is.
+
+- The 'sync_checked_out_assets.php' script is probably the most important, and i would suggest running this once a minute if you can. It queries your Snipe-IT API every time the script is run for currently checked out asset details, and caches them in the SnipeScheduler mysql database. The SnipeScheduler app then uses that information to show checked out items and update equipment availability. If you only run this script as a CRON at long intervals, equipment availability information is likely to be out of date. Using checked out assets cache avoids querying the Snipe-IT API on every catalogue and basket page load, therefore vastly improving page load times on the app, especially when you have large amounts of assets in Snipe-IT.
+
+- The 'cron_mark_missed.php' script will automatically mark all reservations not checked out after a specified time period (set on the settings page) as missed and release them to be booked again. By default, this is set to 1 hour. While it is not worth running this Cron script every minute, it would be worth running it regularly so missed reservations are updated as soon as possible. 
+
+- The email_overdue_staff and users.php scripts will automatically email users that have overdue equipment and inform staff specified on the settings page of currently overdue reservations. I'd suggest running this once a day at the beginning of a working day, so users with overdue equipment are reminded at least once a day.
+
