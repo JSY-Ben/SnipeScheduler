@@ -575,6 +575,7 @@ $modelErr    = '';
 $totalModels = 0;
 $totalPages  = 1;
 $nowIso      = date('Y-m-d H:i:s');
+$checkedOutCounts = [];
 
 // If allowlist is set, ignore any pre-selected category that's not allowed
 if (!empty($allowedCategoryMap) && $category !== null && !isset($allowedCategoryMap[$category])) {
@@ -602,6 +603,25 @@ try {
 } catch (Throwable $e) {
     $models   = [];
     $modelErr = $e->getMessage();
+}
+
+if (!empty($models)) {
+    try {
+        $stmt = $pdo->query("
+            SELECT model_id, COUNT(*) AS cnt
+              FROM checked_out_asset_cache
+             GROUP BY model_id
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            $mid = (int)($row['model_id'] ?? 0);
+            if ($mid > 0) {
+                $checkedOutCounts[$mid] = (int)($row['cnt'] ?? 0);
+            }
+        }
+    } catch (Throwable $e) {
+        $checkedOutCounts = [];
+    }
 }
 
 // Apply allowlist if configured; otherwise show all categories returned by Snipe-IT
@@ -826,8 +846,12 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         $pendingQty   = $row ? (int)$row['pending_qty'] : 0;
                         $completedQty = $row ? (int)$row['completed_qty'] : 0;
 
-                        // How many are actually still checked out in Snipe-IT
-                        $activeCheckedOut = count_checked_out_assets_by_model($modelId);
+                        // How many are actually still checked out (from local cache)
+                        if (array_key_exists($modelId, $checkedOutCounts)) {
+                            $activeCheckedOut = $checkedOutCounts[$modelId];
+                        } else {
+                            $activeCheckedOut = count_checked_out_assets_by_model($modelId);
+                        }
                         $bookedFromCompleted = min($completedQty, $activeCheckedOut);
 
                         $booked = $pendingQty + $bookedFromCompleted;
