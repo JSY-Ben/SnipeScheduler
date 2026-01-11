@@ -111,4 +111,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO schema_version (version)
-VALUES ('v1.0-stable');
+VALUES ('v0.6.0-beta');
