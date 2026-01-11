@@ -315,7 +315,7 @@ if ($provider === 'microsoft') {
             'response_mode' => 'query',
             'scope'         => 'openid profile email User.Read User.Read.All',
             'state'         => $state,
-            'prompt'        => 'select_account',
+            'prompt'        => 'none',
         ];
 
         if ($forcePrompt) {
@@ -328,6 +328,17 @@ if ($provider === 'microsoft') {
     };
 
     if (!isset($_GET['code'])) {
+        $authError = trim($_GET['error'] ?? '');
+        if ($authError !== '') {
+            $retryAllowed = ($_SESSION['ms_oauth_retry'] ?? 0) < 1;
+            if ($retryAllowed && in_array($authError, ['login_required', 'interaction_required', 'account_selection_required'], true)) {
+                $_SESSION['ms_oauth_retry'] = ($_SESSION['ms_oauth_retry'] ?? 0) + 1;
+                $startMicrosoftAuth(true);
+            }
+            $_SESSION['ms_oauth_retry'] = 0;
+            $errMsg = $_GET['error_description'] ?? $authError;
+            $redirectWithError($debugOn ? 'Microsoft sign-in failed: ' . $errMsg : 'Microsoft sign-in failed.');
+        }
         $startMicrosoftAuth(false);
     }
 
