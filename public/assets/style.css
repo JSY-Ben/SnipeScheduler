@@ -448,6 +448,41 @@ form .form-select {
     text-align: center;
 }
 
+/* Reservation history item sections */
+.items-section {
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    background: #f8fafc;
+    padding: 0.5rem 0.65rem;
+}
+
+.items-section + .items-section {
+    margin-top: 0.65rem;
+}
+
+.items-section summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--primary-strong);
+}
+
+.items-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.items-section summary::after {
+    content: "+";
+    font-weight: 700;
+    color: var(--primary-strong);
+}
+
+.items-section[open] summary::after {
+    content: "–";
+}
+
 /* Settings page: make each field block stand out */
 .settings-form .card .row.g-3 > [class*="col-"],
 .settings-form .card .row.g-2 > [class*="col-"] {

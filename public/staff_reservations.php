@@ -352,7 +352,7 @@ try {
                                 $modelsHtml = '';
                                 $status     = strtolower((string)($r['status'] ?? ''));
                                 if ($itemsText !== '') {
-                                    $modelsHtml = '<details class="items-section" open>'
+                                    $modelsHtml = '<details class="items-section">'
                                         . '<summary><strong>Models Reserved:</strong></summary>'
                                         . '<div class="mt-1">' . $itemsText . '</div>'
                                         . '</details>';
