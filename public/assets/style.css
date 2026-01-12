@@ -514,12 +514,12 @@ form .form-select {
 .reservation-history-table td:nth-child(4),
 .reservation-history-table th:nth-child(5),
 .reservation-history-table td:nth-child(5) {
-    width: 115px;
+    width: 95px;
 }
 
 .reservation-history-table th:nth-child(6),
 .reservation-history-table td:nth-child(6) {
-    width: 90px;
+    width: 75px;
 }
 
 .reservation-history-table th:nth-child(7),
