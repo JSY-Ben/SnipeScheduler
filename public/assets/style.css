@@ -435,6 +435,20 @@ form .form-select {
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+/* Settings page: make each field block stand out */
+.settings-form .card .row.g-3 > [class*="col-"],
+.settings-form .card .row.g-2 > [class*="col-"] {
+    padding: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: #f8fafc;
+}
+
+.settings-form .card .row.g-3 > [class*="col-"] .form-check,
+.settings-form .card .row.g-2 > [class*="col-"] .form-check {
+    margin-bottom: 0;
+}
+
 .filter-panel {
     position: relative;
     padding: 1.25rem 1.35rem;
