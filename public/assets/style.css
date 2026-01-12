@@ -558,16 +558,8 @@ form .form-select {
 }
 
 @media (max-width: 980px) {
-    .table-responsive {
-        width: 100%;
-        max-width: 100%;
-    }
-
     .reservation-history-table {
         table-layout: auto;
-        width: 100%;
-        max-width: 100%;
-        display: block;
     }
 
     .reservation-history-table thead {
