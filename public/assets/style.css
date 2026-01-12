@@ -595,7 +595,7 @@ form .form-select {
 
     .reservation-history-table td::before {
         content: attr(data-label);
-        min-width: 120px;
+        min-width: 90px;
         font-weight: 600;
         color: var(--muted);
     }
@@ -613,6 +613,15 @@ form .form-select {
 
     .items-cell-content {
         max-height: none;
+    }
+
+    .items-section {
+        width: 100%;
+    }
+
+    .items-section-body {
+        max-height: none;
+        min-height: 0;
     }
 }
 
