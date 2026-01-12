@@ -37,6 +37,19 @@ function format_display_datetime($val): string
     }
 }
 
+function normalize_expected_datetime(?string $raw): string
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') {
+        return '';
+    }
+    $ts = strtotime($raw);
+    if ($ts === false) {
+        return '';
+    }
+    return date('Y-m-d H:i', $ts);
+}
+
 $active    = basename($_SERVER['PHP_SELF']);
 $isStaff   = !empty($currentUser['is_admin']);
 $embedded  = defined('RESERVATIONS_EMBED');
@@ -64,62 +77,50 @@ if ($forceRefresh) {
     $cacheTtl = 0;
 }
 
-// Handle renew actions (overdue tab only)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $view === 'overdue') {
+// Handle renew actions (all/overdue tabs)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Renew single
     if (isset($_POST['renew_asset_id'])) {
         $renewId = (int)$_POST['renew_asset_id'];
-        if ($renewId > 0) {
+        $renewExpected = '';
+        if (isset($_POST['renew_expected']) && is_array($_POST['renew_expected'])) {
+            $renewExpected = $_POST['renew_expected'][$renewId] ?? '';
+        }
+        $normalized = normalize_expected_datetime($renewExpected);
+        if ($renewId > 0 && $normalized !== '') {
             try {
-                $tomorrowDt = new DateTime('tomorrow');
-                $tomorrow   = $tomorrowDt->format('Y-m-d');
-                update_asset_expected_checkin($renewId, $tomorrow);
-                $messages[] = "Extended expected check-in to " . $tomorrowDt->format('d/m/Y') . " for asset #{$renewId}.";
+                update_asset_expected_checkin($renewId, $normalized);
+                $messages[] = "Extended expected check-in to " . format_display_datetime($normalized) . " for asset #{$renewId}.";
             } catch (Throwable $e) {
                 $error = 'Could not renew asset: ' . $e->getMessage();
             }
         } else {
-            $error = 'Invalid asset selected for renewal.';
+            $error = 'Select a valid date/time for renewal.';
         }
     }
 
-    // Renew all visible (filtered) items
-    if (isset($_POST['renew_all']) && $_POST['renew_all'] === '1') {
-        try {
-            // Ensure we apply the same filter when renewing all
-            $assetsToRenew = list_checked_out_assets(true);
-            if ($search !== '') {
-                $q = mb_strtolower($search);
-                $assetsToRenew = array_values(array_filter($assetsToRenew, function ($row) use ($q) {
-                    $fields = [
-                        $row['asset_tag'] ?? '',
-            $row['name'] ?? '',
-            $row['model']['name'] ?? '',
-            $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? ''),
-        ];
-                    foreach ($fields as $f) {
-                        if (is_array($f)) {
-                            $f = implode(' ', $f);
-                        }
-                        if (mb_stripos((string)$f, $q) !== false) {
-                            return true;
-                        }
+    // Renew selected items
+    if (isset($_POST['bulk_renew']) && $_POST['bulk_renew'] === '1') {
+        $bulkExpected = normalize_expected_datetime($_POST['bulk_expected'] ?? '');
+        $bulkIds = $_POST['bulk_asset_ids'] ?? [];
+        if ($bulkExpected === '') {
+            $error = 'Select a valid date/time for bulk renewal.';
+        } elseif (empty($bulkIds) || !is_array($bulkIds)) {
+            $error = 'Select at least one asset to renew.';
+        } else {
+            try {
+                $count = 0;
+                foreach ($bulkIds as $idRaw) {
+                    $aid = (int)$idRaw;
+                    if ($aid > 0) {
+                        update_asset_expected_checkin($aid, $bulkExpected);
+                        $count++;
                     }
-                    return false;
-                }));
-            }
-
-            $tomorrowDt = new DateTime('tomorrow');
-            $tomorrow   = $tomorrowDt->format('Y-m-d');
-            foreach ($assetsToRenew as $row) {
-                $aid = (int)($row['id'] ?? 0);
-                if ($aid > 0) {
-                    update_asset_expected_checkin($aid, $tomorrow);
                 }
+                $messages[] = "Extended expected check-in to " . format_display_datetime($bulkExpected) . " for {$count} asset(s).";
+            } catch (Throwable $e) {
+                $error = 'Could not renew selected assets: ' . $e->getMessage();
             }
-            $messages[] = "Extended expected check-in to " . $tomorrowDt->format('d/m/Y') . " for " . count($assetsToRenew) . " asset(s).";
-        } catch (Throwable $e) {
-            $error = 'Could not renew all overdue assets: ' . $e->getMessage();
         }
     }
 }
@@ -251,21 +252,6 @@ function layout_checked_out_url(string $base, array $params): string
             </div>
         <?php endif; ?>
 
-        <?php if ($view === 'overdue' && !empty($assets)): ?>
-            <div class="d-flex justify-content-end mb-2">
-                <form method="post" class="mb-0 d-flex gap-2 align-items-center">
-                    <input type="hidden" name="view" value="overdue">
-                    <input type="hidden" name="renew_all" value="1">
-                    <?php if ($search !== ''): ?>
-                        <input type="hidden" name="q" value="<?= h($search) ?>">
-                    <?php endif; ?>
-                    <button type="submit" class="btn btn-primary btn-sm px-3 shadow-sm">
-                        Renew all shown to tomorrow
-                    </button>
-                </form>
-            </div>
-        <?php endif; ?>
-
         <?php if (!empty($messages)): ?>
             <div class="alert alert-success">
                 <ul class="mb-0">
@@ -281,68 +267,94 @@ function layout_checked_out_url(string $base, array $params): string
                 No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out requestable assets.
             </div>
         <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped align-middle">
-                    <thead>
-                        <tr>
-                            <th>Asset Tag</th>
-                            <th>Name</th>
-                            <th>Model</th>
-                            <th>User</th>
-                            <th>Assigned Since</th>
-                            <th>Expected Check-in</th>
-                            <?php if ($view === 'overdue'): ?>
-                                <th style="width: 140px;"></th>
-                            <?php endif; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($assets as $a): ?>
-                            <?php
-                                $atag = $a['asset_tag'] ?? '';
-                                $name = $a['name'] ?? '';
-                                $model = $a['model']['name'] ?? '';
-                                $user  = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
-                                if (is_array($user)) {
-                                    $user = $user['name'] ?? ($user['username'] ?? '');
-                                }
-                                $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
-                                $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
-                                $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
-                                $expectedTs   = $expected ? strtotime($expected) : 0;
-                            ?>
-                            <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
-                                data-asset-name="<?= h(strtolower($name)) ?>"
-                                data-model="<?= h(strtolower($model)) ?>"
-                                data-user="<?= h(strtolower($user)) ?>"
-                                data-expected-ts="<?= (int)$expectedTs ?>"
-                                data-checkout-ts="<?= (int)$checkedOutTs ?>">
-                                <td><?= h($atag) ?></td>
-                                <td><?= h($name) ?></td>
-                                <td><?= h($model) ?></td>
-                                <td><?= h($user) ?></td>
-                                <td><?= h(format_display_datetime($checkedOut)) ?></td>
-                                <td class="<?= ($view === 'overdue' ? 'text-danger fw-semibold' : '') ?>">
-                                    <?= h(format_display_date($expected)) ?>
-                                </td>
-                                <?php if ($view === 'overdue'): ?>
-                                    <td>
-                                        <form method="post" class="d-inline">
-                                            <input type="hidden" name="view" value="overdue">
-                                            <input type="hidden" name="renew_asset_id" value="<?= (int)($a['id'] ?? 0) ?>">
-                                            <button type="submit"
-                                                    class="btn btn-sm btn-outline-primary"
-                                                    <?php if (empty($a['id'])): ?>disabled<?php endif; ?>>
-                                                Renew to tomorrow
-                                            </button>
-                                        </form>
-                                    </td>
-                                <?php endif; ?>
+            <form method="post">
+                <input type="hidden" name="view" value="<?= h($view) ?>">
+                <?php if ($search !== ''): ?>
+                    <input type="hidden" name="q" value="<?= h($search) ?>">
+                <?php endif; ?>
+                <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
+                    <div>
+                        <label class="form-label mb-1">Renew selected to</label>
+                        <input type="datetime-local" name="bulk_expected" class="form-control form-control-sm">
+                    </div>
+                    <button type="submit"
+                            name="bulk_renew"
+                            value="1"
+                            class="btn btn-outline-primary btn-sm">
+                        Renew selected
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>Asset Tag</th>
+                                <th>Name</th>
+                                <th>Model</th>
+                                <th>User</th>
+                                <th>Assigned Since</th>
+                                <th>Expected Check-in</th>
+                                <th style="width: 240px;">Renew to</th>
+                                <th style="width: 120px;"></th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($assets as $a): ?>
+                                <?php
+                                    $aid = (int)($a['id'] ?? 0);
+                                    $atag = $a['asset_tag'] ?? '';
+                                    $name = $a['name'] ?? '';
+                                    $model = $a['model']['name'] ?? '';
+                                    $user  = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
+                                    if (is_array($user)) {
+                                        $user = $user['name'] ?? ($user['username'] ?? '');
+                                    }
+                                    $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
+                                    $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
+                                    $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
+                                    $expectedTs   = $expected ? strtotime($expected) : 0;
+                                ?>
+                                <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
+                                    data-asset-name="<?= h(strtolower($name)) ?>"
+                                    data-model="<?= h(strtolower($model)) ?>"
+                                    data-user="<?= h(strtolower($user)) ?>"
+                                    data-expected-ts="<?= (int)$expectedTs ?>"
+                                    data-checkout-ts="<?= (int)$checkedOutTs ?>">
+                                    <td>
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="bulk_asset_ids[]"
+                                               value="<?= $aid ?>">
+                                    </td>
+                                    <td><?= h($atag) ?></td>
+                                    <td><?= h($name) ?></td>
+                                    <td><?= h($model) ?></td>
+                                    <td><?= h($user) ?></td>
+                                    <td><?= h(format_display_datetime($checkedOut)) ?></td>
+                                    <td class="<?= ($view === 'overdue' ? 'text-danger fw-semibold' : '') ?>">
+                                        <?= h(format_display_datetime($expected)) ?>
+                                    </td>
+                                    <td>
+                                        <input type="datetime-local"
+                                               name="renew_expected[<?= $aid ?>]"
+                                               class="form-control form-control-sm">
+                                    </td>
+                                    <td>
+                                        <button type="submit"
+                                                name="renew_asset_id"
+                                                value="<?= $aid ?>"
+                                                class="btn btn-sm btn-outline-primary"
+                                                <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
+                                            Renew
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </form>
         <?php endif; ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -462,12 +474,12 @@ document.addEventListener('DOMContentLoaded', function () {
 </body>
 </html>
 <?php endif; ?>
-<?php if (!empty($messages) && $view === 'overdue'): ?>
+<?php if (!empty($messages)): ?>
 <script>
     // After showing renew success, refresh overdue list to bust any cached data.
     setTimeout(() => {
         const url = new URL(window.location.href);
-        url.searchParams.set('view', 'overdue');
+        url.searchParams.set('view', '<?= h($view) ?>');
         url.searchParams.set('_', Date.now().toString());
         url.searchParams.set('refresh', '1');
         // Force no-cache reload with refresh flag
