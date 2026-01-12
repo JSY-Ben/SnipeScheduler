@@ -683,11 +683,28 @@ $isStaff = !empty($currentUser['is_admin']);
                                 $mid     = (int)$item['model_id'];
                                 $qty     = (int)$item['qty'];
                                 $options = $modelAssets[$mid] ?? [];
+                                $imagePath = $item['image'] ?? '';
+                                $proxiedImage = $imagePath !== ''
+                                    ? 'image_proxy.php?src=' . urlencode($imagePath)
+                                    : '';
                             ?>
                             <div class="mb-3">
-                                <label class="form-label">
-                                    <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
-                                </label>
+                                <div class="reservation-model-header">
+                                    <?php if ($proxiedImage !== ''): ?>
+                                        <img src="<?= h($proxiedImage) ?>"
+                                             alt="<?= h($item['name'] ?? ('Model #' . $mid)) ?>"
+                                             class="reservation-model-image">
+                                    <?php else: ?>
+                                        <div class="reservation-model-image reservation-model-image--placeholder">
+                                            No image
+                                        </div>
+                                    <?php endif; ?>
+                                    <div class="reservation-model-title">
+                                        <div class="form-label mb-1">
+                                            <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                        </div>
+                                    </div>
+                                </div>
                                 <?php if (empty($options)): ?>
                                     <div class="alert alert-warning mb-0">
                                         No assets found in Snipe-IT for this model.

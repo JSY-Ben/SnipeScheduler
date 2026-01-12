@@ -9,7 +9,7 @@ require_once __DIR__ . '/snipeit_client.php';
  *
  * Returns an array of:
  *   [
- *     ['model_id' => 123, 'name' => 'Canon 5D', 'qty' => 2],
+ *     ['model_id' => 123, 'name' => 'Canon 5D', 'qty' => 2, 'image' => '/uploads/models/...'],
  *     ...
  *   ]
  *
@@ -56,11 +56,13 @@ function get_reservation_items_with_names(PDO $pdo, int $reservationId): array
 
         $model = $modelCache[$modelId];
         $name  = $model['name'] ?? ('Model #' . $modelId);
+        $image = $model['image'] ?? '';
 
         $items[] = [
             'model_id' => $modelId,
             'name'     => $name,
             'qty'      => $qty,
+            'image'    => $image,
         ];
     }
 
