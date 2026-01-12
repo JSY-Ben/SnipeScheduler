@@ -615,6 +615,10 @@ form .form-select {
         max-height: none;
     }
 
+    .reservation-history-table td.items-cell > * {
+        width: 100%;
+    }
+
     .items-section {
         width: 100%;
     }
