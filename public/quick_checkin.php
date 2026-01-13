@@ -122,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($checkinAssets)) {
             $errors[] = 'There are no assets in the check-in list.';
         } else {
+            $hadCheckinAssets = !empty($checkinAssets);
             $staffEmail = $currentUser['email'] ?? '';
             $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
             $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
@@ -364,7 +365,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     layout_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $bodyLines);
                 }
-
+            }
+            if ($hadCheckinAssets) {
                 $checkinAssets = [];
             }
         }
