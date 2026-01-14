@@ -45,15 +45,9 @@ a:visited {
     color: var(--primary-strong);
 }
 
-.btn:visited,
 .btn.btn-link:visited,
-a.btn:visited {
+a.btn.btn-link:visited {
     color: inherit;
-}
-
-.btn-primary:visited,
-.btn-success:visited {
-    color: #ffffff;
 }
 
 .btn-link {
