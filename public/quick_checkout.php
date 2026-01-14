@@ -215,17 +215,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (empty($errors)) {
+                    $reservationStart = date('Y-m-d H:i:s', $startTs);
+                    $reservationEnd   = date('Y-m-d H:i:s', $endTs);
+                    $assetTags = array_map(function ($a) {
+                        $tag   = $a['asset_tag'] ?? '';
+                        $model = $a['model'] ?? '';
+                        return $model !== '' ? "{$tag} ({$model})" : $tag;
+                    }, $checkoutAssets);
+                    $assetsText = implode(', ', array_filter($assetTags));
+                    $modelCounts = [];
+                    $modelNames  = [];
+                    foreach ($checkoutAssets as $asset) {
+                        $modelId = (int)($asset['model_id'] ?? 0);
+                        if ($modelId <= 0) {
+                            continue;
+                        }
+                        $modelCounts[$modelId] = ($modelCounts[$modelId] ?? 0) + 1;
+                        if (!isset($modelNames[$modelId])) {
+                            $modelNames[$modelId] = $asset['model'] ?? ('Model #' . $modelId);
+                        }
+                    }
+
+                    try {
+                        $pdo->beginTransaction();
+
+                        $insertRes = $pdo->prepare("
+                            INSERT INTO reservations (
+                                user_name, user_email, user_id, snipeit_user_id,
+                                asset_id, asset_name_cache,
+                                start_datetime, end_datetime, status
+                            ) VALUES (
+                                :user_name, :user_email, :user_id, :snipeit_user_id,
+                                0, :asset_name_cache,
+                                :start_datetime, :end_datetime, 'completed'
+                            )
+                        ");
+                        $insertRes->execute([
+                            ':user_name'        => $userName,
+                            ':user_email'       => $user['email'] ?? '',
+                            ':user_id'          => (string)$userId,
+                            ':snipeit_user_id'  => $userId,
+                            ':asset_name_cache' => $assetsText,
+                            ':start_datetime'   => $reservationStart,
+                            ':end_datetime'     => $reservationEnd,
+                        ]);
+
+                        $reservationId = (int)$pdo->lastInsertId();
+                        if ($reservationId > 0 && !empty($modelCounts)) {
+                            $insertItem = $pdo->prepare("
+                                INSERT INTO reservation_items (
+                                    reservation_id, model_id, model_name_cache, quantity
+                                ) VALUES (
+                                    :reservation_id, :model_id, :model_name_cache, :quantity
+                                )
+                            ");
+                            foreach ($modelCounts as $modelId => $qty) {
+                                $insertItem->execute([
+                                    ':reservation_id'   => $reservationId,
+                                    ':model_id'         => (int)$modelId,
+                                    ':model_name_cache' => $modelNames[$modelId] ?? ('Model #' . $modelId),
+                                    ':quantity'         => (int)$qty,
+                                ]);
+                            }
+                        }
+
+                        $pdo->commit();
+                    } catch (Throwable $e) {
+                        $pdo->rollBack();
+                        $errors[] = 'Quick checkout completed, but could not record reservation history: ' . $e->getMessage();
+                    }
+
                     // Email notifications
                     $userEmail  = $user['email'] ?? '';
                     $staffEmail = $currentUser['email'] ?? '';
                     $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
                     $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-                    $assetList  = array_map(function ($a) {
-                        $tag   = $a['asset_tag'] ?? '';
-                        $model = $a['model'] ?? '';
-                        return $model !== '' ? "{$tag} ({$model})" : $tag;
-                    }, $checkoutAssets);
-                    $assetLines = implode(', ', array_filter($assetList));
+                    $assetLines = $assetsText;
                     $dueDisplay = date('d/m/Y h:i A', $endTs);
                     $bodyLines = [
                         'Assets checked out:',
