@@ -447,18 +447,18 @@ function layout_checked_out_url(string $base, array $params): string
                     </label>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-sm table-striped align-middle">
+                    <table class="table table-sm table-striped align-middle checked-out-table">
                         <thead>
                             <tr>
-                                <th style="width: 40px;"></th>
+                                <th></th>
                                 <th>Asset Tag</th>
                                 <th>Name</th>
                                 <th>Model</th>
                                 <th>User</th>
                                 <th>Assigned Since</th>
                                 <th>Expected Check-in</th>
-                                <th style="width: 240px;">Renew to</th>
-                                <th style="width: 120px;"></th>
+                                <th>Renew to</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>

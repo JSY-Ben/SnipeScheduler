@@ -844,6 +844,59 @@ form .form-select {
 }
 
 /* --------------------------------------------------
+   Checked-out reservations table
+-------------------------------------------------- */
+
+.checked-out-table {
+    table-layout: fixed;
+}
+
+.checked-out-table th:nth-child(1),
+.checked-out-table td:nth-child(1) {
+    width: 40px;
+}
+
+.checked-out-table th:nth-child(2),
+.checked-out-table td:nth-child(2) {
+    width: 130px;
+}
+
+.checked-out-table th:nth-child(3),
+.checked-out-table td:nth-child(3) {
+    width: 240px;
+}
+
+.checked-out-table th:nth-child(4),
+.checked-out-table td:nth-child(4) {
+    width: 200px;
+}
+
+.checked-out-table th:nth-child(5),
+.checked-out-table td:nth-child(5) {
+    width: 180px;
+}
+
+.checked-out-table th:nth-child(6),
+.checked-out-table td:nth-child(6) {
+    width: 170px;
+}
+
+.checked-out-table th:nth-child(7),
+.checked-out-table td:nth-child(7) {
+    width: 170px;
+}
+
+.checked-out-table th:nth-child(8),
+.checked-out-table td:nth-child(8) {
+    width: 180px;
+}
+
+.checked-out-table th:nth-child(9),
+.checked-out-table td:nth-child(9) {
+    width: 120px;
+}
+
+/* --------------------------------------------------
    Cards
 -------------------------------------------------- */
 
