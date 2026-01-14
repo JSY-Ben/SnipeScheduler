@@ -279,6 +279,60 @@ if ($selectedReservationId) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
 
+    if (isset($_POST['remove_model_id']) || isset($_POST['remove_model_id_all'])) {
+        $removeAll = isset($_POST['remove_model_id_all']);
+        $removeModelId = (int)($_POST['remove_model_id_all'] ?? $_POST['remove_model_id'] ?? 0);
+        if (!$selectedReservation) {
+            $checkoutErrors[] = 'Please select a reservation for today before removing items.';
+        } elseif ($removeModelId <= 0) {
+            $checkoutErrors[] = 'Invalid model to remove.';
+        } else {
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT quantity
+                      FROM reservation_items
+                     WHERE reservation_id = :rid
+                       AND model_id = :mid
+                     LIMIT 1
+                ");
+                $stmt->execute([
+                    ':rid' => $selectedReservationId,
+                    ':mid' => $removeModelId,
+                ]);
+                $currentQty = (int)$stmt->fetchColumn();
+
+                if ($currentQty <= 1 || $removeAll) {
+                    $del = $pdo->prepare("
+                        DELETE FROM reservation_items
+                         WHERE reservation_id = :rid
+                           AND model_id = :mid
+                    ");
+                    $del->execute([
+                        ':rid' => $selectedReservationId,
+                        ':mid' => $removeModelId,
+                    ]);
+                } else {
+                    $upd = $pdo->prepare("
+                        UPDATE reservation_items
+                           SET quantity = :qty
+                         WHERE reservation_id = :rid
+                           AND model_id = :mid
+                    ");
+                    $upd->execute([
+                        ':qty' => $currentQty - 1,
+                        ':rid' => $selectedReservationId,
+                        ':mid' => $removeModelId,
+                    ]);
+                }
+
+                header('Location: ' . $selfUrl);
+                exit;
+            } catch (Throwable $e) {
+                $checkoutErrors[] = 'Could not update reservation: ' . $e->getMessage();
+            }
+        }
+    }
+
     if ($mode === 'add_asset') {
         $tag = trim($_POST['asset_tag'] ?? '');
         if (!$selectedReservation) {
@@ -656,7 +710,6 @@ $isStaff = !empty($currentUser['is_admin']);
                     </p>
 
                     <form method="post" action="<?= h($selfUrl) ?>">
-                        <input type="hidden" name="mode" value="reservation_checkout">
                         <?php foreach ($baseQuery as $k => $v): ?>
                             <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                         <?php endforeach; ?>
@@ -706,8 +759,22 @@ $isStaff = !empty($currentUser['is_admin']);
                                                         </div>
                                                     <?php endif; ?>
                                                     <div class="reservation-model-title">
-                                                        <div class="form-label mb-1">
-                                                            <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                                        <div class="form-label mb-1 d-flex align-items-center justify-content-between gap-2">
+                                                            <span><?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)</span>
+                                                            <div class="d-flex gap-2">
+                                                                <button type="submit"
+                                                                        name="remove_model_id"
+                                                                        value="<?= $mid ?>"
+                                                                        class="btn btn-sm btn-outline-danger">
+                                                                    Remove one
+                                                                </button>
+                                                                <button type="submit"
+                                                                        name="remove_model_id_all"
+                                                                        value="<?= $mid ?>"
+                                                                        class="btn btn-sm btn-outline-danger">
+                                                                    Remove all
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -734,8 +801,22 @@ $isStaff = !empty($currentUser['is_admin']);
                                                                 </div>
                                                             <?php endif; ?>
                                                             <div class="reservation-model-title">
-                                                                <div class="form-label mb-1">
-                                                                    <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                                                <div class="form-label mb-1 d-flex align-items-center justify-content-between gap-2">
+                                                                    <span><?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)</span>
+                                                                    <div class="d-flex gap-2">
+                                                                        <button type="submit"
+                                                                                name="remove_model_id"
+                                                                                value="<?= $mid ?>"
+                                                                                class="btn btn-sm btn-outline-danger">
+                                                                            Remove one
+                                                                        </button>
+                                                                        <button type="submit"
+                                                                                name="remove_model_id_all"
+                                                                                value="<?= $mid ?>"
+                                                                                class="btn btn-sm btn-outline-danger">
+                                                                            Remove all
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -767,7 +848,7 @@ $isStaff = !empty($currentUser['is_admin']);
                             </div>
 <?php endforeach; ?>
 
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" name="mode" value="reservation_checkout" class="btn btn-primary">
                             Check out selected assets for this reservation
                         </button>
                     </form>
