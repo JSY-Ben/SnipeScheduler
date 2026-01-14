@@ -50,6 +50,25 @@ function normalize_expected_datetime(?string $raw): string
     return date('Y-m-d H:i', $ts);
 }
 
+function expected_to_timestamp($value): ?int
+{
+    if (is_array($value)) {
+        $value = $value['datetime'] ?? ($value['date'] ?? '');
+    }
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+    if (preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value)) {
+        $value .= ' 23:59:59';
+    }
+    $ts = strtotime($value);
+    if ($ts === false) {
+        return null;
+    }
+    return $ts;
+}
+
 $active    = basename($_SERVER['PHP_SELF']);
 $isStaff   = !empty($currentUser['is_admin']);
 $embedded  = defined('RESERVATIONS_EMBED');
@@ -145,7 +164,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 try {
-    $assets = list_checked_out_assets($view === 'overdue');
+    $assets = list_checked_out_assets(false);
+    if ($view === 'overdue') {
+        $now = time();
+        $assets = array_values(array_filter($assets, function ($row) use ($now) {
+            $ts = expected_to_timestamp($row['expected_checkin'] ?? '');
+            return $ts !== null && $ts <= $now;
+        }));
+    }
     if ($search !== '') {
         $q = mb_strtolower($search);
     $assets = array_values(array_filter($assets, function ($row) use ($q) {
@@ -449,8 +475,8 @@ function layout_checked_out_url(string $base, array $params): string
                                     $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
                                     $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
                                     $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
-                                    $expectedTs   = $expected ? strtotime($expected) : 0;
-                                    $isOverdue = $expectedTs > 0 && $expectedTs < time();
+                                    $expectedTs = expected_to_timestamp($expected);
+                                    $isOverdue = $expectedTs !== null && $expectedTs < time();
                                 ?>
                                 <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
                                     data-asset-name="<?= h(strtolower($name)) ?>"
