@@ -60,6 +60,7 @@ $fromRaw = trim($_GET['from'] ?? '');
 $toRaw   = trim($_GET['to'] ?? '');
 $pageRaw = (int)($_GET['page'] ?? 1);
 $perPageRaw = (int)($_GET['per_page'] ?? 10);
+$sortRaw = trim($_GET['sort'] ?? '');
 
 $q        = $qRaw !== '' ? $qRaw : null;
 $dateFrom = $fromRaw !== '' ? $fromRaw : null;
@@ -67,6 +68,19 @@ $dateTo   = $toRaw !== '' ? $toRaw : null;
 $page     = $pageRaw > 0 ? $pageRaw : 1;
 $perPageOptions = [10, 25, 50, 100];
 $perPage = in_array($perPageRaw, $perPageOptions, true) ? $perPageRaw : 10;
+$sortOptions = [
+    'start_desc' => 'start_datetime DESC',
+    'start_asc' => 'start_datetime ASC',
+    'end_desc' => 'end_datetime DESC',
+    'end_asc' => 'end_datetime ASC',
+    'user_asc' => 'user_name ASC',
+    'user_desc' => 'user_name DESC',
+    'status_asc' => 'status ASC',
+    'status_desc' => 'status DESC',
+    'id_desc' => 'id DESC',
+    'id_asc' => 'id ASC',
+];
+$sort = array_key_exists($sortRaw, $sortOptions) ? $sortRaw : 'start_desc';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'restore_missed') {
     $restoreId = (int)($_POST['reservation_id'] ?? 0);
@@ -209,7 +223,7 @@ try {
     }
     $offset = ($page - 1) * $perPage;
 
-    $sql .= ' ORDER BY start_datetime DESC LIMIT :limit OFFSET :offset';
+    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
     $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $value) {
         $stmt->bindValue($key, $value);
@@ -304,11 +318,11 @@ try {
         ?>
         <!-- Filters -->
         <div class="border rounded-3 p-4 mb-4">
-            <form class="row g-2 mb-0 align-items-end" method="get" action="<?= h($actionUrl) ?>">
+            <form class="row g-2 mb-0 align-items-end" method="get" action="<?= h($actionUrl) ?>" id="reservation-history-filter-form">
                 <?php foreach ($baseQuery as $k => $v): ?>
                     <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                 <?php endforeach; ?>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <input type="text"
                            name="q"
                            class="form-control form-control-lg"
@@ -330,6 +344,20 @@ try {
                            placeholder="To date">
                 </div>
                 <div class="col-md-2">
+                    <select name="sort" class="form-select form-select-lg" aria-label="Sort reservations">
+                        <option value="start_desc" <?= $sort === 'start_desc' ? 'selected' : '' ?>>Start (newest first)</option>
+                        <option value="start_asc" <?= $sort === 'start_asc' ? 'selected' : '' ?>>Start (oldest first)</option>
+                        <option value="end_desc" <?= $sort === 'end_desc' ? 'selected' : '' ?>>End (latest first)</option>
+                        <option value="end_asc" <?= $sort === 'end_asc' ? 'selected' : '' ?>>End (soonest first)</option>
+                        <option value="user_asc" <?= $sort === 'user_asc' ? 'selected' : '' ?>>User (A–Z)</option>
+                        <option value="user_desc" <?= $sort === 'user_desc' ? 'selected' : '' ?>>User (Z–A)</option>
+                        <option value="status_asc" <?= $sort === 'status_asc' ? 'selected' : '' ?>>Status (A–Z)</option>
+                        <option value="status_desc" <?= $sort === 'status_desc' ? 'selected' : '' ?>>Status (Z–A)</option>
+                        <option value="id_desc" <?= $sort === 'id_desc' ? 'selected' : '' ?>>Reservation ID (high → low)</option>
+                        <option value="id_asc" <?= $sort === 'id_asc' ? 'selected' : '' ?>>Reservation ID (low → high)</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
                     <select name="per_page" class="form-select form-select-lg">
                         <?php foreach ($perPageOptions as $opt): ?>
                             <option value="<?= $opt ?>" <?= $perPage === $opt ? 'selected' : '' ?>>
@@ -348,9 +376,9 @@ try {
                             $clearUrl .= '?' . http_build_query($baseQuery);
                         }
                     ?>
-                    <a href="<?= h($clearUrl) ?>" class="btn btn-outline-secondary w-100">Clear</a>
-                </div>
-            </form>
+                <a href="<?= h($clearUrl) ?>" class="btn btn-outline-secondary w-100">Clear</a>
+            </div>
+        </form>
         </div>
 
         <?php if (empty($reservations)): ?>
@@ -460,6 +488,9 @@ try {
                                                 <?php if ($toRaw !== ''): ?>
                                                     <input type="hidden" name="to" value="<?= h($toRaw) ?>">
                                                 <?php endif; ?>
+                                                <input type="hidden" name="per_page" value="<?= (int)$perPage ?>">
+                                                <input type="hidden" name="page" value="<?= (int)$page ?>">
+                                                <input type="hidden" name="sort" value="<?= h($sort) ?>">
                                                 <?php foreach ($baseQuery as $k => $v): ?>
                                                     <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                                                 <?php endforeach; ?>
@@ -493,6 +524,7 @@ try {
                         'from' => $fromRaw,
                         'to' => $toRaw,
                         'per_page' => $perPage,
+                        'sort' => $sort,
                     ]);
                 ?>
                 <nav class="mt-3">
@@ -531,4 +563,17 @@ try {
 <?php layout_footer(); ?>
 </body>
 </html>
+<?php endif; ?>
+<?php if ($embedded): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('reservation-history-filter-form');
+    const sortSelect = form ? form.querySelector('select[name="sort"]') : null;
+    if (form && sortSelect) {
+        sortSelect.addEventListener('change', function () {
+            form.submit();
+        });
+    }
+});
+</script>
 <?php endif; ?>
