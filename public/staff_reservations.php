@@ -329,17 +329,19 @@ try {
                            placeholder="Search by user or items..."
                            value="<?= htmlspecialchars($qRaw) ?>">
                 </div>
-                <div class="col-md-1 col-lg-1">
+                <div class="col-auto">
                     <input type="date"
                            name="from"
                            class="form-control form-control-lg"
+                           style="width: 11ch;"
                            value="<?= htmlspecialchars($fromRaw) ?>"
                            placeholder="From date">
                 </div>
-                <div class="col-md-1 col-lg-1">
+                <div class="col-auto">
                     <input type="date"
                            name="to"
                            class="form-control form-control-lg"
+                           style="width: 11ch;"
                            value="<?= htmlspecialchars($toRaw) ?>"
                            placeholder="To date">
                 </div>
