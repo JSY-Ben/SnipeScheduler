@@ -935,6 +935,16 @@ $isStaff = !empty($currentUser['is_admin']);
 
 <script>
 (function () {
+    const scrollKey = 'staff_checkout_scroll_y';
+    const savedY = sessionStorage.getItem(scrollKey);
+    if (savedY !== null) {
+        const y = parseInt(savedY, 10);
+        if (!Number.isNaN(y)) {
+            window.scrollTo(0, y);
+        }
+        sessionStorage.removeItem(scrollKey);
+    }
+
     document.addEventListener('click', (event) => {
         const btn = event.target.closest('button[data-confirm-delete]');
         if (!btn) {
@@ -1028,6 +1038,10 @@ $isStaff = !empty($currentUser['is_admin']);
             list.style.display = 'none';
             list.innerHTML = '';
         }
+    });
+
+    document.addEventListener('submit', () => {
+        sessionStorage.setItem(scrollKey, String(window.scrollY));
     });
 })();
 
