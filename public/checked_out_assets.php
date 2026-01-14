@@ -356,6 +356,7 @@ function layout_checked_out_url(string $base, array $params): string
                                     $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
                                     $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
                                     $expectedTs   = $expected ? strtotime($expected) : 0;
+                                    $isOverdue = $expectedTs > 0 && $expectedTs < time();
                                 ?>
                                 <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
                                     data-asset-name="<?= h(strtolower($name)) ?>"
@@ -374,7 +375,7 @@ function layout_checked_out_url(string $base, array $params): string
                                     <td><?= h($model) ?></td>
                                     <td><?= h($user) ?></td>
                                     <td><?= h(format_display_datetime($checkedOut)) ?></td>
-                                    <td class="<?= ($view === 'overdue' ? 'text-danger fw-semibold' : '') ?>">
+                                    <td class="<?= $isOverdue ? 'text-danger fw-semibold' : '' ?>">
                                         <?= h(format_display_datetime($expected)) ?>
                                     </td>
                                     <td>
