@@ -825,16 +825,16 @@ $isStaff = !empty($currentUser['is_admin']);
                                                         </div>
                                                     <?php endif; ?>
                                                     <div class="reservation-model-title">
-                                                        <div class="form-label mb-1 d-flex align-items-center justify-content-between gap-2">
-                                                            <span><?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)</span>
-                                                            <div class="d-flex gap-2">
-                                                                <button type="submit"
-                                                                        name="remove_model_id_all"
-                                                                        value="<?= $mid ?>"
-                                                                        class="btn btn-sm btn-outline-danger">
-                                                                    Remove all
-                                                                </button>
-                                                            </div>
+                                                        <div class="form-label mb-1">
+                                                            <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                                        </div>
+                                                        <div class="mt-2">
+                                                            <button type="submit"
+                                                                    name="remove_model_id_all"
+                                                                    value="<?= $mid ?>"
+                                                                    class="btn btn-sm btn-outline-danger">
+                                                                Remove all
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -861,16 +861,16 @@ $isStaff = !empty($currentUser['is_admin']);
                                                                 </div>
                                                             <?php endif; ?>
                                                             <div class="reservation-model-title">
-                                                                <div class="form-label mb-1 d-flex align-items-center justify-content-between gap-2">
-                                                                    <span><?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)</span>
-                                                            <div class="d-flex gap-2">
-                                                                <button type="submit"
-                                                                        name="remove_model_id_all"
-                                                                        value="<?= $mid ?>"
-                                                                        class="btn btn-sm btn-outline-danger">
-                                                                    Remove all
-                                                                </button>
-                                                            </div>
+                                                                <div class="form-label mb-1">
+                                                                    <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                                                </div>
+                                                                <div class="mt-2">
+                                                                    <button type="submit"
+                                                                            name="remove_model_id_all"
+                                                                            value="<?= $mid ?>"
+                                                                            class="btn btn-sm btn-outline-danger">
+                                                                        Remove all
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         </div>
