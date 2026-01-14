@@ -163,6 +163,9 @@ if (!isset($_SESSION['bulk_checkout_assets'])) {
     $_SESSION['bulk_checkout_assets'] = [];
 }
 $checkoutAssets = &$_SESSION['bulk_checkout_assets'];
+if (!isset($_SESSION['reservation_selected_assets'])) {
+    $_SESSION['reservation_selected_assets'] = [];
+}
 
 // Selected reservation for checkout (today only)
 $selectedReservationId = isset($_SESSION['selected_reservation_id'])
@@ -193,6 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') === 'select_
     }
     // Reset checkout basket when changing reservation
     $checkoutAssets = [];
+    $_SESSION['reservation_selected_assets'] = [];
     header('Location: ' . $selfUrl);
     exit;
 }
@@ -216,6 +220,7 @@ $modelLimits         = [];
 $selectedStart       = '';
 $selectedEnd         = '';
 $modelAssets         = [];
+$presetSelections    = [];
 
 if ($selectedReservationId) {
     $stmt = $pdo->prepare("
@@ -234,6 +239,26 @@ if ($selectedReservationId) {
         $selectedStart = $selectedReservation['start_datetime'] ?? '';
         $selectedEnd   = $selectedReservation['end_datetime'] ?? '';
         $selectedItems = get_reservation_items_with_names($pdo, $selectedReservationId);
+        $storedSelections = $_SESSION['reservation_selected_assets'][$selectedReservationId] ?? [];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['selected_assets']) && is_array($_POST['selected_assets'])) {
+            $normalizedSelections = [];
+            foreach ($_POST['selected_assets'] as $midRaw => $choices) {
+                $mid = (int)$midRaw;
+                if ($mid <= 0 || !is_array($choices)) {
+                    continue;
+                }
+                $normalizedSelections[$mid] = [];
+                foreach ($choices as $choice) {
+                    $aid = (int)$choice;
+                    if ($aid > 0) {
+                        $normalizedSelections[$mid][] = $aid;
+                    }
+                }
+            }
+            $presetSelections = $normalizedSelections;
+        } elseif (is_array($storedSelections)) {
+            $presetSelections = $storedSelections;
+        }
         foreach ($selectedItems as $item) {
             $mid          = (int)($item['model_id'] ?? 0);
             $qty          = (int)($item['qty'] ?? 0);
@@ -287,6 +312,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($removeModelId <= 0) {
             $checkoutErrors[] = 'Invalid model to remove.';
         } else {
+            $submittedSelections = $_POST['selected_assets'] ?? [];
+            $normalizedSelections = [];
+            if (is_array($submittedSelections)) {
+                foreach ($submittedSelections as $midRaw => $choices) {
+                    $mid = (int)$midRaw;
+                    if ($mid <= 0 || !is_array($choices)) {
+                        continue;
+                    }
+                    $normalizedSelections[$mid] = [];
+                    foreach ($choices as $choice) {
+                        $aid = (int)$choice;
+                        if ($aid > 0) {
+                            $normalizedSelections[$mid][] = $aid;
+                        }
+                    }
+                }
+            }
+
+            if ($removeAll) {
+                unset($normalizedSelections[$removeModelId]);
+            } elseif (isset($normalizedSelections[$removeModelId])) {
+                array_pop($normalizedSelections[$removeModelId]);
+            }
+            if ($selectedReservationId) {
+                $_SESSION['reservation_selected_assets'][$selectedReservationId] = $normalizedSelections;
+            }
+
             try {
                 $stmt = $pdo->prepare("
                     SELECT quantity
@@ -328,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . $selfUrl);
                 exit;
             } catch (Throwable $e) {
-                $checkoutErrors[] = 'Could not update reservation: ' . $e->getMessage();
+                    $checkoutErrors[] = 'Could not update reservation: ' . $e->getMessage();
             }
         }
     }
@@ -486,6 +538,9 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
         ':assets_text' => $assetsText,
                     ]);
                     $checkoutMessages[] = 'Reservation marked as checked out.';
+                    if ($selectedReservationId) {
+                        unset($_SESSION['reservation_selected_assets'][$selectedReservationId]);
+                    }
 
                     // Email notifications
                     $userEmail = $selectedReservation['user_email'] ?? '';
@@ -824,8 +879,10 @@ $isStaff = !empty($currentUser['is_admin']);
                                                                 $label = $aname !== ''
                                                                     ? trim($atag . ' – ' . $aname)
                                                                     : $atag;
+                                                                $selectedId = $presetSelections[$mid][$i] ?? 0;
+                                                                $selectedAttr = $aid > 0 && $selectedId === $aid ? 'selected' : '';
                                                                 ?>
-                                                                <option value="<?= $aid ?>"><?= h($label) ?></option>
+                                                                <option value="<?= $aid ?>" <?= $selectedAttr ?>><?= h($label) ?></option>
                                                             <?php endforeach; ?>
                                                         </select>
                                                         <button type="submit"
