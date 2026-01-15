@@ -1043,6 +1043,17 @@ $isStaff = !empty($currentUser['is_admin']);
     document.addEventListener('submit', () => {
         sessionStorage.setItem(scrollKey, String(window.scrollY));
     });
+
+    const reservationSelectForm = document.querySelector('form input[name="mode"][value="select_reservation"]');
+    if (reservationSelectForm) {
+        const form = reservationSelectForm.closest('form');
+        const select = form ? form.querySelector('select[name="reservation_id"]') : null;
+        if (form && select) {
+            select.addEventListener('change', () => {
+                form.submit();
+            });
+        }
+    }
 })();
 
 // Prevent selecting the same asset twice for a model
