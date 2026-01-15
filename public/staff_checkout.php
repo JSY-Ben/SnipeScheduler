@@ -70,6 +70,11 @@ if (($_GET['ajax'] ?? '') === 'user_search') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    unset($_SESSION['selected_reservation_id']);
+    unset($_SESSION['reservation_selected_assets']);
+}
+
 // ---------------------------------------------------------------------
 // Helper: UK date/time display from Y-m-d H:i:s
 // ---------------------------------------------------------------------
