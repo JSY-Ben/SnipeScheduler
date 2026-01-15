@@ -6,16 +6,19 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
 
 $isStaff = !empty($currentUser['is_admin']);
-if (!$isStaff) {
-    http_response_code(403);
-    echo 'Access denied.';
-    exit;
-}
+$currentUserId = (string)($currentUser['id'] ?? '');
 
 $from      = $_GET['from'] ?? ($_POST['from'] ?? '');
 $embedded  = $from === 'reservations';
-$pageBase  = $embedded ? 'reservations.php' : 'staff_reservations.php';
-$baseQuery = $embedded ? ['tab' => 'history'] : [];
+$fromMy    = $from === 'my_bookings';
+$pageBase  = $embedded ? 'reservations.php' : ($fromMy ? 'my_bookings.php' : 'staff_reservations.php');
+$baseQuery = $embedded ? ['tab' => 'history'] : ($fromMy ? ['tab' => 'reservations'] : []);
+
+if (!$isStaff && !$embedded && !$fromMy) {
+    $fromMy = true;
+    $pageBase = 'my_bookings.php';
+    $baseQuery = ['tab' => 'reservations'];
+}
 
 $actionUrl = $pageBase;
 if (!empty($baseQuery)) {
@@ -100,6 +103,15 @@ if (!$reservation) {
     http_response_code(404);
     echo 'Reservation not found.';
     exit;
+}
+
+if (!$isStaff) {
+    $reservationUserId = (string)($reservation['user_id'] ?? '');
+    if ($reservationUserId === '' || $reservationUserId !== $currentUserId) {
+        http_response_code(403);
+        echo 'Access denied.';
+        exit;
+    }
 }
 
 if (($reservation['status'] ?? '') !== 'pending') {
@@ -361,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $startValue = datetime_local_value($reservation['start_datetime'] ?? '');
 $endValue   = datetime_local_value($reservation['end_datetime'] ?? '');
 
-$active = 'staff_reservations.php';
+$active = $embedded ? 'reservations.php' : ($fromMy ? 'my_bookings.php' : 'staff_reservations.php');
 $ajaxBase = 'reservation_edit.php?id=' . (int)$id;
 if ($from !== '') {
     $ajaxBase .= '&from=' . urlencode($from);
@@ -415,7 +427,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (<?= h($currentUser['email'] ?? '') ?>)
             </div>
             <div class="top-bar-actions">
-                <a href="<?= h($actionUrl) ?>" class="btn btn-outline-secondary btn-sm">Back to reservations</a>
+                <?php $backLabel = $fromMy ? 'Back to My Reservations' : 'Back to reservations'; ?>
+                <a href="<?= h($actionUrl) ?>" class="btn btn-outline-secondary btn-sm"><?= h($backLabel) ?></a>
                 <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
             </div>
         </div>

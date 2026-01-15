@@ -200,6 +200,7 @@ if (!empty($_GET['deleted'])) {
                         $resId   = (int)$res['id'];
                         $items   = get_reservation_items_with_names($pdo, $resId);
                         $summary = build_items_summary_text($items);
+                        $status  = strtolower((string)($res['status'] ?? ''));
                     ?>
                     <div class="card mb-3">
                         <div class="card-body">
@@ -252,7 +253,13 @@ if (!empty($_GET['deleted'])) {
                                 </div>
                             <?php endif; ?>
 
-                            <div class="d-flex justify-content-end mt-3">
+                            <div class="d-flex justify-content-end gap-2 mt-3">
+                                <?php if ($status === 'pending'): ?>
+                                    <a href="reservation_edit.php?id=<?= $resId ?>&from=my_bookings"
+                                       class="btn btn-outline-primary btn-sm btn-action">
+                                        Edit
+                                    </a>
+                                <?php endif; ?>
                                 <form method="post"
                                       action="delete_reservation.php"
                                       onsubmit="return confirm('Delete this reservation and all its items? This cannot be undone.');">
