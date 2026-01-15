@@ -203,10 +203,6 @@ try {
 
     $sql = "SELECT * FROM reservations";
 
-    if (!empty($where)) {
-        $sql .= ' WHERE ' . implode(' AND ', $where);
-    }
-
     $countSql = "SELECT COUNT(*) FROM reservations";
     if (!empty($where)) {
         $whereSql = ' WHERE ' . implode(' AND ', $where);
