@@ -316,7 +316,6 @@ try {
                                     <th>Time</th>
                                     <th>Event</th>
                                     <th>User</th>
-                                    <th>Subject</th>
                                     <th>Details</th>
                                 </tr>
                             </thead>
@@ -358,12 +357,14 @@ try {
 
                                     $metadataText = trim((string)($row['metadata'] ?? ''));
                                     $metadataLines = format_activity_metadata($metadataText, $metadataLabels);
+                                    if ($subjectLabel !== '') {
+                                        array_unshift($metadataLines, 'Subject: ' . $subjectLabel);
+                                    }
                                     ?>
                                     <tr>
                                         <td class="text-nowrap"><?= h($displayTime) ?></td>
                                         <td><?= h($eventLabel) ?></td>
                                         <td><?= h($actorLabel) ?></td>
-                                        <td><?= h($subjectLabel !== '' ? $subjectLabel : '-') ?></td>
                                         <td>
                                             <div class="fw-semibold"><?= h((string)($row['message'] ?? '')) ?></div>
                                             <?php if (!empty($metadataLines)): ?>
