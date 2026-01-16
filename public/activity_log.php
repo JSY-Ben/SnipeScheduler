@@ -23,10 +23,57 @@ try {
     $tz = null;
 }
 
+$qRaw    = trim($_GET['q'] ?? '');
+$fromRaw = trim($_GET['from'] ?? '');
+$toRaw   = trim($_GET['to'] ?? '');
+$pageRaw = (int)($_GET['page'] ?? 1);
+$perPageRaw = (int)($_GET['per_page'] ?? 25);
+$sortRaw = trim($_GET['sort'] ?? '');
+
+$q        = $qRaw !== '' ? $qRaw : null;
+$dateFrom = $fromRaw !== '' ? $fromRaw : null;
+$dateTo   = $toRaw !== '' ? $toRaw : null;
+$page     = $pageRaw > 0 ? $pageRaw : 1;
+$perPageOptions = [10, 25, 50, 100, 200];
+$perPage = in_array($perPageRaw, $perPageOptions, true) ? $perPageRaw : 25;
+$sortOptions = [
+    'time_desc' => 'created_at DESC',
+    'time_asc'  => 'created_at ASC',
+    'event_asc' => 'event_type ASC',
+    'event_desc' => 'event_type DESC',
+    'actor_asc' => 'actor_name ASC',
+    'actor_desc' => 'actor_name DESC',
+    'subject_asc' => 'subject_type ASC',
+    'subject_desc' => 'subject_type DESC',
+    'id_desc' => 'id DESC',
+    'id_asc'  => 'id ASC',
+];
+$sort = array_key_exists($sortRaw, $sortOptions) ? $sortRaw : 'time_desc';
+
 $activityLogRows = [];
 $activityLogError = '';
+$totalRows = 0;
+$totalPages = 1;
 try {
-    $stmt = $pdo->query("
+    $where  = [];
+    $params = [];
+
+    if ($q !== null) {
+        $where[] = '(event_type LIKE :q OR actor_name LIKE :q OR actor_email LIKE :q OR subject_type LIKE :q OR subject_id LIKE :q OR message LIKE :q OR metadata LIKE :q)';
+        $params[':q'] = '%' . $q . '%';
+    }
+
+    if ($dateFrom !== null) {
+        $where[] = 'created_at >= :from';
+        $params[':from'] = $dateFrom . ' 00:00:00';
+    }
+
+    if ($dateTo !== null) {
+        $where[] = 'created_at <= :to';
+        $params[':to'] = $dateTo . ' 23:59:59';
+    }
+
+    $sql = "
         SELECT id,
                event_type,
                actor_name,
@@ -38,9 +85,32 @@ try {
                ip_address,
                created_at
           FROM activity_log
-         ORDER BY id DESC
-         LIMIT 200
-    ");
+    ";
+    $countSql = 'SELECT COUNT(*) FROM activity_log';
+
+    if (!empty($where)) {
+        $whereSql = ' WHERE ' . implode(' AND ', $where);
+        $sql .= $whereSql;
+        $countSql .= $whereSql;
+    }
+
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $totalRows = (int)$countStmt->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalRows / $perPage));
+    if ($page > $totalPages) {
+        $page = $totalPages;
+    }
+    $offset = ($page - 1) * $perPage;
+
+    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $activityLogRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
     $activityLogError = $e->getMessage();
@@ -94,7 +164,63 @@ try {
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title mb-1">Latest activity</h5>
-                <p class="text-muted small mb-3">Showing the 200 most recent events.</p>
+                <p class="text-muted small mb-3">View, filter, and sort activity events.</p>
+                <div class="border rounded-3 p-4 mb-4">
+                    <form class="row g-2 mb-0 align-items-end" method="get" action="activity_log.php" id="activity-log-filter-form">
+                        <div class="col-12 col-lg">
+                            <input type="text"
+                                   name="q"
+                                   class="form-control form-control-lg"
+                                   placeholder="Search by actor, event, subject, or details..."
+                                   value="<?= h($qRaw) ?>">
+                        </div>
+                        <div class="col-auto">
+                            <input type="date"
+                                   name="from"
+                                   class="form-control form-control-lg"
+                                   style="min-width: 160px;"
+                                   value="<?= h($fromRaw) ?>"
+                                   placeholder="From date">
+                        </div>
+                        <div class="col-auto">
+                            <input type="date"
+                                   name="to"
+                                   class="form-control form-control-lg"
+                                   style="min-width: 160px;"
+                                   value="<?= h($toRaw) ?>"
+                                   placeholder="To date">
+                        </div>
+                        <div class="col-auto">
+                            <select name="sort" class="form-select form-select-lg" aria-label="Sort activity log" style="min-width: 240px;">
+                                <option value="time_desc" <?= $sort === 'time_desc' ? 'selected' : '' ?>>Time (newest first)</option>
+                                <option value="time_asc" <?= $sort === 'time_asc' ? 'selected' : '' ?>>Time (oldest first)</option>
+                                <option value="event_asc" <?= $sort === 'event_asc' ? 'selected' : '' ?>>Event (A–Z)</option>
+                                <option value="event_desc" <?= $sort === 'event_desc' ? 'selected' : '' ?>>Event (Z–A)</option>
+                                <option value="actor_asc" <?= $sort === 'actor_asc' ? 'selected' : '' ?>>Actor (A–Z)</option>
+                                <option value="actor_desc" <?= $sort === 'actor_desc' ? 'selected' : '' ?>>Actor (Z–A)</option>
+                                <option value="subject_asc" <?= $sort === 'subject_asc' ? 'selected' : '' ?>>Subject (A–Z)</option>
+                                <option value="subject_desc" <?= $sort === 'subject_desc' ? 'selected' : '' ?>>Subject (Z–A)</option>
+                                <option value="id_desc" <?= $sort === 'id_desc' ? 'selected' : '' ?>>Log ID (high → low)</option>
+                                <option value="id_asc" <?= $sort === 'id_asc' ? 'selected' : '' ?>>Log ID (low → high)</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select name="per_page" class="form-select form-select-lg" style="min-width: 180px;">
+                                <?php foreach ($perPageOptions as $opt): ?>
+                                    <option value="<?= $opt ?>" <?= $perPage === $opt ? 'selected' : '' ?>>
+                                        <?= $opt ?> per page
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-1 d-flex gap-2">
+                            <button class="btn btn-primary w-100" type="submit">Filter</button>
+                        </div>
+                        <div class="col-md-1 d-flex gap-2">
+                            <a href="activity_log.php" class="btn btn-outline-secondary w-100">Clear</a>
+                        </div>
+                    </form>
+                </div>
                 <?php if ($activityLogError): ?>
                     <div class="alert alert-warning small mb-3">
                         Could not load activity log: <?= h($activityLogError) ?>
@@ -164,6 +290,44 @@ try {
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($totalPages > 1): ?>
+                        <?php
+                            $pagerQuery = [
+                                'q' => $qRaw,
+                                'from' => $fromRaw,
+                                'to' => $toRaw,
+                                'per_page' => $perPage,
+                                'sort' => $sort,
+                            ];
+                        ?>
+                        <nav class="mt-3">
+                            <ul class="pagination justify-content-center">
+                                <?php
+                                    $prevPage = max(1, $page - 1);
+                                    $nextPage = min($totalPages, $page + 1);
+                                    $pagerQuery['page'] = $prevPage;
+                                    $prevUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+                                    $pagerQuery['page'] = $nextPage;
+                                    $nextUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+                                ?>
+                                <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="<?= h($prevUrl) ?>">Previous</a>
+                                </li>
+                                <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+                                    <?php
+                                        $pagerQuery['page'] = $p;
+                                        $pageUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+                                    ?>
+                                    <li class="page-item <?= $p === $page ? 'active' : '' ?>">
+                                        <a class="page-link" href="<?= h($pageUrl) ?>"><?= $p ?></a>
+                                    </li>
+                                <?php endfor; ?>
+                                <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="<?= h($nextUrl) ?>">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -172,3 +336,14 @@ try {
 <?php layout_footer(); ?>
 </body>
 </html>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('activity-log-filter-form');
+    const sortSelect = form ? form.querySelector('select[name="sort"]') : null;
+    if (form && sortSelect) {
+        sortSelect.addEventListener('change', function () {
+            form.submit();
+        });
+    }
+});
+</script>
