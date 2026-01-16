@@ -613,7 +613,6 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                         'subject_id'   => $selectedReservationId,
                         'metadata'     => [
                             'checked_out_to' => $userName,
-                            'snipe_user_id'  => $userId,
                             'assets'         => $assetTags,
                             'note'           => $note,
                         ],
@@ -717,7 +716,6 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                         'subject_id'   => $selectedReservationId,
                         'metadata'     => [
                             'checked_out_to' => $userName,
-                            'snipe_user_id'  => $userId,
                             'assets'         => $assetTags,
                             'note'           => $note,
                         ],

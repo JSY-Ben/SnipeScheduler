@@ -323,7 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'subject_id'   => $reservationId ?? null,
                         'metadata'     => [
                             'checked_out_to' => $userName,
-                            'snipe_user_id'  => $userId,
                             'assets'         => $assetTags,
                             'start'          => $reservationStart,
                             'end'            => $reservationEnd,
