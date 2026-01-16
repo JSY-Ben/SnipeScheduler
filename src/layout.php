@@ -143,6 +143,7 @@ if (!function_exists('layout_render_nav')) {
             ['href' => 'quick_checkout.php', 'label' => 'Quick Checkout',      'staff' => true],
             ['href' => 'quick_checkin.php',  'label' => 'Quick Checkin',       'staff' => true],
             ['href' => 'settings.php',       'label' => 'Admin',               'staff' => false, 'admin_only' => true],
+            ['href' => 'application_log.php','label' => 'Application Log',    'staff' => false, 'admin_only' => true],
         ];
 
         $html = '<nav class="app-nav">';

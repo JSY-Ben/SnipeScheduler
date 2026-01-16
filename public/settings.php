@@ -42,30 +42,6 @@ try {
     $categoryFetchError = $e->getMessage();
 }
 
-$activityLogRows = [];
-$activityLogError = '';
-try {
-    require_once SRC_PATH . '/db.php';
-    $stmt = $pdo->query("
-        SELECT id,
-               event_type,
-               actor_name,
-               actor_email,
-               subject_type,
-               subject_id,
-               message,
-               metadata,
-               ip_address,
-               created_at
-          FROM activity_log
-         ORDER BY id DESC
-         LIMIT 200
-    ");
-    $activityLogRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Throwable $e) {
-    $activityLogError = $e->getMessage();
-}
-
 $definedValues = [
     'SNIPEIT_API_PAGE_LIMIT'    => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE'  => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
@@ -648,15 +624,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             </div>
         <?php endif; ?>
 
-        <ul class="nav nav-tabs reservations-subtabs mb-3">
-            <li class="nav-item">
-                <a class="nav-link active" href="#admin-settings">Settings</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#admin-logs">Application Log</a>
-            </li>
-        </ul>
-
         <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">
             <div class="col-12">
                 <div class="card" id="admin-settings">
@@ -1069,70 +1036,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12">
-                <div class="card" id="admin-logs">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Application Log</h5>
-                        <p class="text-muted small mb-3">Latest 200 activity events.</p>
-                        <?php if ($activityLogError): ?>
-                            <div class="alert alert-warning small mb-3">
-                                Could not load activity log: <?= h($activityLogError) ?>
-                            </div>
-                        <?php elseif (empty($activityLogRows)): ?>
-                            <div class="text-muted small">No activity log entries available yet.</div>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-striped align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th>Time</th>
-                                            <th>Event</th>
-                                            <th>Actor</th>
-                                            <th>Subject</th>
-                                            <th>Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($activityLogRows as $row): ?>
-                                            <?php
-                                            $actorLabel = trim((string)($row['actor_name'] ?? ''));
-                                            if ($actorLabel === '') {
-                                                $actorLabel = (string)($row['actor_email'] ?? '');
-                                            }
-                                            if ($actorLabel === '') {
-                                                $actorLabel = 'System';
-                                            }
-
-                                            $subjectLabel = trim((string)($row['subject_type'] ?? ''));
-                                            $subjectId = trim((string)($row['subject_id'] ?? ''));
-                                            if ($subjectLabel !== '' && $subjectId !== '') {
-                                                $subjectLabel .= ' #' . $subjectId;
-                                            } elseif ($subjectLabel === '' && $subjectId !== '') {
-                                                $subjectLabel = '#' . $subjectId;
-                                            }
-                                            $metadataText = trim((string)($row['metadata'] ?? ''));
-                                            ?>
-                                            <tr>
-                                                <td class="text-nowrap"><?= h((string)($row['created_at'] ?? '')) ?></td>
-                                                <td><?= h((string)($row['event_type'] ?? '')) ?></td>
-                                                <td><?= h($actorLabel) ?></td>
-                                                <td><?= h($subjectLabel !== '' ? $subjectLabel : '-') ?></td>
-                                                <td>
-                                                    <div class="fw-semibold"><?= h((string)($row['message'] ?? '')) ?></div>
-                                                    <?php if ($metadataText !== ''): ?>
-                                                        <div class="text-muted small"><code><?= h($metadataText) ?></code></div>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
