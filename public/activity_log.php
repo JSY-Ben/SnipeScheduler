@@ -198,7 +198,7 @@ try {
                                    value="<?= h($qRaw) ?>">
                         </div>
                         <div class="col-12 col-md-6 col-lg-2">
-                            <select name="event_type" class="form-select form-select-lg" aria-label="Filter event type" style="min-width: 220px;">
+                            <select name="event_type" class="form-select form-select-lg" aria-label="Filter event type">
                                 <option value="">All event types</option>
                                 <?php foreach ($eventTypeOptions as $opt): ?>
                                     <?php
