@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
+require_once SRC_PATH . '/layout.php';
 
 $isAdmin = !empty($currentUser['is_admin']);
 if (!$isAdmin) {
