@@ -82,6 +82,15 @@ try {
             </div>
         </div>
 
+        <ul class="nav nav-tabs reservations-subtabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link" href="settings.php">Settings</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="application_log.php">Application Log</a>
+            </li>
+        </ul>
+
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title mb-1">Latest activity</h5>

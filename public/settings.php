@@ -624,6 +624,15 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             </div>
         <?php endif; ?>
 
+        <ul class="nav nav-tabs reservations-subtabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link active" href="settings.php">Settings</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="application_log.php">Application Log</a>
+            </li>
+        </ul>
+
         <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">
             <div class="col-12">
                 <div class="card" id="admin-settings">
