@@ -369,7 +369,8 @@ try {
                                     $metadataText = trim((string)($row['metadata'] ?? ''));
                                     $metadataLines = format_activity_metadata($metadataText, $metadataLabels, $tz);
                                     $subjectDetailHtml = '';
-                                    if ($subjectLabel !== '' && ($row['subject_type'] ?? '') === 'reservation' && $subjectId !== '') {
+                                    if ($subjectLabel !== '' && ($row['subject_type'] ?? '') === 'reservation' && $subjectId !== ''
+                                        && ($row['event_type'] ?? '') !== 'reservation_deleted') {
                                         $reservationId = (int)$subjectId;
                                         if ($reservationId > 0) {
                                             $subjectDetailHtml = 'Reservation Number: <a href="reservation_detail.php?id='
