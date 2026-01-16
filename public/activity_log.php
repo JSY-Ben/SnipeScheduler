@@ -189,15 +189,15 @@ try {
                 <h5 class="card-title mb-1">Latest activity</h5>
                 <p class="text-muted small mb-3">View, filter, and sort activity events.</p>
                 <div class="border rounded-3 p-4 mb-4">
-                    <form class="row g-2 mb-0 align-items-end" method="get" action="activity_log.php" id="activity-log-filter-form">
-                        <div class="col-12 col-lg">
+                    <form class="row g-3 mb-0 align-items-end" method="get" action="activity_log.php" id="activity-log-filter-form">
+                        <div class="col-12 col-lg-4">
                             <input type="text"
                                    name="q"
                                    class="form-control form-control-lg"
                                    placeholder="Search by user, event, subject, or details..."
                                    value="<?= h($qRaw) ?>">
                         </div>
-                        <div class="col-auto">
+                        <div class="col-12 col-md-6 col-lg-2">
                             <select name="event_type" class="form-select form-select-lg" aria-label="Filter event type" style="min-width: 220px;">
                                 <option value="">All event types</option>
                                 <?php foreach ($eventTypeOptions as $opt): ?>
@@ -210,24 +210,22 @@ try {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-auto">
+                        <div class="col-12 col-md-6 col-lg-2">
                             <input type="date"
                                    name="from"
                                    class="form-control form-control-lg"
-                                   style="min-width: 160px;"
                                    value="<?= h($fromRaw) ?>"
                                    placeholder="From date">
                         </div>
-                        <div class="col-auto">
+                        <div class="col-12 col-md-6 col-lg-2">
                             <input type="date"
                                    name="to"
                                    class="form-control form-control-lg"
-                                   style="min-width: 160px;"
                                    value="<?= h($toRaw) ?>"
                                    placeholder="To date">
                         </div>
-                        <div class="col-auto">
-                            <select name="sort" class="form-select form-select-lg" aria-label="Sort activity log" style="min-width: 240px;">
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <select name="sort" class="form-select form-select-lg" aria-label="Sort activity log">
                                 <option value="time_desc" <?= $sort === 'time_desc' ? 'selected' : '' ?>>Time (newest first)</option>
                                 <option value="time_asc" <?= $sort === 'time_asc' ? 'selected' : '' ?>>Time (oldest first)</option>
                                 <option value="event_asc" <?= $sort === 'event_asc' ? 'selected' : '' ?>>Event (A–Z)</option>
@@ -240,8 +238,8 @@ try {
                                 <option value="id_asc" <?= $sort === 'id_asc' ? 'selected' : '' ?>>Log ID (low → high)</option>
                             </select>
                         </div>
-                        <div class="col-auto">
-                            <select name="per_page" class="form-select form-select-lg" style="min-width: 180px;">
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <select name="per_page" class="form-select form-select-lg">
                                 <?php foreach ($perPageOptions as $opt): ?>
                                     <option value="<?= $opt ?>" <?= $perPage === $opt ? 'selected' : '' ?>>
                                         <?= $opt ?> per page
@@ -249,10 +247,8 @@ try {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-1 d-flex gap-2">
+                        <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
                             <button class="btn btn-primary w-100" type="submit">Filter</button>
-                        </div>
-                        <div class="col-md-1 d-flex gap-2">
                             <a href="activity_log.php" class="btn btn-outline-secondary w-100">Clear</a>
                         </div>
                     </form>
