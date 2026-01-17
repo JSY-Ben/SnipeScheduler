@@ -126,6 +126,13 @@ foreach ($assets as $a) {
     ];
 }
 
+usort($lines, static function (array $a, array $b): int {
+    if ($a['days'] === $b['days']) {
+        return strcasecmp($a['tag'], $b['tag']);
+    }
+    return $b['days'] <=> $a['days'];
+});
+
 $appName = $config['app']['name'] ?? 'SnipeScheduler';
 $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
