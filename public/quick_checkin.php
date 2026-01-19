@@ -470,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th>Asset Tag</th>
                                     <th>Name</th>
                                     <th>Model</th>
-                                    <th>Status (from Snipe-IT)</th>
+                                    <th>Checked out to</th>
                                     <th style="width: 80px;"></th>
                                 </tr>
                             </thead>
@@ -481,12 +481,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <td><?= h($asset['name']) ?></td>
                                         <td><?= h($asset['model']) ?></td>
                                         <?php
-                                            $statusText = $asset['status'] ?? '';
-                                            if (is_array($statusText)) {
-                                                $statusText = $statusText['name'] ?? $statusText['status_meta'] ?? $statusText['label'] ?? '';
+                                            $assignedName = $asset['assigned_name'] ?? '';
+                                            $assignedEmail = $asset['assigned_email'] ?? '';
+                                            if ($assignedEmail !== '') {
+                                                $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
+                                                    ? $assignedName . " <{$assignedEmail}>"
+                                                    : $assignedEmail;
+                                            } elseif ($assignedName !== '') {
+                                                $assignedLabel = $assignedName;
+                                            } else {
+                                                $assignedLabel = 'Not checked out';
                                             }
                                         ?>
-                                        <td><?= h((string)$statusText) ?></td>
+                                        <td><?= h($assignedLabel) ?></td>
                                         <td>
                                             <a href="quick_checkin.php?remove=<?= (int)$asset['id'] ?>"
                                                class="btn btn-sm btn-outline-danger">
