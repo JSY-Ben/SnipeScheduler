@@ -524,7 +524,7 @@ if ($selectedUser) {
             <?php if (empty($checkedOut)): ?>
                 <div class="alert alert-info">No checked-out items found for this user.</div>
             <?php else: ?>
-                <form method="post" action="<?= h($pageBase) ?>" class="border rounded-3 p-3">
+                <form method="post" action="<?= h($pageBase) ?>" class="border rounded-3 p-3" id="checkin-items-form">
                     <?php foreach ($baseQuery as $k => $v): ?>
                         <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                     <?php endforeach; ?>
@@ -700,11 +700,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    const checkinForm = document.querySelector('form[action="<?= h($pageBase) ?>"]');
+    const checkinForm = document.getElementById('checkin-items-form');
     if (checkinForm) {
+        let lastAction = '';
+        const actionButtons = checkinForm.querySelectorAll('button[name="mode"]');
+        actionButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                lastAction = button.value || '';
+            });
+        });
         checkinForm.addEventListener('submit', (event) => {
-            const submitter = event.submitter;
-            if (!submitter || submitter.value !== 'checkin') {
+            const action = lastAction || (event.submitter ? event.submitter.value : '');
+            if (action !== 'checkin') {
                 return;
             }
             const boxes = checkinForm.querySelectorAll('input[name="asset_ids[]"]');
