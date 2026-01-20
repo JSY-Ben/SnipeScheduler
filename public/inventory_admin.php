@@ -23,6 +23,44 @@ $assetEditId = (int)($_GET['asset_edit'] ?? 0);
 
 $statusOptions = ['available', 'checked_out', 'maintenance', 'retired'];
 
+$uploadDirRelative = 'uploads/images';
+$uploadDir = APP_ROOT . '/public/' . $uploadDirRelative;
+$uploadBaseUrl = $uploadDirRelative . '/';
+
+$handleUpload = static function (string $field) use ($uploadDir, $uploadBaseUrl): ?string {
+    if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
+        return null;
+    }
+    $file = $_FILES[$field];
+    if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('Image upload failed.');
+    }
+    if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+        throw new Exception('Could not create upload directory.');
+    }
+
+    $original = (string)($file['name'] ?? '');
+    $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+    $ext = preg_replace('/[^a-z0-9]+/', '', $ext);
+    if ($ext === '') {
+        $ext = 'bin';
+    }
+    $filename = bin2hex(random_bytes(8)) . '.' . $ext;
+    $target = rtrim($uploadDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
+
+    if (!is_uploaded_file($file['tmp_name'] ?? '')) {
+        throw new Exception('Invalid upload.');
+    }
+    if (!@move_uploaded_file($file['tmp_name'], $target)) {
+        throw new Exception('Could not save uploaded file.');
+    }
+
+    return $uploadBaseUrl . $filename;
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -34,6 +72,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $categoryId = $categoryRaw === '' ? null : (int)$categoryRaw;
         $notes = trim($_POST['model_notes'] ?? '');
         $imageUrl = trim($_POST['model_image_url'] ?? '');
+        $uploadedModelImage = null;
+
+        try {
+            $uploadedModelImage = $handleUpload('model_image_upload');
+        } catch (Throwable $e) {
+            $errors[] = $e->getMessage();
+        }
 
         if ($name === '') {
             $errors[] = 'Model name is required.';
@@ -41,6 +86,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$errors) {
             try {
+                $existingImageUrl = null;
+                if ($modelEditId > 0) {
+                    $stmt = $pdo->prepare('SELECT image_url FROM asset_models WHERE id = :id LIMIT 1');
+                    $stmt->execute([':id' => $modelEditId]);
+                    $existingImageUrl = $stmt->fetchColumn() ?: null;
+                }
+                $finalImageUrl = $imageUrl !== '' ? $imageUrl : ($uploadedModelImage ?: $existingImageUrl);
+
                 if ($modelEditId > 0) {
                     $stmt = $pdo->prepare("
                         UPDATE asset_models
@@ -56,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':manufacturer' => $manufacturer !== '' ? $manufacturer : null,
                         ':category_id' => $categoryId ?: null,
                         ':notes' => $notes !== '' ? $notes : null,
-                        ':image_url' => $imageUrl !== '' ? $imageUrl : null,
+                        ':image_url' => $finalImageUrl,
                         ':id' => $modelEditId,
                     ]);
                     $messages[] = 'Model updated.';
@@ -70,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':manufacturer' => $manufacturer !== '' ? $manufacturer : null,
                         ':category_id' => $categoryId ?: null,
                         ':notes' => $notes !== '' ? $notes : null,
-                        ':image_url' => $imageUrl !== '' ? $imageUrl : null,
+                        ':image_url' => $finalImageUrl,
                     ]);
                     $modelEditId = (int)$pdo->lastInsertId();
                     $messages[] = 'Model created.';
@@ -86,6 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $modelId = (int)($_POST['asset_model_id'] ?? 0);
         $status = $_POST['asset_status'] ?? 'available';
         $requestable = isset($_POST['asset_requestable']) ? 1 : 0;
+        $imageUrl = trim($_POST['asset_image_url'] ?? '');
+        $uploadedAssetImage = null;
+
+        try {
+            $uploadedAssetImage = $handleUpload('asset_image_upload');
+        } catch (Throwable $e) {
+            $errors[] = $e->getMessage();
+        }
 
         if ($assetTag === '') {
             $errors[] = 'Asset tag is required.';
@@ -117,6 +178,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Selected model does not exist.');
                 }
 
+                $existingImageUrl = null;
+                if ($assetEditId > 0) {
+                    $stmt = $pdo->prepare('SELECT image_url FROM assets WHERE id = :id LIMIT 1');
+                    $stmt->execute([':id' => $assetEditId]);
+                    $existingImageUrl = $stmt->fetchColumn() ?: null;
+                }
+                $finalImageUrl = $imageUrl !== '' ? $imageUrl : ($uploadedAssetImage ?: $existingImageUrl);
+
                 if ($assetEditId > 0) {
                     $stmt = $pdo->prepare("
                         UPDATE assets
@@ -124,7 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                name = :name,
                                model_id = :model_id,
                                status = :status,
-                               requestable = :requestable
+                               requestable = :requestable,
+                               image_url = :image_url
                          WHERE id = :id
                     ");
                     $stmt->execute([
@@ -133,13 +203,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':model_id' => $modelId,
                         ':status' => $status,
                         ':requestable' => $requestable,
+                        ':image_url' => $finalImageUrl,
                         ':id' => $assetEditId,
                     ]);
                     $messages[] = 'Asset updated.';
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO assets (asset_tag, name, model_id, status, requestable, created_at)
-                        VALUES (:asset_tag, :name, :model_id, :status, :requestable, NOW())
+                        INSERT INTO assets (asset_tag, name, model_id, status, requestable, image_url, created_at)
+                        VALUES (:asset_tag, :name, :model_id, :status, :requestable, :image_url, NOW())
                     ");
                     $stmt->execute([
                         ':asset_tag' => $assetTag,
@@ -147,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':model_id' => $modelId,
                         ':status' => $status,
                         ':requestable' => $requestable,
+                        ':image_url' => $finalImageUrl,
                     ]);
                     $assetEditId = (int)$pdo->lastInsertId();
                     $messages[] = 'Asset created.';
@@ -214,7 +286,7 @@ try {
          ORDER BY m.name ASC
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $assets = $pdo->query('
-        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.requestable, a.created_at, m.name AS model_name
+        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.requestable, a.image_url, a.created_at, m.name AS model_name
           FROM assets a
           JOIN asset_models m ON m.id = a.model_id
          ORDER BY a.asset_tag ASC
@@ -315,7 +387,7 @@ if ($assetEditId > 0) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= $editCategory ? 'Edit category' : 'Create category' ?></h5>
-                <form method="post" class="row g-3">
+                <form method="post" class="row g-3" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="save_category">
                     <input type="hidden" name="category_id" value="<?= (int)($editCategory['id'] ?? 0) ?>">
                     <div class="col-md-4">
@@ -369,6 +441,11 @@ if ($assetEditId > 0) {
                         <label class="form-label">Image URL</label>
                         <input type="text" name="model_image_url" class="form-control" value="<?= h($editModel['image_url'] ?? '') ?>">
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Upload image</label>
+                        <input type="file" name="model_image_upload" class="form-control">
+                        <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
+                    </div>
                     <div class="col-12 d-flex justify-content-end gap-2">
                         <?php if ($editModel): ?>
                             <a href="inventory_admin.php" class="btn btn-outline-secondary">Cancel</a>
@@ -382,7 +459,7 @@ if ($assetEditId > 0) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= $editAsset ? 'Edit asset' : 'Create asset' ?></h5>
-                <form method="post" class="row g-3">
+                <form method="post" class="row g-3" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="save_asset">
                     <input type="hidden" name="asset_id" value="<?= (int)($editAsset['id'] ?? 0) ?>">
                     <div class="col-md-3">
@@ -413,6 +490,15 @@ if ($assetEditId > 0) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Image URL</label>
+                        <input type="text" name="asset_image_url" class="form-control" value="<?= h($editAsset['image_url'] ?? '') ?>">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Upload image</label>
+                        <input type="file" name="asset_image_upload" class="form-control">
+                        <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
                         <div class="form-check">
