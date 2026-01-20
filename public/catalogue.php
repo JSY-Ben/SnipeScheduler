@@ -316,17 +316,6 @@ function entra_directory_search(string $q, array $config): array
 if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
     header('Content-Type: application/json');
 
-    if (!$ldapEnabled && !$googleEnabled && !$msEnabled) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Directory search is disabled.']);
-        exit;
-    }
-    if ($msEnabled && !$ldapEnabled && !$googleEnabled && empty($_SESSION['ms_access_token'])) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Microsoft directory search requires signing in with Microsoft.']);
-        exit;
-    }
-
     $q = trim($_GET['q'] ?? '');
     if ($q === '' || strlen($q) < 2) {
         echo json_encode(['results' => []]);
@@ -347,6 +336,11 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
                 'name'  => $name !== '' ? $name : $email,
             ];
         };
+
+        $localResults = search_users($q, 10);
+        foreach ($localResults as $row) {
+            $addResult((string)($row['email'] ?? ''), (string)($row['name'] ?? ($row['username'] ?? '')));
+        }
 
         if ($ldapEnabled) {
             if (!empty($ldapCfg['ignore_cert'])) {
@@ -397,9 +391,11 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
         }
 
         if ($msEnabled) {
-            $entraResults = entra_directory_search($q, $config);
-            foreach ($entraResults as $row) {
-                $addResult($row['email'] ?? '', $row['name'] ?? '');
+            if (!empty($_SESSION['ms_access_token'])) {
+                $entraResults = entra_directory_search($q, $config);
+                foreach ($entraResults as $row) {
+                    $addResult($row['email'] ?? '', $row['name'] ?? '');
+                }
             }
         }
 
