@@ -35,6 +35,7 @@ $eventLabels = [
     'reservation_checked_out' => 'Reservation Checked Out',
     'quick_checkout' => 'Quick Checkout',
     'quick_checkin' => 'Quick Checkin',
+    'assets_checked_in' => 'Asset Checkin Completed',
     'asset_renewed' => 'Asset Renewed',
     'assets_renewed' => 'Assets Renewed',
 ];
@@ -48,7 +49,8 @@ $metadataLabels = [
     'cutoff_minutes' => 'Cutoff minutes',
     'note' => 'Note',
     'notes' => 'Notes',
-    'user_email' => 'User email',
+    'user_id' => 'Checked in from',
+    'user_email' => 'Checked in from',
     'provider' => 'Provider',
     'start' => 'Start',
     'end' => 'End',
@@ -56,10 +58,14 @@ $metadataLabels = [
     'asset_id' => 'Asset ID',
     'asset_name' => 'Asset name',
     'items' => 'Items',
+    'user_id' => 'User',
 ];
 
 function format_activity_metadata(?string $metadataJson, array $labelMap, ?DateTimeZone $tz = null): array
 {
+    global $pdo;
+    static $userCache = [];
+
     if (!$metadataJson) {
         return [];
     }
@@ -70,6 +76,7 @@ function format_activity_metadata(?string $metadataJson, array $labelMap, ?DateT
     }
 
     $lines = [];
+    $hasUserId = !empty($decoded['user_id']);
     foreach ($decoded as $key => $value) {
         if ($key === 'notes' && is_array($value)) {
             $noteLines = [];
@@ -94,7 +101,32 @@ function format_activity_metadata(?string $metadataJson, array $labelMap, ?DateT
             continue;
         }
         $label = $labelMap[$key] ?? ucwords(str_replace('_', ' ', (string)$key));
-        if (is_array($value)) {
+        if ($key === 'user_email' && $hasUserId) {
+            continue;
+        }
+        if ($key === 'user_id') {
+            $userId = (int)$value;
+            if ($userId > 0) {
+                if (!array_key_exists($userId, $userCache)) {
+                    $stmt = $pdo->prepare("SELECT first_name, last_name, email FROM users WHERE id = :id LIMIT 1");
+                    $stmt->execute([':id' => $userId]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                    $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                    $email = $user['email'] ?? '';
+                    $display = $name !== '' ? $name : '';
+                    if ($email !== '') {
+                        $display = $display !== '' ? ($display . ' <' . $email . '>') : $email;
+                    }
+                    if ($display === '') {
+                        $display = 'User #' . $userId;
+                    }
+                    $userCache[$userId] = $display;
+                }
+                $value = $userCache[$userId];
+            } else {
+                $value = '';
+            }
+        } elseif (is_array($value)) {
             $value = implode(', ', array_map(static function ($item): string {
                 return is_scalar($item) ? (string)$item : json_encode($item, JSON_UNESCAPED_SLASHES);
             }, $value));
