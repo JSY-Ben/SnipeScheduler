@@ -270,21 +270,26 @@ if ($userSearch !== '') {
 }
 
 try {
+    $baseUserSql = "
+        SELECT
+            COALESCE(u.id, 0) AS uid,
+            COALESCE(u.email, co.assigned_to_email, '') AS email,
+            COALESCE(CONCAT(u.first_name, ' ', u.last_name), co.assigned_to_name, '') AS name,
+            COALESCE(u.username, co.assigned_to_username, '') AS username
+          FROM checked_out_asset_cache co
+          LEFT JOIN users u ON u.id = co.assigned_to_id
+         WHERE (
+                (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
+                OR co.assigned_to_email <> ''
+                OR co.assigned_to_name <> ''
+                OR co.assigned_to_username <> ''
+           )
+           {$userSearchSql}
+    ";
     $countStmt = $pdo->prepare("
         SELECT COUNT(*) FROM (
-            SELECT COALESCE(u.id, 0) AS uid,
-                   COALESCE(u.email, co.assigned_to_email, '') AS email,
-                   COALESCE(CONCAT(u.first_name, ' ', u.last_name), co.assigned_to_name, '') AS name,
-                   COALESCE(u.username, co.assigned_to_username, '') AS username
-              FROM checked_out_asset_cache co
-              LEFT JOIN users u ON u.id = co.assigned_to_id
-             WHERE (
-                    (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
-                    OR co.assigned_to_email <> ''
-                    OR co.assigned_to_name <> ''
-                    OR co.assigned_to_username <> ''
-               )
-               {$userSearchSql}
+            SELECT uid, email, name, username
+              FROM ({$baseUserSql}) AS base_users
              GROUP BY uid, email, name, username
         ) AS distinct_users
     ");
@@ -300,21 +305,8 @@ try {
     $userOffset = ($userPage - 1) * $userPerPage;
 
     $stmt = $pdo->prepare("
-        SELECT
-            COALESCE(u.id, 0) AS uid,
-            COALESCE(u.email, co.assigned_to_email, '') AS email,
-            COALESCE(CONCAT(u.first_name, ' ', u.last_name), co.assigned_to_name, '') AS name,
-            COALESCE(u.username, co.assigned_to_username, '') AS username,
-            COUNT(*) AS asset_count
-          FROM checked_out_asset_cache co
-          LEFT JOIN users u ON u.id = co.assigned_to_id
-         WHERE (
-                (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
-                OR co.assigned_to_email <> ''
-                OR co.assigned_to_name <> ''
-                OR co.assigned_to_username <> ''
-           )
-           {$userSearchSql}
+        SELECT uid, email, name, username, COUNT(*) AS asset_count
+          FROM ({$baseUserSql}) AS base_users
          GROUP BY uid, email, name, username
          ORDER BY name, email
          LIMIT :limit OFFSET :offset
