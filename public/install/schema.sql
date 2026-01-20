@@ -72,7 +72,6 @@ CREATE TABLE IF NOT EXISTS assets (
     name VARCHAR(255) NOT NULL,
     model_id INT UNSIGNED NOT NULL,
     status ENUM('available','checked_out','maintenance','retired') NOT NULL DEFAULT 'available',
-    requestable TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),

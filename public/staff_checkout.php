@@ -282,9 +282,6 @@ if ($selectedReservationId) {
                     $assetsRaw = list_assets_by_model($mid, 300);
                     $filtered  = [];
                     foreach ($assetsRaw as $a) {
-                        if (empty($a['requestable'])) {
-                            continue; // skip non-requestable assets
-                        }
                         $statusValue = strtolower((string)($a['status'] ?? ''));
                         if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
                             continue;
@@ -467,7 +464,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modelId   = (int)($asset['model']['id'] ?? 0);
                 $status    = $asset['status_label'] ?? '';
                 $statusValue = strtolower((string)($asset['status'] ?? ''));
-                $isRequestable = !empty($asset['requestable']);
 
                 // Normalise status label to a string (API may return array/object)
                 if (is_array($status)) {
@@ -482,9 +478,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if ($modelId <= 0) {
                     throw new Exception('Asset record is missing model information.');
-                }
-                if (!$isRequestable) {
-                    throw new Exception('This asset is not requestable.');
                 }
                 if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
                     throw new Exception('This asset is not available for checkout.');
@@ -542,9 +535,7 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
             $choices = $modelAssets[$mid] ?? [];
             $choicesById = [];
             foreach ($choices as $c) {
-                if (!empty($c['requestable'])) {
-                    $choicesById[(int)($c['id'] ?? 0)] = $c;
-                }
+                $choicesById[(int)($c['id'] ?? 0)] = $c;
             }
 
                 $selectedForModel = isset($selectedAssetsInput[$mid]) && is_array($selectedAssetsInput[$mid])

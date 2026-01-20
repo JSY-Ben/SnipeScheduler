@@ -62,19 +62,19 @@ if (!empty($basket)) {
             $modelId = (int)$modelId;
             $qty     = (int)$qty;
 
-            // Count requestable assets for limits/availability
-            $requestableCount = null;
+            // Count assets for limits/availability
+            $assetCount = null;
             try {
-                $requestableCount = count_requestable_assets_by_model($modelId);
+                $assetCount = count_assets_by_model($modelId);
             } catch (Throwable $e) {
-                $requestableCount = null;
+                $assetCount = null;
             }
 
             $models[] = [
                 'id'                => $modelId,
                 'data'              => get_model($modelId),
                 'qty'               => $qty,
-                'requestable_count' => $requestableCount,
+                'asset_count' => $assetCount,
             ];
             $totalItems     += $qty;
             $distinctModels += 1;
@@ -84,7 +84,7 @@ if (!empty($basket)) {
         if ($previewStart && $previewEnd) {
             foreach ($models as $entry) {
                 $mid = (int)$entry['id'];
-                $requestableTotal = $entry['requestable_count'] ?? null;
+                $assetTotal = $entry['asset_count'] ?? null;
 
                 // How many units already booked in that time range?
                 $sql = "
@@ -110,23 +110,23 @@ if (!empty($basket)) {
                 $activeCheckedOut = count_checked_out_assets_by_model($mid);
                 $booked = $pendingQty + $activeCheckedOut;
 
-                // Total requestable units in local inventory
-                if ($requestableTotal === null) {
+                // Total units in local inventory
+                if ($assetTotal === null) {
                     try {
-                        $requestableTotal = count_requestable_assets_by_model($mid);
+                        $assetTotal = count_assets_by_model($mid);
                     } catch (Throwable $e) {
-                        $requestableTotal = 0;
+                        $assetTotal = 0;
                     }
                 }
 
-                if ($requestableTotal > 0) {
-                    $free = max(0, $requestableTotal - $booked);
+                if ($assetTotal > 0) {
+                    $free = max(0, $assetTotal - $booked);
                 } else {
                     $free = null; // unknown
                 }
 
                 $availability[$mid] = [
-                    'total'  => $requestableTotal,
+                    'total'  => $assetTotal,
                     'booked' => $booked,
                     'free'   => $free,
                 ];

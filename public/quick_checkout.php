@@ -83,7 +83,7 @@ if (($_GET['ajax'] ?? '') === 'asset_search') {
     }
 
     try {
-        $rows = search_assets($q, 20, true);
+        $rows = search_assets($q, 20);
         $results = [];
         foreach ($rows as $row) {
             $results[] = [
@@ -134,7 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modelName = $asset['model']['name'] ?? '';
                 $status    = $asset['status_label'] ?? '';
                 $statusValue = strtolower((string)($asset['status'] ?? ''));
-                $isRequestable = !empty($asset['requestable']);
                 if (is_array($status)) {
                     $status = $status['name'] ?? $status['status_meta'] ?? $status['label'] ?? '';
                 }
@@ -144,9 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($assetId <= 0 || $assetTag === '') {
                     throw new Exception('Asset record is missing id/asset_tag.');
-                }
-                if (!$isRequestable) {
-                    throw new Exception('This asset is not requestable.');
                 }
                 if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
                     throw new Exception('This asset is not available for checkout.');
@@ -217,9 +213,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $availabilityUnknown = false;
                     try {
-                        $requestableTotal = count_requestable_assets_by_model((int)$mid);
+                        $totalAssets = count_assets_by_model((int)$mid);
                         $checkedOut = count_checked_out_assets_by_model((int)$mid);
-                        $available = max(0, $requestableTotal - $checkedOut);
+                        $available = max(0, $totalAssets - $checkedOut);
                     } catch (Throwable $e) {
                         $availabilityUnknown = true;
                         $available = 0;

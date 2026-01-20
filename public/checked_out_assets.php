@@ -373,7 +373,7 @@ function layout_checked_out_url(string $base, array $params): string
         <div class="page-header">
             <h1>Checked Out Reservations</h1>
             <div class="page-subtitle">
-                Showing requestable assets currently checked out.
+                Showing assets currently checked out.
             </div>
         </div>
 
@@ -473,7 +473,7 @@ function layout_checked_out_url(string $base, array $params): string
 
         <?php if (empty($assets) && !$error): ?>
             <div class="alert alert-secondary">
-                No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out requestable assets.
+                No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out assets.
             </div>
         <?php else: ?>
             <form method="post">

@@ -34,7 +34,6 @@ function inventory_map_asset_row(array $row): array
         'name' => $row['asset_name'] ?? ($row['name'] ?? ''),
         'model_id' => (int)($row['model_id'] ?? 0),
         'status' => $row['status'] ?? '',
-        'requestable' => isset($row['requestable']) ? (int)$row['requestable'] : null,
         'image' => $image ?? '',
     ];
 
@@ -164,8 +163,7 @@ function get_bookable_models(
         LEFT JOIN (
             SELECT model_id, COUNT(*) AS count_total
               FROM assets
-             WHERE requestable = 1
-               AND status IN ('available','checked_out')
+             WHERE status IN ('available','checked_out')
              GROUP BY model_id
         ) AS assets_count ON assets_count.model_id = m.id
         {$whereSql}
@@ -226,7 +224,6 @@ function get_asset(int $assetId): array
             a.name AS asset_name,
             a.model_id,
             a.status,
-            a.requestable,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -260,7 +257,6 @@ function find_asset_by_tag(string $tag): array
             a.name AS asset_name,
             a.model_id,
             a.status,
-            a.requestable,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -282,7 +278,7 @@ function find_asset_by_tag(string $tag): array
     return inventory_map_asset_row($row);
 }
 
-function search_assets(string $query, int $limit = 20, bool $requestableOnly = false): array
+function search_assets(string $query, int $limit = 20): array
 {
     global $pdo;
 
@@ -298,10 +294,6 @@ function search_assets(string $query, int $limit = 20, bool $requestableOnly = f
         ':q' => '%' . $q . '%',
     ];
 
-    if ($requestableOnly) {
-        $where[] = "a.requestable = 1 AND a.status IN ('available','checked_out')";
-    }
-
     $stmt = $pdo->prepare("
         SELECT
             a.id AS asset_id,
@@ -309,7 +301,6 @@ function search_assets(string $query, int $limit = 20, bool $requestableOnly = f
             a.name AS asset_name,
             a.model_id,
             a.status,
-            a.requestable,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -349,7 +340,6 @@ function list_assets_by_model(int $modelId, int $maxResults = 300): array
             a.name AS asset_name,
             a.model_id,
             a.status,
-            a.requestable,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -377,14 +367,13 @@ function list_assets_by_model(int $modelId, int $maxResults = 300): array
     return $assets;
 }
 
-function count_requestable_assets_by_model(int $modelId): int
+function count_assets_by_model(int $modelId): int
 {
     global $pdo;
     $stmt = $pdo->prepare("
         SELECT COUNT(*) AS total
           FROM assets
          WHERE model_id = :model_id
-           AND requestable = 1
            AND status IN ('available','checked_out')
     ");
     $stmt->execute([':model_id' => $modelId]);

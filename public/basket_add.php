@@ -25,9 +25,9 @@ if ($qtyRequested > 100) {
 
 // Enforce hardware limits from local inventory (if available)
 try {
-    $requestableTotal = count_requestable_assets_by_model($modelId);
+    $totalAssets = count_assets_by_model($modelId);
     $activeCheckedOut = count_checked_out_assets_by_model($modelId);
-    $maxQty = $requestableTotal > 0 ? max(0, $requestableTotal - $activeCheckedOut) : 0;
+    $maxQty = $totalAssets > 0 ? max(0, $totalAssets - $activeCheckedOut) : 0;
 } catch (Throwable $e) {
     $maxQty = 0; // treat as unknown (no hard cap)
 }

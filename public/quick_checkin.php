@@ -29,7 +29,7 @@ if (($_GET['ajax'] ?? '') === 'asset_search') {
     }
 
     try {
-        $rows = search_assets($q, 20, true);
+        $rows = search_assets($q, 20);
         $results = [];
         foreach ($rows as $row) {
             $results[] = [

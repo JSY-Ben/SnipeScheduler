@@ -829,9 +829,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     $assetCount = null;
                     $freeNow     = 0;
                     $maxQty      = 0;
-                    $isRequestable = false;
+                    $hasStock = false;
                     try {
-                        $assetCount = count_requestable_assets_by_model($modelId);
+                        $assetCount = count_assets_by_model($modelId);
 
                         // Active reservations overlapping "now"
                         $stmt = $pdo->prepare("
@@ -862,12 +862,12 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         $booked = $pendingQty + $activeCheckedOut;
                         $freeNow = max(0, $assetCount - $booked);
                         $maxQty = $freeNow;
-                        $isRequestable = $assetCount > 0;
+                        $hasStock = $assetCount > 0;
                     } catch (Throwable $e) {
                         $assetCount = $assetCount ?? 0;
                         $freeNow    = 0;
                         $maxQty     = 0;
-                        $isRequestable = $assetCount > 0;
+                        $hasStock = $assetCount > 0;
                     }
                     $notes      = $model['notes'] ?? '';
                     if (is_array($notes)) {
@@ -904,7 +904,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                         <span><strong>Category:</strong> <?= label_safe($catName) ?></span><br>
                                     <?php endif; ?>
                                     <?php if ($assetCount !== null): ?>
-                                        <span><strong>Requestable units:</strong> <?= $assetCount ?></span><br>
+                                        <span><strong>Total units:</strong> <?= $assetCount ?></span><br>
                                     <?php endif; ?>
                                     <span><strong>Available now:</strong> <?= $freeNow ?></span>
                                     <?php if (!empty($notes)): ?>
@@ -919,7 +919,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                       class="mt-auto add-to-basket-form">
                                     <input type="hidden" name="model_id" value="<?= $modelId ?>">
 
-                                    <?php if ($isRequestable && $freeNow > 0): ?>
+                                    <?php if ($hasStock && $freeNow > 0): ?>
                                         <div class="row g-2 align-items-center mb-2">
                                             <div class="col-6">
                                                 <label class="form-label mb-0 small">Quantity</label>
@@ -938,8 +938,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                         </button>
                                     <?php else: ?>
                                         <div class="alert alert-secondary small mb-0">
-                                            <?php if (!$isRequestable): ?>
-                                                No requestable units available.
+                                            <?php if (!$hasStock): ?>
+                                                No units available.
                                             <?php else: ?>
                                                 No units available right now.
                                             <?php endif; ?>

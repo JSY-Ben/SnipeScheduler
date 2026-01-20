@@ -39,7 +39,7 @@ In the app, users can request equipment, and staff can manage reservations, chec
 
 ## Inventory setup
 - Populate `asset_categories`, `asset_models`, and `assets` tables with your equipment data.
-- Assets marked as `requestable=1` will appear in the catalogue if their model exists.
+- Assets with status `available` or `checked_out` will appear in the catalogue if their model exists.
 - Checked-out assets are tracked in the `checked_out_asset_cache` table by the app.
 
 ## General usage

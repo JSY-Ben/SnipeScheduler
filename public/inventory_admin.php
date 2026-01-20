@@ -149,7 +149,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $assetName = trim($_POST['asset_name'] ?? '');
         $modelId = (int)($_POST['asset_model_id'] ?? 0);
         $status = $_POST['asset_status'] ?? 'available';
-        $requestable = isset($_POST['asset_requestable']) ? 1 : 0;
 
         if ($assetTag === '') {
             $errors[] = 'Asset tag is required.';
@@ -187,8 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            SET asset_tag = :asset_tag,
                                name = :name,
                                model_id = :model_id,
-                               status = :status,
-                               requestable = :requestable
+                               status = :status
                          WHERE id = :id
                     ");
                     $stmt->execute([
@@ -196,21 +194,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':name' => $assetName,
                         ':model_id' => $modelId,
                         ':status' => $status,
-                        ':requestable' => $requestable,
                         ':id' => $assetEditId,
                     ]);
                     $messages[] = 'Asset updated.';
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO assets (asset_tag, name, model_id, status, requestable, created_at)
-                        VALUES (:asset_tag, :name, :model_id, :status, :requestable, NOW())
+                        INSERT INTO assets (asset_tag, name, model_id, status, created_at)
+                        VALUES (:asset_tag, :name, :model_id, :status, NOW())
                     ");
                     $stmt->execute([
                         ':asset_tag' => $assetTag,
                         ':name' => $assetName,
                         ':model_id' => $modelId,
                         ':status' => $status,
-                        ':requestable' => $requestable,
                     ]);
                     $assetEditId = (int)$pdo->lastInsertId();
                     $messages[] = 'Asset created.';
@@ -275,7 +271,7 @@ try {
          ORDER BY m.name ASC
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $assets = $pdo->query('
-        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.requestable, a.created_at, m.name AS model_name
+        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.created_at, m.name AS model_name
           FROM assets a
           JOIN asset_models m ON m.id = a.model_id
          ORDER BY a.asset_tag ASC
@@ -399,13 +395,6 @@ if ($modelEditId > 0) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="assets-requestable-filter">
-                                <option value="">All requestable</option>
-                                <option value="1">Requestable</option>
-                                <option value="0">Not requestable</option>
-                            </select>
-                        </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
@@ -421,7 +410,6 @@ if ($modelEditId > 0) {
                                         <th>Model ID</th>
                                         <th>Model</th>
                                         <th>Status</th>
-                                        <th>Requestable</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -431,18 +419,16 @@ if ($modelEditId > 0) {
                                             data-tag="<?= h($asset['asset_tag'] ?? '') ?>"
                                             data-name="<?= h($asset['name'] ?? '') ?>"
                                             data-model="<?= h($asset['model_name'] ?? '') ?>"
-                                            data-status="<?= h($asset['status'] ?? 'available') ?>"
-                                            data-requestable="<?= !empty($asset['requestable']) ? '1' : '0' ?>">
+                                            data-status="<?= h($asset['status'] ?? 'available') ?>">
                                             <td><?= (int)($asset['id'] ?? 0) ?></td>
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
                                             <td><?= h($asset['name'] ?? '') ?></td>
                                             <td><?= (int)($asset['model_id'] ?? 0) ?></td>
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
-                                                <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
-                                                <td><?= !empty($asset['requestable']) ? 'Yes' : 'No' ?></td>
-                                                <td class="text-end">
-                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editAssetModal-<?= (int)$asset['id'] ?>">Edit</button>
-                                                </td>
+                                            <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editAssetModal-<?= (int)$asset['id'] ?>">Edit</button>
+                                            </td>
                                             </tr>
                                         <?php endforeach; ?>
                                 </tbody>
@@ -788,15 +774,9 @@ if ($modelEditId > 0) {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="create_asset_requestable_model_<?= (int)$model['id'] ?>">
-                                    <label class="form-check-label" for="create_asset_requestable_model_<?= (int)$model['id'] ?>">Requestable</label>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-                    <div class="modal-footer">
+                </div>
+                <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Create asset</button>
                     </div>
@@ -846,12 +826,6 @@ if ($modelEditId > 0) {
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="asset_requestable" id="create_asset_requestable">
-                                <label class="form-check-label" for="create_asset_requestable">Requestable</label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -905,12 +879,6 @@ if ($modelEditId > 0) {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="asset_requestable_<?= (int)$asset['id'] ?>" <?= !empty($asset['requestable']) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="asset_requestable_<?= (int)$asset['id'] ?>">Requestable</label>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1001,13 +969,10 @@ if ($modelEditId > 0) {
         filterId: 'assets-filter',
         sortId: 'assets-sort',
         tableId: 'assets-table',
-        filterSelectIds: ['assets-status-filter', 'assets-requestable-filter'],
+        filterSelectIds: ['assets-status-filter'],
         filterPredicates: {
             'assets-status-filter': function (row, value) {
                 return (row.dataset.status || '') === value;
-            },
-            'assets-requestable-filter': function (row, value) {
-                return (row.dataset.requestable || '') === value;
             },
         },
     });

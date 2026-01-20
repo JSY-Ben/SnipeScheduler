@@ -44,7 +44,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'model_search') {
             if ($mid <= 0 || $name === '') {
                 continue;
             }
-            if (count_requestable_assets_by_model($mid) <= 0) {
+            if (count_assets_by_model($mid) <= 0) {
                 continue;
             }
             $manu = $row['manufacturer']['name'] ?? '';
@@ -278,11 +278,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $row = $stmt->fetch();
             $existingBooked = $row ? (int)$row['booked_qty'] : 0;
 
-            $totalRequestable = count_requestable_assets_by_model($mid);
+            $totalAssets = count_assets_by_model($mid);
             $activeCheckedOut = count_checked_out_assets_by_model($mid);
-            $availableNow = $totalRequestable > 0 ? max(0, $totalRequestable - $activeCheckedOut) : 0;
+            $availableNow = $totalAssets > 0 ? max(0, $totalAssets - $activeCheckedOut) : 0;
 
-            if ($totalRequestable > 0 && $existingBooked + $qty > $availableNow) {
+            if ($totalAssets > 0 && $existingBooked + $qty > $availableNow) {
                 $errors[] = 'Not enough units available for "' . $modelName . '" in that time period.';
             }
         }
