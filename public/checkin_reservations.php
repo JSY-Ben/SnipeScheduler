@@ -13,6 +13,7 @@ $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'checkin_reservations.php';
 $baseQuery = $embedded ? ['tab' => 'checkin'] : [];
+$pageAction = $pageBase . (!empty($baseQuery) ? ('?' . http_build_query($baseQuery)) : '');
 
 if (!$isStaff) {
     http_response_code(403);
@@ -381,7 +382,7 @@ if ($selectedUser) {
         <?php endforeach; ?>
 
         <div class="border rounded-3 p-4 mb-4">
-            <form method="get" action="<?= h($pageBase) ?>" id="checkin-user-form">
+            <form method="get" action="<?= h($pageAction) ?>" id="checkin-user-form">
                 <?php foreach ($baseQuery as $k => $v): ?>
                     <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                 <?php endforeach; ?>
@@ -524,7 +525,7 @@ if ($selectedUser) {
             <?php if (empty($checkedOut)): ?>
                 <div class="alert alert-info">No checked-out items found for this user.</div>
             <?php else: ?>
-                <form method="post" action="<?= h($pageBase) ?>" class="border rounded-3 p-3" id="checkin-items-form">
+                <form method="post" action="<?= h($pageAction) ?>" class="border rounded-3 p-3" id="checkin-items-form">
                     <?php foreach ($baseQuery as $k => $v): ?>
                         <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                     <?php endforeach; ?>
