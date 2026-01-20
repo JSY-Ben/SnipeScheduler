@@ -151,9 +151,10 @@ $sort = in_array($sortRaw, $sortOptions, true) ? $sortRaw : 'expected_asc';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['checkin_asset_id'])) {
         $checkinId = (int)$_POST['checkin_asset_id'];
+        $checkinNote = trim((string)($_POST['checkin_note'] ?? ''));
         if ($checkinId > 0) {
             try {
-                checkin_asset($checkinId);
+                checkin_asset($checkinId, $checkinNote);
                 $labels = load_asset_labels($pdo, [$checkinId]);
                 $label = $labels[$checkinId] ?? ('Asset #' . $checkinId);
                 $messages[] = "Checked in {$label}.";
@@ -163,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'metadata' => [
                         'assets' => [$label],
                         'count' => 1,
+                        'note' => $checkinNote,
                     ],
                 ]);
             } catch (Throwable $e) {
@@ -245,6 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check in selected items
     if (isset($_POST['bulk_checkin']) && $_POST['bulk_checkin'] === '1') {
         $bulkIds = $_POST['bulk_asset_ids'] ?? [];
+        $checkinNote = trim((string)($_POST['checkin_note'] ?? ''));
         if (empty($bulkIds) || !is_array($bulkIds)) {
             $error = 'Select at least one asset to check in.';
         } else {
@@ -256,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Select at least one valid asset to check in.';
                 } else {
                     foreach ($assetIds as $assetId) {
-                        checkin_asset($assetId);
+                        checkin_asset($assetId, $checkinNote);
                     }
                     $labels = load_asset_labels($pdo, $assetIds);
                     $assetLabels = array_values(array_filter(array_map(static function (int $id) use ($labels): string {
@@ -267,6 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'metadata' => [
                             'assets' => $assetLabels,
                             'count' => count($assetIds),
+                            'note' => $checkinNote,
                         ],
                     ]);
                 }
@@ -534,7 +538,7 @@ function layout_checked_out_url(string $base, array $params): string
                 No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out assets.
             </div>
         <?php else: ?>
-            <form method="post">
+            <form method="post" id="checked-out-form">
                 <input type="hidden" name="view" value="<?= h($view) ?>">
                 <?php if ($search !== ''): ?>
                     <input type="hidden" name="q" value="<?= h($search) ?>">
@@ -542,6 +546,9 @@ function layout_checked_out_url(string $base, array $params): string
                 <input type="hidden" name="per_page" value="<?= (int)$perPage ?>">
                 <input type="hidden" name="page" value="<?= (int)$page ?>">
                 <input type="hidden" name="sort" value="<?= h($sort) ?>">
+                <input type="hidden" name="checkin_note" id="checkin-note-input" value="">
+                <input type="hidden" name="checkin_asset_id" id="checkin-asset-id" value="">
+                <input type="hidden" name="bulk_checkin" id="bulk-checkin-flag" value="">
                 <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
                     <div>
                         <label class="form-label mb-1">Renew selected to</label>
@@ -553,9 +560,8 @@ function layout_checked_out_url(string $base, array $params): string
                             class="btn btn-outline-primary btn-sm">
                         Renew selected
                     </button>
-                    <button type="submit"
-                            name="bulk_checkin"
-                            value="1"
+                    <button type="button"
+                            id="bulk-checkin-button"
                             class="btn btn-outline-success btn-sm">
                         Check in selected
                     </button>
@@ -632,10 +638,9 @@ function layout_checked_out_url(string $base, array $params): string
                                                     <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
                                                 Renew
                                             </button>
-                                            <button type="submit"
-                                                    name="checkin_asset_id"
-                                                    value="<?= $aid ?>"
-                                                    class="btn btn-sm btn-outline-success"
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-success checkin-item-button"
+                                                    data-asset-id="<?= $aid ?>"
                                                     <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
                                                 Check in
                                             </button>
@@ -685,7 +690,30 @@ function layout_checked_out_url(string $base, array $params): string
                     </ul>
                 </nav>
             <?php endif; ?>
-        <?php endif; ?>
+<?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="checkinNoteModal" tabindex="-1" aria-labelledby="checkinNoteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="checkinNoteModalLabel">Check-in Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <div class="text-muted small">Checking in</div>
+                    <div class="fw-semibold" id="checkin-note-assets">Selected assets</div>
+                </div>
+                <label for="checkin-note-textarea" class="form-label">Optional note</label>
+                <textarea id="checkin-note-textarea" class="form-control" rows="3" placeholder="Add a note (optional)"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-checkin-button">Confirm check-in</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const scrollKey = 'checked_out_scroll_y';
@@ -727,6 +755,81 @@ document.addEventListener('DOMContentLoaded', function () {
     if (sortSelect && filterForm) {
         sortSelect.addEventListener('change', function () {
             filterForm.submit();
+        });
+    }
+
+    const checkinForm = document.getElementById('checked-out-form');
+    const noteModalEl = document.getElementById('checkinNoteModal');
+    if (checkinForm && noteModalEl && window.bootstrap) {
+        const modal = new bootstrap.Modal(noteModalEl);
+        const noteInput = document.getElementById('checkin-note-input');
+        const assetInput = document.getElementById('checkin-asset-id');
+        const bulkInput = document.getElementById('bulk-checkin-flag');
+        const noteTextarea = document.getElementById('checkin-note-textarea');
+        const confirmBtn = document.getElementById('confirm-checkin-button');
+        const noteAssets = document.getElementById('checkin-note-assets');
+        const bulkBtn = document.getElementById('bulk-checkin-button');
+
+        const openModal = (options) => {
+            if (!noteInput || !assetInput || !bulkInput || !noteTextarea || !confirmBtn) {
+                return;
+            }
+            noteTextarea.value = '';
+            assetInput.value = options.assetId || '';
+            bulkInput.value = options.bulk ? '1' : '';
+            if (noteAssets) {
+                noteAssets.textContent = options.assetsLabel || 'Selected assets';
+            }
+            modal.show();
+        };
+
+        checkinForm.querySelectorAll('.checkin-item-button').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const assetId = btn.dataset.assetId || '';
+                if (!assetId) {
+                    return;
+                }
+                const row = btn.closest('tr');
+                const tagCell = row ? row.querySelector('td:nth-child(2)') : null;
+                const label = tagCell ? tagCell.textContent.trim() : 'Selected asset';
+                openModal({ assetId: assetId, bulk: false, assetsLabel: label });
+            });
+        });
+
+        if (bulkBtn) {
+            bulkBtn.addEventListener('click', () => {
+                const boxes = checkinForm.querySelectorAll('input[name="bulk_asset_ids[]"]');
+                const anyChecked = Array.from(boxes).some((box) => box.checked);
+                if (!anyChecked) {
+                    alert('Select at least one asset to check in.');
+                    return;
+                }
+                const selectedLabels = Array.from(boxes)
+                    .filter((box) => box.checked)
+                    .map((box) => {
+                        const row = box.closest('tr');
+                        const tagCell = row ? row.querySelector('td:nth-child(2)') : null;
+                        return tagCell ? tagCell.textContent.trim() : '';
+                    })
+                    .filter((label) => label !== '');
+                let displayLabel = 'Selected assets';
+                if (selectedLabels.length) {
+                    const maxShown = 6;
+                    const shown = selectedLabels.slice(0, maxShown);
+                    const remaining = selectedLabels.length - shown.length;
+                    displayLabel = shown.join(', ');
+                    if (remaining > 0) {
+                        displayLabel += `, +${remaining} more`;
+                    }
+                }
+                openModal({ assetId: '', bulk: true, assetsLabel: displayLabel });
+            });
+        }
+
+        confirmBtn.addEventListener('click', () => {
+            noteInput.value = noteTextarea.value.trim();
+            modal.hide();
+            checkinForm.submit();
         });
     }
 });
