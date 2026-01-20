@@ -23,7 +23,7 @@ $cacheTtl       = isset($config['app']['api_cache_ttl_seconds'])
     : 60;
 $cacheDir       = CONFIG_PATH . '/cache';
 
-$limit = min(200, SNIPEIT_MAX_MODELS_FETCH);
+$limit = 200;
 
 function snipeit_cache_path(string $key): string
 {
@@ -144,7 +144,7 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
 }
 
 /**
- * Fetch **all** matching models from Snipe-IT (up to SNIPEIT_MAX_MODELS_FETCH),
+ * Fetch **all** matching models from Snipe-IT,
  * then sort them as requested, then paginate locally.
  *
  * Sort options:
@@ -184,11 +184,11 @@ function get_bookable_models(
         $effectiveCategory = null;
     }
 
-    $limit  = min(200, SNIPEIT_MAX_MODELS_FETCH); // per-API-call limit
+    $limit  = 200; // per-API-call limit
     $allRows = [];
 
     $offset = 0;
-    // Pull pages from Snipe-IT until we have everything (or hit our max fetch cap)
+    // Pull pages from Snipe-IT until we have everything.
     do {
         $params = [
             'limit'  => $limit,
@@ -215,9 +215,8 @@ function get_bookable_models(
         $fetchedThisCall = count($rows);
         $offset += $limit;
 
-        // Stop if we didn't get a full page (end of data),
-        // or we have reached our max safety cap.
-        if ($fetchedThisCall < $limit || count($allRows) >= SNIPEIT_MAX_MODELS_FETCH) {
+        // Stop if we didn't get a full page (end of data).
+        if ($fetchedThisCall < $limit) {
             break;
         }
     } while (true);
@@ -237,9 +236,6 @@ function get_bookable_models(
 
     // Determine total after filtering
     $total = count($allRows);
-    if ($total > SNIPEIT_MAX_MODELS_FETCH) {
-        $total = SNIPEIT_MAX_MODELS_FETCH; // we’ve capped at this many
-    }
 
     // Sort full set client-side according to requested sort
     $sort = $sort ?? '';

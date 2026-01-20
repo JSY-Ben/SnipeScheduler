@@ -7,7 +7,7 @@
  */
 
 // Minimal bootstrapping (avoid loading config-dependent code)
-define('APP_ROOT', dirname(__DIR__));
+define('APP_ROOT', dirname(__DIR__, 2));
 define('CONFIG_PATH', APP_ROOT . '/config');
 
 require_once APP_ROOT . '/src/config_writer.php';
@@ -15,7 +15,7 @@ require_once APP_ROOT . '/src/email.php';
 
 $configPath  = CONFIG_PATH . '/config.php';
 $examplePath = CONFIG_PATH . '/config.example.php';
-$schemaPath  = APP_ROOT . '/schema.sql';
+$schemaPath  = __DIR__ . '/schema.sql';
 $installedFlag = APP_ROOT . '/.installed';
 $installedFlag = APP_ROOT . '/.installed';
 
@@ -54,7 +54,6 @@ $configExists    = is_file($configPath);
 $definedValues = [
     'SNIPEIT_API_PAGE_LIMIT'   => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE' => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
-    'SNIPEIT_MAX_MODELS_FETCH' => defined('SNIPEIT_MAX_MODELS_FETCH') ? SNIPEIT_MAX_MODELS_FETCH : 1000,
 ];
 
 $isAjax = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
@@ -381,7 +380,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $apiCacheTtl = 60;
         $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
         $cataloguePP = $definedValues['CATALOGUE_ITEMS_PER_PAGE'];
-        $maxModels   = $definedValues['SNIPEIT_MAX_MODELS_FETCH'];
 
         $newConfig = $defaultConfig;
         $newConfig['db_booking'] = [
@@ -502,7 +500,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $content = layout_build_config_file($newConfig, [
             'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
-            'SNIPEIT_MAX_MODELS_FETCH' => $maxModels,
         ]);
 
         if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
@@ -543,8 +540,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             @file_put_contents($installedFlag, "Installed on " . date(DATE_ATOM) . "\n");
             $installLocked = true;
             $installCompleted = true;
-            $redirectTo = 'index.php';
-            $messages[] = 'Installation complete. Please delete public/install.php (or restrict access) now.';
+            $redirectTo = '../index.php';
+            $messages[] = 'Installation complete. Please delete public/install/install.php (or restrict access) now.';
             if (!headers_sent()) {
                 header('Refresh: 3; url=' . $redirectTo);
             }
@@ -617,7 +614,7 @@ $msRedirectDefault = $host
     <title>SnipeScheduler – Web Installer</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="../assets/style.css">
     <style>
         body { background: #f7f9fc; }
         .installer-page {

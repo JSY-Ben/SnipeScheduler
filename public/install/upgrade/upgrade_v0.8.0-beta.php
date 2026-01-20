@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/config_writer.php';
+require_once __DIR__ . '/../../../src/config_writer.php';
 
 function upgrade_apply_v0_8_0_beta(string $configFile, array $config, array &$messages, array &$errors): array
 {
@@ -49,7 +49,10 @@ function upgrade_apply_v0_8_0_beta(string $configFile, array $config, array &$me
     if ($changed) {
         $config['auth'] = $auth;
         try {
-            $content = layout_build_config_file($config);
+            $content = layout_build_config_file($config, [
+                'SNIPEIT_API_PAGE_LIMIT' => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
+                'CATALOGUE_ITEMS_PER_PAGE' => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
+            ]);
             file_put_contents($configFile, $content);
             $messages[] = 'Updated auth configuration to promote existing staff entries to admin.';
         } catch (Throwable $e) {
@@ -58,4 +61,45 @@ function upgrade_apply_v0_8_0_beta(string $configFile, array $config, array &$me
     }
 
     return $config;
+}
+
+if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
+    $appRoot = realpath(__DIR__ . '/../../..') ?: (__DIR__ . '/../../..');
+    $defaultConfig = $appRoot . '/config/config.php';
+    $legacyConfig = $appRoot . '/config.php';
+
+    $configFile = $argv[1] ?? '';
+    if ($configFile === '') {
+        $configFile = is_file($defaultConfig) ? $defaultConfig : (is_file($legacyConfig) ? $legacyConfig : '');
+    }
+
+    $messages = [];
+    $errors = [];
+    $config = [];
+
+    if ($configFile === '' || !is_file($configFile)) {
+        fwrite(STDERR, "config.php not found. Provide a path as the first argument.\n");
+        exit(1);
+    }
+
+    try {
+        $config = require $configFile;
+        if (!is_array($config)) {
+            $config = [];
+        }
+    } catch (Throwable $e) {
+        fwrite(STDERR, "Failed to load config.php: " . $e->getMessage() . "\n");
+        exit(1);
+    }
+
+    upgrade_apply_v0_8_0_beta($configFile, $config, $messages, $errors);
+
+    foreach ($messages as $msg) {
+        fwrite(STDOUT, $msg . "\n");
+    }
+    foreach ($errors as $err) {
+        fwrite(STDERR, $err . "\n");
+    }
+
+    exit(!empty($errors) ? 1 : 0);
 }

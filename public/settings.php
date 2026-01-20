@@ -45,7 +45,6 @@ try {
 $definedValues = [
     'SNIPEIT_API_PAGE_LIMIT'    => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE'  => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
-    'SNIPEIT_MAX_MODELS_FETCH'  => defined('SNIPEIT_MAX_MODELS_FETCH') ? SNIPEIT_MAX_MODELS_FETCH : 1000,
 ];
 
 function layout_test_db_connection(array $db): string
@@ -271,7 +270,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
     $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
-    $maxModels   = $definedValues['SNIPEIT_MAX_MODELS_FETCH'];
 
     $useRawSecrets = $action !== 'save';
 
@@ -410,7 +408,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $definedValues = [
         'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
         'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
-        'SNIPEIT_MAX_MODELS_FETCH' => $maxModels,
     ];
 
     if ($action === 'test_db') {
@@ -469,7 +466,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = layout_build_config_file($newConfig, [
             'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
-            'SNIPEIT_MAX_MODELS_FETCH' => $maxModels,
         ]);
 
         if (!is_dir(CONFIG_PATH)) {

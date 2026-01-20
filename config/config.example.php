@@ -19,16 +19,6 @@ if (!defined('CATALOGUE_ITEMS_PER_PAGE')) {
     define('CATALOGUE_ITEMS_PER_PAGE', SNIPEIT_API_PAGE_LIMIT);
 }
 
-/**
- * Maximum number of models that will ever be fetched from Snipe-IT
- * in one catalogue request (safety cap).
- *
- * This is used so sorting can be done globally before pagination.
- */
-if (!defined('SNIPEIT_MAX_MODELS_FETCH')) {
-    define('SNIPEIT_MAX_MODELS_FETCH', 1000);
-}
-
 // ---------------------------------------------------------------------
 // Main config array (keep your existing values here)
 // ---------------------------------------------------------------------

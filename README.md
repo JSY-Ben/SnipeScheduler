@@ -33,7 +33,7 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 1. Clone or copy this repository to your web root.
 2. Ensure the web server user can write to `config/` (for `config.php`) and create `config/cache/` if needed.
 3. Point your web server at the `public/` directory.
-4. Visit `public/install.php` in your browser:
+4. Visit https://www.yourinstallation.com/install/ in your browser:
    - Fill in database, Snipe-IT API, and at least one of the authentication (LDAP/Google/Entra) methods (tests are available inline).
    - If you are using Entra for Authentication and User Search, you will need to create an App Registration on Entra, and assign the following API permissions:
 
@@ -46,9 +46,9 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 
       - You’ll need to grant admin consent for the directory search permission. After adding it, staff should sign out/in to receive the new scope.
 
-   - Generate `config/config.php` and optionally create the database from `schema.sql`.
-   - Remove or restrict access to `install.php` after successful setup.
-5. If you prefer manual configuration, copy `config/config.example.php` to `config/config.php` and update values. Then import `schema.sql` into your database.
+   - Generate `config/config.php` and optionally create the database from `public/install/schema.sql`.
+   - Remove or restrict access to `public/install` after successful setup.
+5. If you prefer manual configuration, copy `config/config.example.php` to `config/config.php` and update values. Then import `public/install/schema.sql` into your database.
 6. Certain CRON Scripts must be run at regular intervals for this app to function correctly. Please see the CRON Scripts section below.
 
 ## General usage
@@ -81,4 +81,3 @@ In the scripts folder of this app, there are certain PHP scripts you must run as
 - The 'cron_mark_missed.php' script will automatically mark all reservations not checked out after a specified time period (set on the settings page) as missed and release them to be booked again. By default, this is set to 1 hour. While it is not worth running this Cron script every minute, it would be worth running it regularly so missed reservations are updated as soon as possible. 
 
 - The email_overdue_staff and users.php scripts will automatically email users that have overdue equipment and inform staff specified on the settings page of currently overdue reservations. I'd suggest running this once a day at the beginning of a working day, so users with overdue equipment are reminded at least once a day.
-
