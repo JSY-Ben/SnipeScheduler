@@ -8,7 +8,8 @@ $active  = basename($_SERVER['PHP_SELF']);
 $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
 $sectionRaw = $_GET['section'] ?? $_POST['section'] ?? 'inventory';
-$section = $sectionRaw === 'categories' ? 'categories' : 'inventory';
+$section = in_array($sectionRaw, ['categories', 'models', 'inventory'], true) ? $sectionRaw : 'inventory';
+$modelCreate = !empty($_GET['model_create']);
 
 if (!$isAdmin) {
     http_response_code(403);
@@ -370,65 +371,21 @@ if ($assetEditId > 0) {
                 <a class="nav-link <?= $section === 'categories' ? 'active' : '' ?>" href="inventory_admin.php?section=categories">Categories</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?= $section === 'inventory' ? 'active' : '' ?>" href="inventory_admin.php">Inventory</a>
+                <a class="nav-link <?= $section === 'models' ? 'active' : '' ?>" href="inventory_admin.php?section=models">Models</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?= $section === 'inventory' ? 'active' : '' ?>" href="inventory_admin.php">Assets</a>
             </li>
         </ul>
 
         <?php if ($section === 'inventory'): ?>
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="card-title mb-1"><?= $editModel ? 'Edit model' : 'Create model' ?></h5>
-                    <form method="post" class="row g-3" enctype="multipart/form-data">
-                        <input type="hidden" name="action" value="save_model">
-                        <input type="hidden" name="model_id" value="<?= (int)($editModel['id'] ?? 0) ?>">
-                        <div class="col-md-4">
-                            <label class="form-label">Model name</label>
-                            <input type="text" name="model_name" class="form-control" value="<?= h($editModel['name'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Manufacturer</label>
-                            <input type="text" name="model_manufacturer" class="form-control" value="<?= h($editModel['manufacturer'] ?? '') ?>">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Category</label>
-                            <select name="model_category_id" class="form-select">
-                                <option value="">Unassigned</option>
-                                <?php foreach ($categories as $category): ?>
-                                    <option value="<?= (int)$category['id'] ?>" <?= (int)($editModel['category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
-                                        <?= h($category['name'] ?? '') ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-8">
-                            <label class="form-label">Notes</label>
-                            <textarea name="model_notes" class="form-control" rows="2"><?= h($editModel['notes'] ?? '') ?></textarea>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Image URL</label>
-                            <input type="text" name="model_image_url" class="form-control" value="<?= h($editModel['image_url'] ?? '') ?>">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Upload image</label>
-                            <input type="file" name="model_image_upload" class="form-control">
-                            <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
-                        </div>
-                        <div class="col-12 d-flex justify-content-end gap-2">
-                            <?php if ($editModel): ?>
-                                <a href="inventory_admin.php" class="btn btn-outline-secondary">Cancel</a>
-                            <?php endif; ?>
-                            <button type="submit" class="btn btn-primary"><?= $editModel ? 'Update model' : 'Create model' ?></button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card mb-3">
-                <div class="card-body">
                     <h5 class="card-title mb-1"><?= $editAsset ? 'Edit asset' : 'Create asset' ?></h5>
                     <form method="post" class="row g-3" enctype="multipart/form-data">
                         <input type="hidden" name="action" value="save_asset">
                         <input type="hidden" name="asset_id" value="<?= (int)($editAsset['id'] ?? 0) ?>">
+                        <input type="hidden" name="section" value="inventory">
                         <div class="col-md-3">
                             <label class="form-label">Asset tag</label>
                             <input type="text" name="asset_tag" class="form-control" value="<?= h($editAsset['asset_tag'] ?? '') ?>" required>
@@ -474,41 +431,6 @@ if ($assetEditId > 0) {
                 </div>
             </div>
 
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-1">Models</h5>
-                    <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
-                    <?php if (empty($models)): ?>
-                        <div class="text-muted small">No models found yet.</div>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Manufacturer</th>
-                                        <th>Category</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($models as $model): ?>
-                                        <tr>
-                                            <td><?= h($model['name'] ?? '') ?></td>
-                                            <td><?= h($model['manufacturer'] ?? '') ?></td>
-                                            <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
-                                            <td class="text-end">
-                                                <a class="btn btn-sm btn-outline-secondary" href="inventory_admin.php?model_edit=<?= (int)$model['id'] ?>">Edit</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title mb-1">Assets</h5>
@@ -548,6 +470,104 @@ if ($assetEditId > 0) {
                 </div>
             </div>
         <?php else: ?>
+            <?php if ($section === 'models'): ?>
+                <?php if ($modelCreate || $editModel): ?>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title mb-1"><?= $editModel ? 'Edit model' : 'Create model' ?></h5>
+                            <form method="post" class="row g-3" enctype="multipart/form-data">
+                                <input type="hidden" name="action" value="save_model">
+                                <input type="hidden" name="model_id" value="<?= (int)($editModel['id'] ?? 0) ?>">
+                                <input type="hidden" name="section" value="models">
+                                <div class="col-md-4">
+                                    <label class="form-label">Model name</label>
+                                    <input type="text" name="model_name" class="form-control" value="<?= h($editModel['name'] ?? '') ?>" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Manufacturer</label>
+                                    <input type="text" name="model_manufacturer" class="form-control" value="<?= h($editModel['manufacturer'] ?? '') ?>">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Category</label>
+                                    <select name="model_category_id" class="form-select">
+                                        <option value="">Unassigned</option>
+                                        <?php foreach ($categories as $category): ?>
+                                            <option value="<?= (int)$category['id'] ?>" <?= (int)($editModel['category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
+                                                <?= h($category['name'] ?? '') ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Notes</label>
+                                    <textarea name="model_notes" class="form-control" rows="2"><?= h($editModel['notes'] ?? '') ?></textarea>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Image URL</label>
+                                    <input type="text" name="model_image_url" class="form-control" value="<?= h($editModel['image_url'] ?? '') ?>">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Upload image</label>
+                                    <input type="file" name="model_image_upload" class="form-control">
+                                    <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end gap-2">
+                                    <?php if ($editModel || $modelCreate): ?>
+                                        <a href="inventory_admin.php?section=models" class="btn btn-outline-secondary">Cancel</a>
+                                    <?php endif; ?>
+                                    <button type="submit" class="btn btn-primary"><?= $editModel ? 'Update model' : 'Create model' ?></button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+                            <h5 class="card-title mb-0">Models</h5>
+                            <a class="btn btn-sm btn-primary" href="inventory_admin.php?section=models&model_create=1">Create Model</a>
+                        </div>
+                        <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
+                        <?php if (empty($models)): ?>
+                            <div class="text-muted small">No models found yet.</div>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Image</th>
+                                            <th>Name</th>
+                                            <th>Manufacturer</th>
+                                            <th>Category</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($models as $model): ?>
+                                            <tr>
+                                                <td>
+                                                    <?php if (!empty($model['image_url'])): ?>
+                                                        <img src="<?= h($model['image_url']) ?>" alt="" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px;">
+                                                    <?php else: ?>
+                                                        <span class="text-muted small">No image</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?= h($model['name'] ?? '') ?></td>
+                                                <td><?= h($model['manufacturer'] ?? '') ?></td>
+                                                <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
+                                                <td class="text-end">
+                                                    <a class="btn btn-sm btn-outline-secondary" href="inventory_admin.php?section=models&model_edit=<?= (int)$model['id'] ?>">Edit</a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php else: ?>
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title mb-1">Create category</h5>
@@ -612,6 +632,7 @@ if ($assetEditId > 0) {
                     <?php endif; ?>
                 </div>
             </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
