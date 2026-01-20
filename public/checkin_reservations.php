@@ -32,19 +32,34 @@ if (($_GET['ajax'] ?? '') === 'user_search') {
     try {
         $like = '%' . $q . '%';
         $stmt = $pdo->prepare("
-            SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, u.username
+            SELECT DISTINCT
+                   co.assigned_to_id,
+                   co.assigned_to_name,
+                   co.assigned_to_email,
+                   co.assigned_to_username,
+                   u.first_name,
+                   u.last_name,
+                   u.email AS user_email,
+                   u.username AS user_username
               FROM checked_out_asset_cache co
-              JOIN users u ON u.id = co.assigned_to_id
-             WHERE co.assigned_to_id IS NOT NULL
-               AND co.assigned_to_id > 0
+              LEFT JOIN users u ON u.id = co.assigned_to_id
+             WHERE (
+                    (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
+                    OR co.assigned_to_email <> ''
+                    OR co.assigned_to_name <> ''
+                    OR co.assigned_to_username <> ''
+               )
                AND (
-                    u.first_name LIKE :q
+                    co.assigned_to_name LIKE :q
+                    OR co.assigned_to_email LIKE :q
+                    OR co.assigned_to_username LIKE :q
+                    OR u.first_name LIKE :q
                     OR u.last_name LIKE :q
                     OR u.email LIKE :q
                     OR u.username LIKE :q
                     OR CONCAT(u.first_name, ' ', u.last_name) LIKE :q
                )
-             ORDER BY u.first_name, u.last_name
+             ORDER BY COALESCE(u.first_name, co.assigned_to_name), COALESCE(u.last_name, co.assigned_to_email)
              LIMIT 10
         ");
         $stmt->execute([':q' => $like]);
@@ -52,12 +67,20 @@ if (($_GET['ajax'] ?? '') === 'user_search') {
 
         $results = [];
         foreach ($rows as $row) {
+            $userId = (int)($row['assigned_to_id'] ?? 0);
             $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+            $email = $row['user_email'] ?? '';
+            $username = $row['user_username'] ?? '';
+            if ($userId <= 0) {
+                $name = trim((string)($row['assigned_to_name'] ?? ''));
+                $email = $row['assigned_to_email'] ?? '';
+                $username = $row['assigned_to_username'] ?? '';
+            }
             $results[] = [
-                'id'       => (int)($row['id'] ?? 0),
+                'id'       => $userId > 0 ? $userId : null,
                 'name'     => $name,
-                'email'    => $row['email'] ?? '',
-                'username' => $row['username'] ?? '',
+                'email'    => $email,
+                'username' => $username,
             ];
         }
         echo json_encode(['results' => $results]);
@@ -85,6 +108,8 @@ function format_checked_out_datetime(string $value): string
 $messages = [];
 $errors   = [];
 $selectedUserId = (int)($_REQUEST['user_id'] ?? 0);
+$selectedUserEmail = trim((string)($_REQUEST['user_email'] ?? ''));
+$selectedUserNameInput = trim((string)($_REQUEST['user_name'] ?? ''));
 $selectedUser = null;
 $checkedOut = [];
 $totalCheckedOut = 0;
@@ -98,6 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
     if ($mode === 'checkin' || $mode === 'checkin_all') {
         $selectedUserId = (int)($_POST['user_id'] ?? 0);
+        $selectedUserEmail = trim((string)($_POST['user_email'] ?? ''));
+        $selectedUserNameInput = trim((string)($_POST['user_name'] ?? ''));
         $assetIdsRaw = $_POST['asset_ids'] ?? [];
         $assetNotes = $_POST['asset_notes'] ?? [];
 
@@ -105,13 +132,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return $id > 0;
         }));
 
-        if ($selectedUserId <= 0) {
+        if ($selectedUserId <= 0 && $selectedUserEmail === '' && $selectedUserNameInput === '') {
             $errors[] = 'Select a user before checking in assets.';
         } elseif ($mode === 'checkin' && empty($assetIds)) {
             $errors[] = 'Select at least one checked-out asset to check in.';
         } else {
             try {
-                $params = [$selectedUserId];
+                $params = [];
+                $whereSql = '';
+                if ($selectedUserId > 0) {
+                    $whereSql = 'assigned_to_id = ?';
+                    $params[] = $selectedUserId;
+                } elseif ($selectedUserEmail !== '') {
+                    $whereSql = 'assigned_to_email = ?';
+                    $params[] = $selectedUserEmail;
+                } else {
+                    $whereSql = 'assigned_to_name = ?';
+                    $params[] = $selectedUserNameInput;
+                }
                 $assetFilterSql = '';
                 if ($mode === 'checkin' && !empty($assetIds)) {
                     $placeholders = implode(',', array_fill(0, count($assetIds), '?'));
@@ -122,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("
                     SELECT asset_id, asset_tag, model_name
                       FROM checked_out_asset_cache
-                     WHERE assigned_to_id = ? {$assetFilterSql}
+                     WHERE {$whereSql} {$assetFilterSql}
                 ");
                 $stmt->execute($params);
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -162,11 +200,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         checkin_asset($assetId, $note);
                     }
-                    $userStmt = $pdo->prepare("SELECT first_name, last_name, email FROM users WHERE id = :id LIMIT 1");
-                    $userStmt->execute([':id' => $selectedUserId]);
-                    $user = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-                    $userEmail = $user['email'] ?? '';
-                    $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                    $userEmail = $selectedUserEmail;
+                    $userName = $selectedUserNameInput;
+                    if ($selectedUserId > 0) {
+                        $userStmt = $pdo->prepare("SELECT first_name, last_name, email FROM users WHERE id = :id LIMIT 1");
+                        $userStmt->execute([':id' => $selectedUserId]);
+                        $user = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                        $userEmail = $user['email'] ?? $userEmail;
+                        $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                    }
                     if ($userName === '') {
                         $userName = $userEmail;
                     }
@@ -207,6 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'assets' => $labels,
                             'notes' => $notesMeta,
                             'user_id' => $selectedUserId,
+                            'user_email' => $selectedUserEmail,
                         ],
                     ]);
                 }
@@ -221,45 +264,74 @@ if ($selectedUserId > 0) {
     $stmt = $pdo->prepare("SELECT id, first_name, last_name, email, username FROM users WHERE id = :id LIMIT 1");
     $stmt->execute([':id' => $selectedUserId]);
     $selectedUser = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
 
-    if ($selectedUser) {
-        $countStmt = $pdo->prepare("
-            SELECT COUNT(*) AS total
-              FROM checked_out_asset_cache
-             WHERE assigned_to_id = :id
-        ");
-        $countStmt->execute([':id' => $selectedUserId]);
-        $totalCheckedOut = (int)($countStmt->fetchColumn() ?: 0);
-        $totalPages = max(1, (int)ceil($totalCheckedOut / $perPage));
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
-        $offset = ($page - 1) * $perPage;
+if ($selectedUserId > 0 || $selectedUserEmail !== '' || $selectedUserNameInput !== '') {
+    $filterSql = 'assigned_to_name = :name';
+    $countParams = [':name' => $selectedUserNameInput];
+    if ($selectedUserId > 0) {
+        $filterSql = 'assigned_to_id = :id';
+        $countParams = [':id' => $selectedUserId];
+    } elseif ($selectedUserEmail !== '') {
+        $filterSql = 'assigned_to_email = :email';
+        $countParams = [':email' => $selectedUserEmail];
+    }
+    $countStmt = $pdo->prepare("
+        SELECT COUNT(*) AS total
+          FROM checked_out_asset_cache
+         WHERE {$filterSql}
+    ");
+    $countStmt->execute($countParams);
+    $totalCheckedOut = (int)($countStmt->fetchColumn() ?: 0);
+    $totalPages = max(1, (int)ceil($totalCheckedOut / $perPage));
+    if ($page > $totalPages) {
+        $page = $totalPages;
+    }
+    $offset = ($page - 1) * $perPage;
 
-        $stmt = $pdo->prepare("
-            SELECT co.asset_id, co.asset_tag, co.asset_name, co.model_id, co.model_name,
-                   co.last_checkout, co.expected_checkin, m.image_url
-              FROM checked_out_asset_cache co
-              LEFT JOIN asset_models m ON m.id = co.model_id
-             WHERE co.assigned_to_id = :id
-             ORDER BY co.asset_tag, co.asset_id
-             LIMIT :limit OFFSET :offset
-        ");
+    $stmt = $pdo->prepare("
+        SELECT co.asset_id, co.asset_tag, co.asset_name, co.model_id, co.model_name,
+               co.last_checkout, co.expected_checkin, m.image_url,
+               co.assigned_to_name, co.assigned_to_email, co.assigned_to_username
+          FROM checked_out_asset_cache co
+          LEFT JOIN asset_models m ON m.id = co.model_id
+         WHERE {$filterSql}
+         ORDER BY co.asset_tag, co.asset_id
+         LIMIT :limit OFFSET :offset
+    ");
+    if ($selectedUserId > 0) {
         $stmt->bindValue(':id', $selectedUserId, PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-        $checkedOut = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } elseif ($selectedUserEmail !== '') {
+        $stmt->bindValue(':email', $selectedUserEmail, PDO::PARAM_STR);
     } else {
+        $stmt->bindValue(':name', $selectedUserNameInput, PDO::PARAM_STR);
+    }
+    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $checkedOut = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if ($selectedUserId > 0 && !$selectedUser) {
         $errors[] = 'Selected user was not found.';
     }
 }
 
 $selectedName = '';
-$selectedEmail = '';
+$selectedEmail = $selectedUserEmail;
 if ($selectedUser) {
     $selectedName = trim(($selectedUser['first_name'] ?? '') . ' ' . ($selectedUser['last_name'] ?? ''));
     $selectedEmail = $selectedUser['email'] ?? '';
+} elseif (!empty($checkedOut)) {
+    $firstRow = $checkedOut[0];
+    $selectedName = trim((string)($firstRow['assigned_to_name'] ?? ''));
+    if ($selectedEmail === '') {
+        $selectedEmail = $firstRow['assigned_to_email'] ?? '';
+    }
+    if ($selectedName === '') {
+        $selectedName = $selectedEmail !== '' ? $selectedEmail : (string)($firstRow['assigned_to_username'] ?? '');
+    }
+} elseif ($selectedUserNameInput !== '') {
+    $selectedName = $selectedUserNameInput;
 }
 ?>
 <?php if (!$embedded): ?>
@@ -311,6 +383,8 @@ if ($selectedUser) {
                     <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                 <?php endforeach; ?>
                 <input type="hidden" name="user_id" id="checkin_user_id" value="<?= $selectedUserId > 0 ? (int)$selectedUserId : '' ?>">
+                <input type="hidden" name="user_email" id="checkin_user_email" value="<?= h($selectedUserEmail) ?>">
+                <input type="hidden" name="user_name" id="checkin_user_name" value="<?= h($selectedUserNameInput) ?>">
                 <div class="user-autocomplete-wrapper position-relative">
                     <label for="checkin_user_search" class="form-label fw-semibold">Search checked-out users</label>
                     <input type="text"
@@ -323,14 +397,14 @@ if ($selectedUser) {
                 </div>
                 <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 mt-2">
                     <div class="form-text">Only users with checked-out equipment will appear.</div>
-                    <?php if ($selectedUserId > 0): ?>
+                    <?php if ($selectedUserId > 0 || $selectedUserEmail !== '' || $selectedUserNameInput !== ''): ?>
                         <a href="<?= h($pageBase . (!empty($baseQuery) ? ('?' . http_build_query($baseQuery)) : '')) ?>" class="btn btn-link btn-sm">Clear selection</a>
                     <?php endif; ?>
                 </div>
             </form>
         </div>
 
-        <?php if ($selectedUser): ?>
+        <?php if ($selectedUserId > 0 || $selectedUserEmail !== '' || $selectedUserNameInput !== ''): ?>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-3">
                 <div>
                     <div class="h5 mb-1">
@@ -341,7 +415,7 @@ if ($selectedUser) {
                     <?php endif; ?>
                 </div>
                 <div class="text-muted">
-                    <?= count($checkedOut) ?> item(s) checked out
+                    <?= $totalCheckedOut ?> item(s) checked out
                 </div>
             </div>
 
@@ -353,6 +427,8 @@ if ($selectedUser) {
                         <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                     <?php endforeach; ?>
                     <input type="hidden" name="user_id" value="<?= (int)$selectedUserId ?>">
+                    <input type="hidden" name="user_email" value="<?= h($selectedUserEmail) ?>">
+                    <input type="hidden" name="user_name" value="<?= h($selectedUserNameInput) ?>">
 
                 <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 mb-3">
                     <div class="form-check">
@@ -425,6 +501,8 @@ if ($selectedUser) {
                         $totalPages = max(1, (int)ceil($totalCheckedOut / $perPage));
                         $baseParams = array_merge($baseQuery, [
                             'user_id' => $selectedUserId,
+                            'user_email' => $selectedUserEmail,
+                            'user_name' => $selectedUserNameInput,
                             'per_page' => $perPage,
                         ]);
                         $pageParams = $baseParams;
@@ -484,8 +562,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const input = wrapper.querySelector('.user-autocomplete');
     const list = wrapper.querySelector('[data-suggestions]');
     const hidden = document.getElementById('checkin_user_id');
+    const hiddenEmail = document.getElementById('checkin_user_email');
+    const hiddenName = document.getElementById('checkin_user_name');
     const form = document.getElementById('checkin-user-form');
-    if (!input || !list || !hidden || !form) return;
+    if (!input || !list || !hidden || !hiddenEmail || !hiddenName || !form) return;
 
     let timer = null;
     let lastQuery = '';
@@ -493,6 +573,8 @@ document.addEventListener('DOMContentLoaded', function () {
     input.addEventListener('input', () => {
         const q = input.value.trim();
         hidden.value = '';
+        hiddenEmail.value = '';
+        hiddenName.value = '';
         if (q.length < 2) {
             hideSuggestions();
             return;
@@ -538,10 +620,14 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.textContent = label;
             btn.dataset.userId = item.id || '';
             btn.dataset.label = label;
+            btn.dataset.email = email;
+            btn.dataset.name = name;
 
             btn.addEventListener('click', () => {
                 input.value = btn.dataset.label;
                 hidden.value = btn.dataset.userId;
+                hiddenEmail.value = btn.dataset.email || '';
+                hiddenName.value = btn.dataset.name || '';
                 hideSuggestions();
                 form.submit();
             });

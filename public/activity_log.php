@@ -48,6 +48,7 @@ $metadataLabels = [
     'cutoff_minutes' => 'Cutoff minutes',
     'note' => 'Note',
     'notes' => 'Notes',
+    'user_email' => 'User email',
     'provider' => 'Provider',
     'start' => 'Start',
     'end' => 'End',
