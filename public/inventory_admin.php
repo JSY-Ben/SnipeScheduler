@@ -467,14 +467,6 @@ if ($assetEditId > 0) {
                                 <option value="0">Not requestable</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <select class="form-select" id="assets-model-filter">
-                                <option value="">All models</option>
-                                <?php foreach ($models as $model): ?>
-                                    <option value="<?= h($model['name'] ?? '') ?>"><?= h($model['name'] ?? '') ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
@@ -991,16 +983,13 @@ if ($assetEditId > 0) {
         filterId: 'assets-filter',
         sortId: 'assets-sort',
         tableId: 'assets-table',
-        filterSelectIds: ['assets-status-filter', 'assets-requestable-filter', 'assets-model-filter'],
+        filterSelectIds: ['assets-status-filter', 'assets-requestable-filter'],
         filterPredicates: {
             'assets-status-filter': function (row, value) {
                 return (row.dataset.status || '') === value;
             },
             'assets-requestable-filter': function (row, value) {
                 return (row.dataset.requestable || '') === value;
-            },
-            'assets-model-filter': function (row, value) {
-                return (row.dataset.model || '') === value;
             },
         },
     });
