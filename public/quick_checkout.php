@@ -320,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $errors[] = 'Quick checkout completed, but could not record reservation history: ' . $e->getMessage();
                     }
 
-                    activity_log_event('quick_checkout', 'Quick checkout completed', [
+                    activity_log_event('asset_checkout', 'Quick checkout completed', [
                         'subject_type' => 'reservation',
                         'subject_id'   => $reservationId ?? null,
                         'metadata'     => [

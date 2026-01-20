@@ -265,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $checkedInFrom = array_keys($summaryBuckets);
-                activity_log_event('quick_checkin', 'Quick checkin completed', [
+                activity_log_event('asset_checkin', 'Quick checkin completed', [
                     'metadata' => [
                         'assets' => $assetTags,
                         'checked_in_from' => $checkedInFrom,

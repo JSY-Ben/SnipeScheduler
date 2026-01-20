@@ -605,7 +605,7 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                         unset($_SESSION['reservation_selected_assets'][$selectedReservationId]);
                     }
 
-                    activity_log_event('reservation_checked_out', 'Reservation checked out', [
+                    activity_log_event('asset_checkout', 'Reservation checked out', [
                         'subject_type' => 'reservation',
                         'subject_id'   => $selectedReservationId,
                         'metadata'     => [
@@ -641,6 +641,9 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     // Clear selected reservation to avoid repeat
                     unset($_SESSION['selected_reservation_id']);
                     $selectedReservationId = null;
+                    $_SESSION['checkout_flash_success'] = 'Reservation checked out. Ready for the next checkout.';
+                    header('Location: ' . $selfUrl);
+                    exit;
                 } catch (Throwable $e) {
                     $checkoutErrors[] = 'Reservation checkout failed: ' . $e->getMessage();
                 }
@@ -708,7 +711,7 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                         return $model !== '' ? ($tag . ' (' . $model . ')') : $tag;
                     }, $checkoutAssets);
 
-                    activity_log_event('reservation_checked_out', 'Assets checked out from reservation', [
+                    activity_log_event('asset_checkout', 'Assets checked out from reservation', [
                         'subject_type' => 'reservation',
                         'subject_id'   => $selectedReservationId,
                         'metadata'     => [
@@ -823,6 +826,12 @@ $active  = basename($_SERVER['PHP_SELF']);
         </div>
 
         <!-- Feedback messages -->
+        <?php
+            if (!empty($_SESSION['checkout_flash_success'])) {
+                $checkoutMessages[] = (string)$_SESSION['checkout_flash_success'];
+                unset($_SESSION['checkout_flash_success']);
+            }
+        ?>
         <?php if (!empty($checkoutMessages)): ?>
             <div class="alert alert-success">
                 <ul class="mb-0">

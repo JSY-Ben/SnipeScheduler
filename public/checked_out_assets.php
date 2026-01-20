@@ -43,6 +43,40 @@ function load_asset_labels(PDO $pdo, array $assetIds): array
     return $labels;
 }
 
+function load_asset_assignees(PDO $pdo, array $assetIds): array
+{
+    $assetIds = array_values(array_filter(array_map('intval', $assetIds), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($assetIds)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($assetIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT asset_id, assigned_to_name, assigned_to_email, assigned_to_username
+          FROM checked_out_asset_cache
+         WHERE asset_id IN ({$placeholders})
+    ");
+    $stmt->execute($assetIds);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $labels = [];
+    foreach ($rows as $row) {
+        $assetId = (int)($row['asset_id'] ?? 0);
+        if ($assetId <= 0) {
+            continue;
+        }
+        $name = trim((string)($row['assigned_to_name'] ?? ''));
+        $email = trim((string)($row['assigned_to_email'] ?? ''));
+        $username = trim((string)($row['assigned_to_username'] ?? ''));
+        $label = $name !== '' ? $name : ($email !== '' ? $email : $username);
+        $labels[$assetId] = $label;
+    }
+
+    return $labels;
+}
+
 function format_display_date($val): string
 {
     if (is_array($val)) {
@@ -154,17 +188,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkinNote = trim((string)($_POST['checkin_note'] ?? ''));
         if ($checkinId > 0) {
             try {
+                $assignees = load_asset_assignees($pdo, [$checkinId]);
                 $labels = load_asset_labels($pdo, [$checkinId]);
                 $label = $labels[$checkinId] ?? ('Asset #' . $checkinId);
+                $assigneeLabel = $assignees[$checkinId] ?? '';
                 checkin_asset($checkinId, $checkinNote);
                 $messages[] = "Checked in {$label}.";
-                activity_log_event('asset_checked_in', 'Asset checked in', [
+                activity_log_event('asset_checkin', 'Asset checked in', [
                     'subject_type' => 'asset',
                     'subject_id' => $checkinId,
                     'metadata' => [
                         'assets' => [$label],
                         'count' => 1,
                         'note' => $checkinNote,
+                        'checked_in_from' => $assigneeLabel !== '' ? [$assigneeLabel] : [],
                     ],
                 ]);
             } catch (Throwable $e) {
@@ -256,19 +293,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($assetIds)) {
                     $error = 'Select at least one valid asset to check in.';
                 } else {
+                    $assignees = load_asset_assignees($pdo, $assetIds);
                     $labels = load_asset_labels($pdo, $assetIds);
                     $assetLabels = array_values(array_filter(array_map(static function (int $id) use ($labels): string {
                         return $labels[$id] ?? ('Asset #' . $id);
                     }, $assetIds)));
+                    $assigneeLabels = array_values(array_unique(array_filter(array_values($assignees), static function (string $label): bool {
+                        return $label !== '';
+                    })));
                     foreach ($assetIds as $assetId) {
                         checkin_asset($assetId, $checkinNote);
                     }
                     $messages[] = 'Checked in ' . count($assetIds) . ' asset(s).';
-                    activity_log_event('asset_checked_in', 'Checked out assets checked in', [
+                    activity_log_event('asset_checkin', 'Checked out assets checked in', [
                         'metadata' => [
                             'assets' => $assetLabels,
                             'count' => count($assetIds),
                             'note' => $checkinNote,
+                            'checked_in_from' => $assigneeLabels,
                         ],
                     ]);
                 }
