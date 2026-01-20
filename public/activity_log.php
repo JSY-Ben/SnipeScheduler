@@ -47,6 +47,7 @@ $metadataLabels = [
     'count' => 'Count',
     'cutoff_minutes' => 'Cutoff minutes',
     'note' => 'Note',
+    'notes' => 'Notes',
     'provider' => 'Provider',
     'start' => 'Start',
     'end' => 'End',
@@ -69,6 +70,28 @@ function format_activity_metadata(?string $metadataJson, array $labelMap, ?DateT
 
     $lines = [];
     foreach ($decoded as $key => $value) {
+        if ($key === 'notes' && is_array($value)) {
+            $noteLines = [];
+            foreach ($value as $noteRow) {
+                if (!is_array($noteRow)) {
+                    continue;
+                }
+                $label = trim((string)($noteRow['label'] ?? ''));
+                $note = trim((string)($noteRow['note'] ?? ''));
+                if ($label === '' && isset($noteRow['asset_id'])) {
+                    $label = 'Asset #' . (int)$noteRow['asset_id'];
+                }
+                if ($note === '') {
+                    continue;
+                }
+                $noteLines[] = $label !== '' ? ('- ' . $label . ': ' . $note) : ('- ' . $note);
+            }
+            if (!empty($noteLines)) {
+                $lines[] = 'Notes:';
+                $lines = array_merge($lines, $noteLines);
+            }
+            continue;
+        }
         $label = $labelMap[$key] ?? ucwords(str_replace('_', ' ', (string)$key));
         if (is_array($value)) {
             $value = implode(', ', array_map(static function ($item): string {

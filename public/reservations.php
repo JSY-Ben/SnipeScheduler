@@ -13,7 +13,7 @@ if (!$isStaff) {
     exit;
 }
 
-$allowedTabs = ['today', 'checked_out', 'history'];
+$allowedTabs = ['today', 'checked_out', 'checkin', 'history'];
 $tab         = $_GET['tab'] ?? 'today';
 if (!in_array($tab, $allowedTabs, true)) {
     $tab = 'today';
@@ -22,6 +22,7 @@ if (!in_array($tab, $allowedTabs, true)) {
 $tabMap = [
     'today'       => __DIR__ . '/staff_checkout.php',
     'checked_out' => __DIR__ . '/checked_out_assets.php',
+    'checkin'     => __DIR__ . '/checkin_reservations.php',
     'history'     => __DIR__ . '/staff_reservations.php',
 ];
 
@@ -114,6 +115,10 @@ if (!$tabFile || !is_file($tabFile)) {
             <li class="nav-item">
                 <a class="nav-link <?= $tab === 'checked_out' ? 'active' : '' ?>"
                    href="reservations.php?tab=checked_out">Checked Out Reservations</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?= $tab === 'checkin' ? 'active' : '' ?>"
+                   href="reservations.php?tab=checkin">Check In Reservations</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link <?= $tab === 'history' ? 'active' : '' ?>"
