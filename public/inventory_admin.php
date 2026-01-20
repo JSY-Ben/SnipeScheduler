@@ -94,6 +94,25 @@ if (in_array($exportType, ['categories', 'models', 'assets'], true)) {
     exit;
 }
 
+$templateType = $_GET['template'] ?? '';
+if (in_array($templateType, ['categories', 'models', 'assets'], true)) {
+    $templateMap = [
+        'categories' => APP_ROOT . '/templates/csv/categories_template.csv',
+        'models' => APP_ROOT . '/templates/csv/models_template.csv',
+        'assets' => APP_ROOT . '/templates/csv/assets_template.csv',
+    ];
+    $path = $templateMap[$templateType];
+    if (is_file($path)) {
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+        readfile($path);
+        exit;
+    }
+    http_response_code(404);
+    echo 'Template not found.';
+    exit;
+}
+
 $readCsvUpload = static function (string $field, array &$errors): array {
     if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
         $errors[] = 'CSV upload is required.';
@@ -666,6 +685,7 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Assets</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=inventory&export=assets">Export CSV</a>
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=inventory&template=assets">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importAssetsModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
                         </div>
@@ -750,6 +770,7 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Models</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=models&export=models">Export CSV</a>
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=models&template=models">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModelsModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
                         </div>
@@ -830,6 +851,7 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Categories</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=categories&export=categories">Export CSV</a>
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=categories&template=categories">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importCategoriesModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
                         </div>

@@ -46,6 +46,20 @@ if ($exportType === 'users') {
     exit;
 }
 
+$templateType = $_GET['template'] ?? '';
+if ($templateType === 'users') {
+    $path = APP_ROOT . '/templates/csv/users_template.csv';
+    if (is_file($path)) {
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . basename($path) . '"');
+        readfile($path);
+        exit;
+    }
+    http_response_code(404);
+    echo 'Template not found.';
+    exit;
+}
+
 $readCsvUpload = static function (string $field, array &$errors): array {
     if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
         $errors[] = 'CSV upload is required.';
@@ -381,6 +395,7 @@ try {
                     <h5 class="card-title mb-0">All users</h5>
                     <div class="d-flex gap-2 flex-wrap">
                         <a class="btn btn-outline-secondary" href="users.php?export=users">Export CSV</a>
+                        <a class="btn btn-outline-secondary" href="users.php?template=users">Download Template</a>
                         <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importUsersModal">Import CSV</button>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">Create User</button>
                     </div>
