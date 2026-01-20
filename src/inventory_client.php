@@ -504,6 +504,7 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = '', ?s
             ':expected_checkin' => $expectedCheckin,
         ]);
 
+        add_asset_note($assetId, $note, 'checkout');
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -531,6 +532,7 @@ function checkin_asset(int $assetId, string $note = ''): void
     global $pdo;
     $pdo->beginTransaction();
     try {
+        add_asset_note($assetId, $note, 'checkin');
         $pdo->prepare("
             DELETE FROM checked_out_asset_cache WHERE asset_id = :asset_id
         ")->execute([':asset_id' => $assetId]);
@@ -546,6 +548,49 @@ function checkin_asset(int $assetId, string $note = ''): void
         $pdo->rollBack();
         throw $e;
     }
+}
+
+function add_asset_note(int $assetId, string $note, string $noteType): void
+{
+    global $pdo;
+    $note = trim($note);
+    if ($note === '') {
+        return;
+    }
+    $noteType = $noteType === 'checkout' ? 'checkout' : 'checkin';
+    $actor = $GLOBALS['currentUser'] ?? null;
+    if (!is_array($actor) && session_status() === PHP_SESSION_ACTIVE) {
+        $actor = $_SESSION['user'] ?? null;
+    }
+    $actorId = null;
+    $actorName = null;
+    $actorEmail = null;
+    if (is_array($actor)) {
+        $actorId = isset($actor['id']) ? (int)$actor['id'] : null;
+        $actorEmail = trim((string)($actor['email'] ?? '')) ?: null;
+        $actorName = trim((string)(($actor['first_name'] ?? '') . ' ' . ($actor['last_name'] ?? '')));
+        if ($actorName === '') {
+            $actorName = trim((string)($actor['display_name'] ?? ''));
+        }
+        if ($actorName === '') {
+            $actorName = $actorEmail;
+        }
+        if ($actorName === '') {
+            $actorName = null;
+        }
+    }
+    $stmt = $pdo->prepare("
+        INSERT INTO asset_notes (asset_id, note_type, note, actor_user_id, actor_name, actor_email, created_at)
+        VALUES (:asset_id, :note_type, :note, :actor_user_id, :actor_name, :actor_email, NOW())
+    ");
+    $stmt->execute([
+        ':asset_id' => $assetId,
+        ':note_type' => $noteType,
+        ':note' => $note,
+        ':actor_user_id' => $actorId,
+        ':actor_name' => $actorName,
+        ':actor_email' => $actorEmail,
+    ]);
 }
 
 function list_checked_out_assets(bool $overdueOnly = false): array

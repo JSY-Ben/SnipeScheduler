@@ -86,6 +86,30 @@ CREATE TABLE IF NOT EXISTS assets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------
+-- Asset notes (check-in / check-out)
+-- ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS asset_notes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    asset_id INT UNSIGNED NOT NULL,
+    note_type ENUM('checkout','checkin') NOT NULL,
+    note TEXT NOT NULL,
+    actor_user_id INT UNSIGNED DEFAULT NULL,
+    actor_name VARCHAR(255) DEFAULT NULL,
+    actor_email VARCHAR(255) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_asset_notes_asset (asset_id),
+    KEY idx_asset_notes_created (created_at),
+    KEY idx_asset_notes_actor (actor_user_id),
+
+    CONSTRAINT fk_asset_notes_asset
+        FOREIGN KEY (asset_id)
+        REFERENCES assets (id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------
 -- Reservations table
 -- ------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reservations (

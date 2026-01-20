@@ -592,6 +592,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $categories = [];
 $models = [];
 $assets = [];
+$assetNotesById = [];
 $editModel = null;
 
 try {
@@ -608,6 +609,31 @@ try {
           JOIN asset_models m ON m.id = a.model_id
          ORDER BY a.asset_tag ASC
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    if (!empty($assets)) {
+        $assetIds = array_values(array_filter(array_map('intval', array_column($assets, 'id'))));
+        if (!empty($assetIds)) {
+            $placeholders = implode(',', array_fill(0, count($assetIds), '?'));
+            $stmt = $pdo->prepare("
+                SELECT asset_id, note_type, note, created_at, actor_name, actor_email
+                  FROM asset_notes
+                 WHERE asset_id IN ({$placeholders})
+                 ORDER BY created_at DESC
+            ");
+            $stmt->execute($assetIds);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $row) {
+                $assetId = (int)($row['asset_id'] ?? 0);
+                if ($assetId <= 0) {
+                    continue;
+                }
+                if (!isset($assetNotesById[$assetId])) {
+                    $assetNotesById[$assetId] = [];
+                }
+                $assetNotesById[$assetId][] = $row;
+            }
+        }
+    }
 } catch (Throwable $e) {
     $errors[] = 'Inventory lookup failed: ' . $e->getMessage();
 }
@@ -769,6 +795,12 @@ if ($modelEditId > 0) {
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
                                             <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
                                             <td class="text-end">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-secondary"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#assetNotesModal-<?= (int)$asset['id'] ?>">
+                                                    View Notes History
+                                                </button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editAssetModal-<?= (int)$asset['id'] ?>">Edit</button>
                                             </td>
                                             </tr>
@@ -1325,6 +1357,96 @@ if ($modelEditId > 0) {
         </div>
     </div>
 <?php endforeach; ?>
+<?php foreach ($assets as $asset): ?>
+    <?php
+        $assetId = (int)($asset['id'] ?? 0);
+        $notes = $assetNotesById[$assetId] ?? [];
+    ?>
+    <div class="modal fade" id="assetNotesModal-<?= $assetId ?>" tabindex="-1" aria-labelledby="assetNotesModalLabel-<?= $assetId ?>" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="assetNotesModalLabel-<?= $assetId ?>">Notes History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <div class="fw-semibold"><?= h($asset['asset_tag'] ?? '') ?> — <?= h($asset['name'] ?? '') ?></div>
+                        <div class="text-muted small"><?= h($asset['model_name'] ?? '') ?></div>
+                    </div>
+                    <?php if (empty($notes)): ?>
+                        <div class="text-muted">No notes recorded yet.</div>
+                    <?php else: ?>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-8">
+                                <input type="text"
+                                       class="form-control form-control-sm asset-notes-search"
+                                       placeholder="Search notes..."
+                                       data-notes-search>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select form-select-sm asset-notes-type" data-notes-type>
+                                    <option value="">All types</option>
+                                    <option value="checkin">Check-in</option>
+                                    <option value="checkout">Checkout</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle asset-notes-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Added by</th>
+                                        <th>Note</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($notes as $note): ?>
+                                        <?php
+                                            $noteType = $note['note_type'] ?? '';
+                                            $noteLabel = $noteType === 'checkout' ? 'Checkout' : 'Check-in';
+                                            $createdAt = $note['created_at'] ?? '';
+                                            $displayDate = $createdAt;
+                                            if ($createdAt !== '') {
+                                                try {
+                                                    $dt = new DateTime($createdAt);
+                                                    $displayDate = $dt->format('d/m/Y H:i');
+                                                } catch (Throwable $e) {
+                                                    $displayDate = $createdAt;
+                                                }
+                                            }
+                                            $actorName = trim((string)($note['actor_name'] ?? ''));
+                                            $actorEmail = trim((string)($note['actor_email'] ?? ''));
+                                            $actorLabel = $actorName !== '' ? $actorName : '';
+                                            if ($actorEmail !== '') {
+                                                $actorLabel = $actorLabel !== '' ? ($actorLabel . ' <' . $actorEmail . '>') : $actorEmail;
+                                            }
+                                            if ($actorLabel === '') {
+                                                $actorLabel = 'System';
+                                            }
+                                            $searchText = strtolower(trim($noteLabel . ' ' . ($note['note'] ?? '') . ' ' . $actorLabel));
+                                        ?>
+                                        <tr data-note-type="<?= h($noteType) ?>" data-note-search="<?= h($searchText) ?>">
+                                            <td class="text-nowrap"><?= h($displayDate) ?></td>
+                                            <td><?= h($noteLabel) ?></td>
+                                            <td><?= h($actorLabel) ?></td>
+                                            <td><?= h($note['note'] ?? '') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
 <script>
     function wireTableControls(config) {
         var input = document.getElementById(config.filterId);
@@ -1474,6 +1596,33 @@ if ($modelEditId > 0) {
                 inputs[0].focus();
             }
         });
+    });
+
+    document.querySelectorAll('.asset-notes-table').forEach(function (table) {
+        var modal = table.closest('.modal');
+        if (!modal) {
+            return;
+        }
+        var searchInput = modal.querySelector('[data-notes-search]');
+        var typeSelect = modal.querySelector('[data-notes-type]');
+        var rows = Array.from(table.querySelectorAll('tbody tr'));
+        var filterRows = function () {
+            var q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            var type = typeSelect ? typeSelect.value : '';
+            rows.forEach(function (row) {
+                var rowType = row.dataset.noteType || '';
+                var haystack = row.dataset.noteSearch || '';
+                var matchesType = type === '' || rowType === type;
+                var matchesText = q === '' || haystack.indexOf(q) !== -1;
+                row.style.display = matchesType && matchesText ? '' : 'none';
+            });
+        };
+        if (searchInput) {
+            searchInput.addEventListener('input', filterRows);
+        }
+        if (typeSelect) {
+            typeSelect.addEventListener('change', filterRows);
+        }
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
