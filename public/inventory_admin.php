@@ -27,6 +27,10 @@ $uploadDirRelative = 'uploads/images';
 $uploadDir = APP_ROOT . '/public/' . $uploadDirRelative;
 $uploadBaseUrl = $uploadDirRelative . '/';
 
+if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+    $errors[] = 'Upload directory could not be created. Check permissions for public/uploads/images.';
+}
+
 $handleUpload = static function (string $field) use ($uploadDir, $uploadBaseUrl): ?string {
     if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
         return null;
@@ -92,7 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([':id' => $modelEditId]);
                     $existingImageUrl = $stmt->fetchColumn() ?: null;
                 }
-                $finalImageUrl = $imageUrl !== '' ? $imageUrl : ($uploadedModelImage ?: $existingImageUrl);
+                if ($uploadedModelImage) {
+                    $finalImageUrl = ($imageUrl !== '' && $imageUrl !== $existingImageUrl) ? $imageUrl : $uploadedModelImage;
+                } else {
+                    $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                }
 
                 if ($modelEditId > 0) {
                     $stmt = $pdo->prepare("
@@ -184,7 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([':id' => $assetEditId]);
                     $existingImageUrl = $stmt->fetchColumn() ?: null;
                 }
-                $finalImageUrl = $imageUrl !== '' ? $imageUrl : ($uploadedAssetImage ?: $existingImageUrl);
+                if ($uploadedAssetImage) {
+                    $finalImageUrl = ($imageUrl !== '' && $imageUrl !== $existingImageUrl) ? $imageUrl : $uploadedAssetImage;
+                } else {
+                    $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                }
 
                 if ($assetEditId > 0) {
                     $stmt = $pdo->prepare("
