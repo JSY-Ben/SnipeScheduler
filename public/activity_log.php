@@ -43,6 +43,11 @@ $eventLabels = [
     'assets_renewed' => 'Assets Renewed',
 ];
 
+$eventTypeAliases = [
+    'asset_checkin' => ['asset_checkin', 'quick_checkin', 'asset_checked_in', 'assets_checked_in'],
+    'asset_checkout' => ['asset_checkout', 'quick_checkout', 'reservation_checked_out'],
+];
+
 $metadataLabels = [
     'checked_out_to' => 'Checked out to',
     'assets' => 'Assets',
@@ -63,6 +68,19 @@ $metadataLabels = [
     'items' => 'Items',
     'user_id' => 'User',
 ];
+
+function canonical_event_type(?string $eventType, array $aliases): ?string
+{
+    if ($eventType === null || $eventType === '') {
+        return $eventType;
+    }
+    foreach ($aliases as $canonical => $group) {
+        if (in_array($eventType, $group, true)) {
+            return $canonical;
+        }
+    }
+    return $eventType;
+}
 
 function format_activity_metadata(?string $metadataJson, array $labelMap, ?DateTimeZone $tz = null): array
 {
@@ -170,7 +188,7 @@ $perPageRaw = (int)($_GET['per_page'] ?? 25);
 $sortRaw = trim($_GET['sort'] ?? '');
 
 $q        = $qRaw !== '' ? $qRaw : null;
-$eventType = $eventRaw !== '' ? $eventRaw : null;
+$eventType = $eventRaw !== '' ? canonical_event_type($eventRaw, $eventTypeAliases) : null;
 $dateFrom = $fromRaw !== '' ? $fromRaw : null;
 $dateTo   = $toRaw !== '' ? $toRaw : null;
 $page     = $pageRaw > 0 ? $pageRaw : 1;
@@ -197,7 +215,14 @@ $totalPages = 1;
 $eventTypeOptions = [];
 try {
     $eventStmt = $pdo->query('SELECT DISTINCT event_type FROM activity_log ORDER BY event_type ASC');
-    $eventTypeOptions = array_values(array_filter(array_map('trim', $eventStmt->fetchAll(PDO::FETCH_COLUMN))));
+    $rawEventTypes = array_values(array_filter(array_map('trim', $eventStmt->fetchAll(PDO::FETCH_COLUMN))));
+    $eventTypeOptions = [];
+    foreach ($rawEventTypes as $type) {
+        $canonical = canonical_event_type($type, $eventTypeAliases);
+        if ($canonical !== '' && !in_array($canonical, $eventTypeOptions, true)) {
+            $eventTypeOptions[] = $canonical;
+        }
+    }
 
     $where  = [];
     $params = [];
@@ -208,8 +233,18 @@ try {
     }
 
     if ($eventType !== null) {
-        $where[] = 'event_type = :event_type';
-        $params[':event_type'] = $eventType;
+        if (isset($eventTypeAliases[$eventType])) {
+            $placeholders = [];
+            foreach ($eventTypeAliases[$eventType] as $idx => $type) {
+                $key = ':event_type_' . $idx;
+                $placeholders[] = $key;
+                $params[$key] = $type;
+            }
+            $where[] = 'event_type IN (' . implode(',', $placeholders) . ')';
+        } else {
+            $where[] = 'event_type = :event_type';
+            $params[':event_type'] = $eventType;
+        }
     }
 
     if ($dateFrom !== null) {
@@ -414,7 +449,8 @@ try {
                                     }
 
                                     $eventTypeValue = (string)($row['event_type'] ?? '');
-                                    $eventLabel = $eventLabels[$eventTypeValue] ?? ucwords(str_replace('_', ' ', $eventTypeValue));
+                                    $eventTypeLabelKey = canonical_event_type($eventTypeValue, $eventTypeAliases) ?? $eventTypeValue;
+                                    $eventLabel = $eventLabels[$eventTypeLabelKey] ?? ucwords(str_replace('_', ' ', $eventTypeLabelKey));
 
                                     $subjectLabel = trim((string)($row['subject_type'] ?? ''));
                                     $subjectId = trim((string)($row['subject_id'] ?? ''));
