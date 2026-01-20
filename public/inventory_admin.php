@@ -395,6 +395,14 @@ if ($modelEditId > 0) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="assets-model-filter">
+                                <option value="">All models</option>
+                                <?php foreach ($models as $model): ?>
+                                    <option value="<?= h($model['name'] ?? '') ?>"><?= h($model['name'] ?? '') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
@@ -407,7 +415,6 @@ if ($modelEditId > 0) {
                                         <th>ID</th>
                                         <th>Tag</th>
                                         <th>Name</th>
-                                        <th>Model ID</th>
                                         <th>Model</th>
                                         <th>Status</th>
                                         <th></th>
@@ -423,7 +430,6 @@ if ($modelEditId > 0) {
                                             <td><?= (int)($asset['id'] ?? 0) ?></td>
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
                                             <td><?= h($asset['name'] ?? '') ?></td>
-                                            <td><?= (int)($asset['model_id'] ?? 0) ?></td>
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
                                             <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
                                             <td class="text-end">
@@ -502,7 +508,7 @@ if ($modelEditId > 0) {
                                                 <td><?= h($model['manufacturer'] ?? '') ?></td>
                                                 <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
                                                 <td class="text-end">
-                                                    <a class="btn btn-sm btn-outline-primary" href="inventory_admin.php?section=inventory&asset_model_id=<?= (int)$model['id'] ?>">View Assets</a>
+                                                    <a class="btn btn-sm btn-outline-primary" href="inventory_admin.php?section=inventory&asset_model=<?= urlencode($model['name'] ?? '') ?>">View Assets</a>
                                                     <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createAssetForModelModal-<?= (int)$model['id'] ?>">Create Asset</button>
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editModelModal-<?= (int)$model['id'] ?>">Edit</button>
                                                 </td>
@@ -969,10 +975,13 @@ if ($modelEditId > 0) {
         filterId: 'assets-filter',
         sortId: 'assets-sort',
         tableId: 'assets-table',
-        filterSelectIds: ['assets-status-filter'],
+        filterSelectIds: ['assets-status-filter', 'assets-model-filter'],
         filterPredicates: {
             'assets-status-filter': function (row, value) {
                 return (row.dataset.status || '') === value;
+            },
+            'assets-model-filter': function (row, value) {
+                return (row.dataset.model || '') === value;
             },
         },
     });
@@ -1003,9 +1012,12 @@ if ($modelEditId > 0) {
     });
 
     var params = new URLSearchParams(window.location.search);
-    var assetModelIdQuery = params.get('asset_model_id');
-    if (assetsControls && assetModelIdQuery) {
-        assetsControls.input.value = assetModelIdQuery;
+    var assetModelQuery = params.get('asset_model');
+    if (assetsControls && assetModelQuery) {
+        var modelSelect = document.getElementById('assets-model-filter');
+        if (modelSelect) {
+            modelSelect.value = assetModelQuery;
+        }
         assetsControls.render();
     }
 
