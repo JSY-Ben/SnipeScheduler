@@ -1,15 +1,17 @@
 <?php
+$isCli = PHP_SAPI === 'cli';
+
 require_once __DIR__ . '/../src/bootstrap.php';
-if (!defined('AUTH_LOGIN_PATH')) {
+if (!$isCli && !defined('AUTH_LOGIN_PATH')) {
     define('AUTH_LOGIN_PATH', '../public/login.php');
 }
-require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
-require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/config_writer.php';
 
-$isCli = PHP_SAPI === 'cli';
 if (!$isCli) {
+    require_once SRC_PATH . '/auth.php';
+    require_once SRC_PATH . '/layout.php';
+
     $isAdmin = !empty($currentUser['is_admin']);
     if (!$isAdmin) {
         http_response_code(403);
