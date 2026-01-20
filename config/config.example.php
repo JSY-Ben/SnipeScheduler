@@ -47,14 +47,14 @@ return [
             // 'Another Admin Group',
         ],
         'checkout_group_cn' => [
-            // 'Checkout Staff',
+            // 'Checkout Users',
             // 'Equipment Desk',
         ],
         // Optional: treat these Google accounts as administrators
         'google_admin_emails' => [
             // 'admin@example.com',
         ],
-        // Optional: treat these Google accounts as checkout staff
+        // Optional: treat these Google accounts as checkout users
         'google_checkout_emails' => [
             // 'staff@example.com',
         ],
@@ -62,7 +62,7 @@ return [
         'microsoft_admin_emails' => [
             // 'admin@example.com',
         ],
-        // Optional: treat these Microsoft accounts as checkout staff
+        // Optional: treat these Microsoft accounts as checkout users
         'microsoft_checkout_emails' => [
             // 'staff@example.com',
         ],

@@ -652,9 +652,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <div class="form-text">Comma or newline separated group names with full admin access.</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">LDAP/AD Checkout Staff Group(s)</label>
-                                <textarea name="checkout_group_cn" rows="3" class="form-control" placeholder="Checkout Staff&#10;Equipment Desk"><?= layout_textarea_value($checkoutGroupText) ?></textarea>
-                                <div class="form-text">Comma or newline separated group names for staff who can use all features except Admin.</div>
+                                <label class="form-label">LDAP/AD Checkout User Group(s)</label>
+                                <textarea name="checkout_group_cn" rows="3" class="form-control" placeholder="Checkout Users&#10;Equipment Desk"><?= layout_textarea_value($checkoutGroupText) ?></textarea>
+                                <div class="form-text">Comma or newline separated group names for checkout users who can use staff features (excluding Admin).</div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -700,9 +700,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <div class="form-text">Comma or newline separated addresses with full admin access.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Google checkout staff emails (optional)</label>
-                                <textarea name="google_checkout_emails" rows="3" class="form-control" placeholder="staff1@example.com&#10;staff2@example.com"><?= layout_textarea_value($googleCheckoutText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses that can access staff features (excluding Admin).</div>
+                                <label class="form-label">Google checkout user emails (optional)</label>
+                                <textarea name="google_checkout_emails" rows="3" class="form-control" placeholder="user1@example.com&#10;user2@example.com"><?= layout_textarea_value($googleCheckoutText) ?></textarea>
+                                <div class="form-text">Comma or newline separated addresses that can access checkout features (excluding Admin).</div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -753,9 +753,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <div class="form-text">Comma or newline separated addresses with full admin access.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Microsoft checkout staff emails (optional)</label>
-                                <textarea name="microsoft_checkout_emails" rows="3" class="form-control" placeholder="staff1@example.com&#10;staff2@example.com"><?= layout_textarea_value($msCheckoutText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses that can access staff features (excluding Admin).</div>
+                                <label class="form-label">Microsoft checkout user emails (optional)</label>
+                                <textarea name="microsoft_checkout_emails" rows="3" class="form-control" placeholder="user1@example.com&#10;user2@example.com"><?= layout_textarea_value($msCheckoutText) ?></textarea>
+                                <div class="form-text">Comma or newline separated addresses that can access checkout features (excluding Admin).</div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">

@@ -267,7 +267,7 @@ try {
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="is_staff" id="is_staff" <?= !empty($editUser['is_staff']) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="is_staff">Staff</label>
+                            <label class="form-check-label" for="is_staff">Checkout user</label>
                         </div>
                     </div>
                     <div class="col-12 d-flex justify-content-end gap-2">
@@ -303,7 +303,7 @@ try {
                             <tbody>
                                 <?php foreach ($users as $user): ?>
                                     <?php
-                                    $roleLabel = !empty($user['is_admin']) ? 'Admin' : (!empty($user['is_staff']) ? 'Staff' : 'User');
+                                    $roleLabel = !empty($user['is_admin']) ? 'Admin' : (!empty($user['is_staff']) ? 'Checkout user' : 'User');
                                     $sourceRaw = trim((string)($user['auth_source'] ?? ''));
                                     $sourceLabel = $sourceRaw !== '' ? ucfirst($sourceRaw) : 'Local';
                                     $isEditable = true;
