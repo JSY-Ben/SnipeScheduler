@@ -367,10 +367,10 @@ if ($assetEditId > 0) {
 
         <ul class="nav nav-tabs reservations-subtabs mb-3">
             <li class="nav-item">
-                <a class="nav-link <?= $section === 'inventory' ? 'active' : '' ?>" href="inventory_admin.php">Inventory</a>
+                <a class="nav-link <?= $section === 'categories' ? 'active' : '' ?>" href="inventory_admin.php?section=categories">Categories</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?= $section === 'categories' ? 'active' : '' ?>" href="inventory_admin.php?section=categories">Categories</a>
+                <a class="nav-link <?= $section === 'inventory' ? 'active' : '' ?>" href="inventory_admin.php">Inventory</a>
             </li>
         </ul>
 
@@ -590,17 +590,18 @@ if ($assetEditId > 0) {
                                     <?php foreach ($categories as $category): ?>
                                         <tr>
                                             <td>
-                                                <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>">
+                                                <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
                                             </td>
                                             <td>
-                                                <input type="text" name="category_description" class="form-control form-control-sm" value="<?= h($category['description'] ?? '') ?>" form="category-form-<?= (int)($category['id'] ?? 0) ?>">
+                                                <input type="text" name="category_description" class="form-control form-control-sm" value="<?= h($category['description'] ?? '') ?>" form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
                                             </td>
                                             <td class="text-end">
                                                 <form method="post" id="category-form-<?= (int)($category['id'] ?? 0) ?>" class="d-inline">
                                                     <input type="hidden" name="action" value="save_category">
                                                     <input type="hidden" name="category_id" value="<?= (int)($category['id'] ?? 0) ?>">
                                                     <input type="hidden" name="section" value="categories">
-                                                    <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary js-category-edit">Edit</button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary js-category-save" disabled>Save</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -615,5 +616,30 @@ if ($assetEditId > 0) {
     </div>
 </div>
 <?php layout_footer(); ?>
+<script>
+    document.querySelectorAll('.js-category-edit').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var form = button.closest('form');
+            if (!form) {
+                return;
+            }
+            var formId = form.getAttribute('id');
+            if (!formId) {
+                return;
+            }
+            var inputs = document.querySelectorAll('input[form="' + formId + '"]');
+            inputs.forEach(function (input) {
+                input.disabled = false;
+            });
+            var saveButton = form.querySelector('.js-category-save');
+            if (saveButton) {
+                saveButton.disabled = false;
+            }
+            if (inputs.length > 0) {
+                inputs[0].focus();
+            }
+        });
+    });
+</script>
 </body>
 </html>
