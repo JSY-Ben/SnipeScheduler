@@ -224,6 +224,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = $e->getMessage();
             }
         }
+    } elseif ($action === 'delete_user') {
+        $deleteId = (int)($_POST['user_id'] ?? 0);
+        if ($deleteId <= 0) {
+            $errors[] = 'Invalid user to delete.';
+        } elseif (!empty($currentUser['id']) && (int)$currentUser['id'] === $deleteId) {
+            $errors[] = 'You cannot delete your own account.';
+        } else {
+            try {
+                $stmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
+                $stmt->execute([':id' => $deleteId]);
+                if ($stmt->rowCount() > 0) {
+                    $messages[] = 'User deleted.';
+                } else {
+                    $errors[] = 'User not found.';
+                }
+            } catch (Throwable $e) {
+                $errors[] = 'Delete failed: ' . $e->getMessage();
+            }
+        }
     } elseif ($action === 'import_users') {
         $rows = $readCsvUpload('users_csv', $errors);
         if ($rows && !$errors) {
@@ -492,6 +511,11 @@ try {
                                         <td><?= h($createdAt) ?></td>
                                         <td class="text-end">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editUserModal-<?= (int)$user['id'] ?>">Edit</button>
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                                <input type="hidden" name="action" value="delete_user">
+                                                <input type="hidden" name="user_id" value="<?= (int)$user['id'] ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
