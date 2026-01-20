@@ -114,6 +114,7 @@ $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'checked_out_assets.php';
 $baseQuery = $embedded ? ['tab' => 'checked_out'] : [];
 $messages  = [];
+$forceRefresh = false;
 
 if (!$isStaff) {
     http_response_code(403);
