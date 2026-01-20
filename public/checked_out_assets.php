@@ -154,9 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkinNote = trim((string)($_POST['checkin_note'] ?? ''));
         if ($checkinId > 0) {
             try {
-                checkin_asset($checkinId, $checkinNote);
                 $labels = load_asset_labels($pdo, [$checkinId]);
                 $label = $labels[$checkinId] ?? ('Asset #' . $checkinId);
+                checkin_asset($checkinId, $checkinNote);
                 $messages[] = "Checked in {$label}.";
                 activity_log_event('asset_checked_in', 'Asset checked in', [
                     'subject_type' => 'asset',
@@ -170,8 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable $e) {
                 $error = 'Could not check in asset: ' . $e->getMessage();
             }
-        } else {
-            $error = 'Invalid asset selected for check-in.';
         }
     }
 
@@ -258,13 +256,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($assetIds)) {
                     $error = 'Select at least one valid asset to check in.';
                 } else {
-                    foreach ($assetIds as $assetId) {
-                        checkin_asset($assetId, $checkinNote);
-                    }
                     $labels = load_asset_labels($pdo, $assetIds);
                     $assetLabels = array_values(array_filter(array_map(static function (int $id) use ($labels): string {
                         return $labels[$id] ?? ('Asset #' . $id);
                     }, $assetIds)));
+                    foreach ($assetIds as $assetId) {
+                        checkin_asset($assetId, $checkinNote);
+                    }
                     $messages[] = 'Checked in ' . count($assetIds) . ' asset(s).';
                     activity_log_event('asset_checked_in', 'Checked out assets checked in', [
                         'metadata' => [
