@@ -415,8 +415,10 @@ if ($modelEditId > 0) {
                             <table class="table table-sm table-striped align-middle">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Tag</th>
                                         <th>Name</th>
+                                        <th>Model ID</th>
                                         <th>Model</th>
                                         <th>Status</th>
                                         <th>Requestable</th>
@@ -425,13 +427,16 @@ if ($modelEditId > 0) {
                                 </thead>
                                 <tbody id="assets-table">
                                     <?php foreach ($assets as $asset): ?>
-                                        <tr data-tag="<?= h($asset['asset_tag'] ?? '') ?>"
+                                        <tr data-id="<?= (int)($asset['id'] ?? 0) ?>"
+                                            data-tag="<?= h($asset['asset_tag'] ?? '') ?>"
                                             data-name="<?= h($asset['name'] ?? '') ?>"
                                             data-model="<?= h($asset['model_name'] ?? '') ?>"
                                             data-status="<?= h($asset['status'] ?? 'available') ?>"
                                             data-requestable="<?= !empty($asset['requestable']) ? '1' : '0' ?>">
+                                            <td><?= (int)($asset['id'] ?? 0) ?></td>
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
                                             <td><?= h($asset['name'] ?? '') ?></td>
+                                            <td><?= (int)($asset['model_id'] ?? 0) ?></td>
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
                                                 <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
                                                 <td><?= !empty($asset['requestable']) ? 'Yes' : 'No' ?></td>
@@ -489,9 +494,10 @@ if ($modelEditId > 0) {
                         <div class="text-muted small">No models found yet.</div>
                     <?php else: ?>
                         <div class="table-responsive">
-                            <table class="table table-sm table-striped align-middle">
+                                <table class="table table-sm table-striped align-middle">
                                     <thead>
                                         <tr>
+                                            <th>ID</th>
                                             <th>Image</th>
                                             <th>Name</th>
                                             <th>Manufacturer</th>
@@ -501,10 +507,12 @@ if ($modelEditId > 0) {
                                     </thead>
                                     <tbody id="models-table">
                                         <?php foreach ($models as $model): ?>
-                                            <tr data-name="<?= h($model['name'] ?? '') ?>"
+                                            <tr data-id="<?= (int)($model['id'] ?? 0) ?>"
+                                                data-name="<?= h($model['name'] ?? '') ?>"
                                                 data-manufacturer="<?= h($model['manufacturer'] ?? '') ?>"
                                                 data-category="<?= h($model['category_name'] ?? '') ?>"
                                                 data-image="<?= !empty($model['image_url']) ? '1' : '0' ?>">
+                                                <td><?= (int)($model['id'] ?? 0) ?></td>
                                                 <td>
                                                     <?php if (!empty($model['image_url'])): ?>
                                                         <img src="<?= h($model['image_url']) ?>" alt="" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px;">
@@ -516,7 +524,7 @@ if ($modelEditId > 0) {
                                                 <td><?= h($model['manufacturer'] ?? '') ?></td>
                                                 <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
                                                 <td class="text-end">
-                                                    <a class="btn btn-sm btn-outline-primary" href="inventory_admin.php?section=inventory&asset_model=<?= urlencode($model['name'] ?? '') ?>">View Assets</a>
+                                                    <a class="btn btn-sm btn-outline-primary" href="inventory_admin.php?section=inventory&asset_model_id=<?= (int)$model['id'] ?>">View Assets</a>
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editModelModal-<?= (int)$model['id'] ?>">Edit</button>
                                                 </td>
                                             </tr>
@@ -562,15 +570,18 @@ if ($modelEditId > 0) {
                             <table class="table table-sm table-striped align-middle">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Name</th>
                                         <th>Description</th>
                                         <th></th>
                                         </tr>
                                     </thead>
-                                    <tbody id="categories-table">
-                                        <?php foreach ($categories as $category): ?>
-                                        <tr data-name="<?= h($category['name'] ?? '') ?>"
+                                <tbody id="categories-table">
+                                    <?php foreach ($categories as $category): ?>
+                                        <tr data-id="<?= (int)($category['id'] ?? 0) ?>"
+                                            data-name="<?= h($category['name'] ?? '') ?>"
                                             data-description="<?= h($category['description'] ?? '') ?>">
+                                            <td><?= (int)($category['id'] ?? 0) ?></td>
                                             <td>
                                                 <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
                                             </td>
@@ -978,9 +989,9 @@ if ($modelEditId > 0) {
     });
 
     var params = new URLSearchParams(window.location.search);
-    var assetModelQuery = params.get('asset_model');
-    if (assetsControls && assetModelQuery) {
-        assetsControls.input.value = assetModelQuery;
+    var assetModelIdQuery = params.get('asset_model_id');
+    if (assetsControls && assetModelIdQuery) {
+        assetsControls.input.value = assetModelIdQuery;
         assetsControls.render();
     }
 
