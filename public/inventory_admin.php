@@ -525,6 +525,7 @@ if ($modelEditId > 0) {
                                                 <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
                                                 <td class="text-end">
                                                     <a class="btn btn-sm btn-outline-primary" href="inventory_admin.php?section=inventory&asset_model_id=<?= (int)$model['id'] ?>">View Assets</a>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createAssetForModelModal-<?= (int)$model['id'] ?>">Create Asset</button>
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editModelModal-<?= (int)$model['id'] ?>">Edit</button>
                                                 </td>
                                             </tr>
@@ -747,6 +748,65 @@ if ($modelEditId > 0) {
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Update model</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
+<?php foreach ($models as $model): ?>
+    <div class="modal fade" id="createAssetForModelModal-<?= (int)$model['id'] ?>" tabindex="-1" aria-labelledby="createAssetForModelModalLabel-<?= (int)$model['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="save_asset">
+                    <input type="hidden" name="asset_id" value="0">
+                    <input type="hidden" name="section" value="inventory">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createAssetForModelModalLabel-<?= (int)$model['id'] ?>">Create asset for <?= h($model['name'] ?? '') ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Asset tag</label>
+                                <input type="text" name="asset_tag" class="form-control" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Asset name</label>
+                                <input type="text" name="asset_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Model</label>
+                                <select name="asset_model_id" class="form-select" required>
+                                    <?php foreach ($models as $modelOption): ?>
+                                        <option value="<?= (int)$modelOption['id'] ?>" <?= (int)($modelOption['id'] ?? 0) === (int)($model['id'] ?? 0) ? 'selected' : '' ?>>
+                                            <?= h($modelOption['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+                                <select name="asset_status" class="form-select">
+                                    <?php foreach ($statusOptions as $opt): ?>
+                                        <option value="<?= h($opt) ?>">
+                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="create_asset_requestable_model_<?= (int)$model['id'] ?>">
+                                    <label class="form-check-label" for="create_asset_requestable_model_<?= (int)$model['id'] ?>">Requestable</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create asset</button>
                     </div>
                 </form>
             </div>
