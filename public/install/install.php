@@ -467,8 +467,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
                 $passwordHash = password_hash($adminPassword, PASSWORD_DEFAULT);
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, created_at)
-                    VALUES (:user_id, :name, :email, :username, 1, 1, :password_hash, NOW())
+                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                    VALUES (:user_id, :name, :email, :username, 1, 1, :password_hash, 'local', NOW())
                     ON DUPLICATE KEY UPDATE
                         name = VALUES(name),
                         username = VALUES(username),

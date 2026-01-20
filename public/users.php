@@ -18,6 +18,7 @@ $messages = [];
 $errors   = [];
 
 $editId = (int)($_GET['edit'] ?? 0);
+$editLocked = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save_user';
@@ -56,6 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!$existing) {
                         throw new Exception('User not found.');
                     }
+                    if (!empty($existing['auth_source']) && $existing['auth_source'] !== 'local') {
+                        throw new Exception('External users cannot be edited here.');
+                    }
                 } elseif ($password === '') {
                     throw new Exception('Password is required for new users.');
                 }
@@ -76,7 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                username = :username,
                                is_admin = :is_admin,
                                is_staff = :is_staff,
-                               password_hash = :password_hash
+                               password_hash = :password_hash,
+                               auth_source = 'local'
                          WHERE id = :id
                     ");
                     $stmt->execute([
@@ -92,8 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $messages[] = 'User updated.';
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, created_at)
-                        VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, NOW())
+                        INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                        VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
                     ");
                     $stmt->execute([
                         ':user_id' => $userId,
@@ -121,13 +126,15 @@ if ($editId > 0) {
     $editUser = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$editUser) {
         $errors[] = 'User not found.';
+    } elseif (!empty($editUser['auth_source']) && $editUser['auth_source'] !== 'local') {
+        $editLocked = true;
     }
 }
 
 $users = [];
 try {
     $stmt = $pdo->query('
-        SELECT id, name, email, username, is_admin, is_staff, created_at
+        SELECT id, name, email, username, is_admin, is_staff, auth_source, created_at
           FROM users
          ORDER BY name ASC, email ASC
     ');
@@ -198,35 +205,37 @@ try {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= $editUser ? 'Edit user' : 'Create user' ?></h5>
-                <p class="text-muted small mb-3">Leave password blank to keep the existing password.</p>
+                <p class="text-muted small mb-3">
+                    <?= $editLocked ? 'External users are managed by their identity provider and cannot be edited here.' : 'Leave password blank to keep the existing password.' ?>
+                </p>
                 <form method="post" class="row g-3">
                     <input type="hidden" name="action" value="save_user">
                     <input type="hidden" name="user_id" value="<?= (int)($editUser['id'] ?? 0) ?>">
                     <div class="col-md-4">
                         <label class="form-label">Email</label>
-                        <input type="email" name="email" class="form-control" value="<?= h($editUser['email'] ?? '') ?>" required>
+                        <input type="email" name="email" class="form-control" value="<?= h($editUser['email'] ?? '') ?>" required <?= $editLocked ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Display name</label>
-                        <input type="text" name="name" class="form-control" value="<?= h($editUser['name'] ?? '') ?>" placeholder="User Name">
+                        <input type="text" name="name" class="form-control" value="<?= h($editUser['name'] ?? '') ?>" placeholder="User Name" <?= $editLocked ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" value="<?= h($editUser['username'] ?? '') ?>" placeholder="username">
+                        <input type="text" name="username" class="form-control" value="<?= h($editUser['username'] ?? '') ?>" placeholder="username" <?= $editLocked ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" placeholder="Set a password">
+                        <input type="password" name="password" class="form-control" placeholder="Set a password" <?= $editLocked ? 'disabled' : '' ?>>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_admin" id="is_admin" <?= !empty($editUser['is_admin']) ? 'checked' : '' ?>>
+                            <input class="form-check-input" type="checkbox" name="is_admin" id="is_admin" <?= !empty($editUser['is_admin']) ? 'checked' : '' ?> <?= $editLocked ? 'disabled' : '' ?>>
                             <label class="form-check-label" for="is_admin">Admin</label>
                         </div>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_staff" id="is_staff" <?= !empty($editUser['is_staff']) ? 'checked' : '' ?>>
+                            <input class="form-check-input" type="checkbox" name="is_staff" id="is_staff" <?= !empty($editUser['is_staff']) ? 'checked' : '' ?> <?= $editLocked ? 'disabled' : '' ?>>
                             <label class="form-check-label" for="is_staff">Staff</label>
                         </div>
                     </div>
@@ -234,7 +243,7 @@ try {
                         <?php if ($editUser): ?>
                             <a href="users.php" class="btn btn-outline-secondary">Cancel</a>
                         <?php endif; ?>
-                        <button type="submit" class="btn btn-primary"><?= $editUser ? 'Update user' : 'Create user' ?></button>
+                        <button type="submit" class="btn btn-primary" <?= $editLocked ? 'disabled' : '' ?>><?= $editUser ? 'Update user' : 'Create user' ?></button>
                     </div>
                 </form>
             </div>
@@ -255,6 +264,7 @@ try {
                                     <th>Email</th>
                                     <th>Username</th>
                                     <th>Role</th>
+                                    <th>Source</th>
                                     <th>Created</th>
                                     <th></th>
                                 </tr>
@@ -263,6 +273,9 @@ try {
                                 <?php foreach ($users as $user): ?>
                                     <?php
                                     $roleLabel = !empty($user['is_admin']) ? 'Admin' : (!empty($user['is_staff']) ? 'Staff' : 'User');
+                                    $sourceRaw = trim((string)($user['auth_source'] ?? ''));
+                                    $sourceLabel = $sourceRaw !== '' ? ucfirst($sourceRaw) : 'Local';
+                                    $isEditable = ($sourceRaw === '' || $sourceRaw === 'local');
                                     $createdAt = $user['created_at'] ? date('Y-m-d', strtotime($user['created_at'])) : '';
                                     ?>
                                     <tr>
@@ -270,9 +283,14 @@ try {
                                         <td><?= h($user['email'] ?? '') ?></td>
                                         <td><?= h($user['username'] ?? '') ?></td>
                                         <td><?= h($roleLabel) ?></td>
+                                        <td><?= h($sourceLabel) ?></td>
                                         <td><?= h($createdAt) ?></td>
                                         <td class="text-end">
-                                            <a class="btn btn-sm btn-outline-secondary" href="users.php?edit=<?= (int)$user['id'] ?>">Edit</a>
+                                            <?php if ($isEditable): ?>
+                                                <a class="btn btn-sm btn-outline-secondary" href="users.php?edit=<?= (int)$user['id'] ?>">Edit</a>
+                                            <?php else: ?>
+                                                <span class="text-muted small">External</span>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

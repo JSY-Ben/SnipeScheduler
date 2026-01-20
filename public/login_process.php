@@ -91,7 +91,7 @@ $redirectWithError = static function (string $message) {
     exit;
 };
 
-$upsertUser = static function (PDO $pdo, string $email, string $fullName, string $username): int {
+$upsertUser = static function (PDO $pdo, string $email, string $fullName, string $username, ?string $authSource = null): int {
     $userTable = 'users';
     $userIdCol = 'user_id';
 
@@ -100,31 +100,88 @@ $upsertUser = static function (PDO $pdo, string $email, string $fullName, string
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($existing) {
-        $update = $pdo->prepare("
-            UPDATE {$userTable}
-               SET name = :name,
-                   username = :username
-             WHERE id = :id
-        ");
-        $update->execute([
-            ':name' => $fullName,
-            ':username' => $username !== '' ? $username : null,
-            ':id'   => $existing['id'],
-        ]);
+        if ($authSource !== null && $authSource !== '') {
+            try {
+                $update = $pdo->prepare("
+                    UPDATE {$userTable}
+                       SET name = :name,
+                           username = :username,
+                           auth_source = :auth_source
+                     WHERE id = :id
+                ");
+                $update->execute([
+                    ':name' => $fullName,
+                    ':username' => $username !== '' ? $username : null,
+                    ':auth_source' => $authSource,
+                    ':id'   => $existing['id'],
+                ]);
+            } catch (Throwable $e) {
+                $update = $pdo->prepare("
+                    UPDATE {$userTable}
+                       SET name = :name,
+                           username = :username
+                     WHERE id = :id
+                ");
+                $update->execute([
+                    ':name' => $fullName,
+                    ':username' => $username !== '' ? $username : null,
+                    ':id'   => $existing['id'],
+                ]);
+            }
+        } else {
+            $update = $pdo->prepare("
+                UPDATE {$userTable}
+                   SET name = :name,
+                       username = :username
+                 WHERE id = :id
+            ");
+            $update->execute([
+                ':name' => $fullName,
+                ':username' => $username !== '' ? $username : null,
+                ':id'   => $existing['id'],
+            ]);
+        }
         return (int)$existing['id'];
     }
 
     $userIdHex = sprintf('%u', crc32(strtolower($email)));
-    $insert = $pdo->prepare("
-        INSERT INTO {$userTable} ({$userIdCol}, name, email, username, created_at)
-        VALUES (:user_id, :name, :email, :username, NOW())
-    ");
-    $insert->execute([
-        ':user_id' => $userIdHex,
-        ':name'    => $fullName,
-        ':email'   => $email,
-        ':username' => $username !== '' ? $username : null,
-    ]);
+    if ($authSource !== null && $authSource !== '') {
+        try {
+            $insert = $pdo->prepare("
+                INSERT INTO {$userTable} ({$userIdCol}, name, email, username, auth_source, created_at)
+                VALUES (:user_id, :name, :email, :username, :auth_source, NOW())
+            ");
+            $insert->execute([
+                ':user_id' => $userIdHex,
+                ':name'    => $fullName,
+                ':email'   => $email,
+                ':username' => $username !== '' ? $username : null,
+                ':auth_source' => $authSource,
+            ]);
+        } catch (Throwable $e) {
+            $insert = $pdo->prepare("
+                INSERT INTO {$userTable} ({$userIdCol}, name, email, username, created_at)
+                VALUES (:user_id, :name, :email, :username, NOW())
+            ");
+            $insert->execute([
+                ':user_id' => $userIdHex,
+                ':name'    => $fullName,
+                ':email'   => $email,
+                ':username' => $username !== '' ? $username : null,
+            ]);
+        }
+    } else {
+        $insert = $pdo->prepare("
+            INSERT INTO {$userTable} ({$userIdCol}, name, email, username, created_at)
+            VALUES (:user_id, :name, :email, :username, NOW())
+        ");
+        $insert->execute([
+            ':user_id' => $userIdHex,
+            ':name'    => $fullName,
+            ':email'   => $email,
+            ':username' => $username !== '' ? $username : null,
+        ]);
+    }
     return (int)$pdo->lastInsertId();
 };
 
@@ -342,7 +399,7 @@ if ($provider === 'google') {
     }
 
     try {
-        $userId = $upsertUser($pdo, $email, $fullName, $email);
+        $userId = $upsertUser($pdo, $email, $fullName, $email, 'google');
     } catch (Throwable $e) {
         $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable (database error).');
     }
@@ -556,7 +613,7 @@ if ($provider === 'microsoft') {
     }
 
     try {
-        $userId = $upsertUser($pdo, $email, $fullName, $email);
+        $userId = $upsertUser($pdo, $email, $fullName, $email, 'microsoft');
     } catch (Throwable $e) {
         $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable (database error).');
     }
@@ -774,7 +831,7 @@ if ($isAdmin || $isCheckout) {
 // `user_id` must be UNIQUE, so we derive a stable numeric ID from email.
 // ------------------------------------------------------------------
 try {
-    $userId = $upsertUser($pdo, $mail, $fullName, $sam);
+    $userId = $upsertUser($pdo, $mail, $fullName, $sam, 'ldap');
 } catch (Throwable $e) {
     $redirectWithError($debugOn
         ? 'Login system is currently unavailable (database error): ' . $e->getMessage()
