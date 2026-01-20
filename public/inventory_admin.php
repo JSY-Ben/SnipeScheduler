@@ -149,14 +149,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $modelId = (int)($_POST['asset_model_id'] ?? 0);
         $status = $_POST['asset_status'] ?? 'available';
         $requestable = isset($_POST['asset_requestable']) ? 1 : 0;
-        $imageUrl = trim($_POST['asset_image_url'] ?? '');
-        $uploadedAssetImage = null;
-
-        try {
-            $uploadedAssetImage = $handleUpload('asset_image_upload');
-        } catch (Throwable $e) {
-            $errors[] = $e->getMessage();
-        }
 
         if ($assetTag === '') {
             $errors[] = 'Asset tag is required.';
@@ -188,17 +180,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Selected model does not exist.');
                 }
 
-                $existingImageUrl = null;
-                if ($assetEditId > 0) {
-                    $stmt = $pdo->prepare('SELECT image_url FROM assets WHERE id = :id LIMIT 1');
-                    $stmt->execute([':id' => $assetEditId]);
-                    $existingImageUrl = $stmt->fetchColumn() ?: null;
-                }
-                $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
-                if ($uploadedAssetImage && ($imageUrl === '' || $imageUrl === $existingImageUrl)) {
-                    $finalImageUrl = $uploadedAssetImage;
-                }
-
                 if ($assetEditId > 0) {
                     $stmt = $pdo->prepare("
                         UPDATE assets
@@ -206,8 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                name = :name,
                                model_id = :model_id,
                                status = :status,
-                               requestable = :requestable,
-                               image_url = :image_url
+                               requestable = :requestable
                          WHERE id = :id
                     ");
                     $stmt->execute([
@@ -216,14 +196,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':model_id' => $modelId,
                         ':status' => $status,
                         ':requestable' => $requestable,
-                        ':image_url' => $finalImageUrl,
                         ':id' => $assetEditId,
                     ]);
                     $messages[] = 'Asset updated.';
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO assets (asset_tag, name, model_id, status, requestable, image_url, created_at)
-                        VALUES (:asset_tag, :name, :model_id, :status, :requestable, :image_url, NOW())
+                        INSERT INTO assets (asset_tag, name, model_id, status, requestable, created_at)
+                        VALUES (:asset_tag, :name, :model_id, :status, :requestable, NOW())
                     ");
                     $stmt->execute([
                         ':asset_tag' => $assetTag,
@@ -231,7 +210,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':model_id' => $modelId,
                         ':status' => $status,
                         ':requestable' => $requestable,
-                        ':image_url' => $finalImageUrl,
                     ]);
                     $assetEditId = (int)$pdo->lastInsertId();
                     $messages[] = 'Asset created.';
@@ -299,7 +277,7 @@ try {
          ORDER BY m.name ASC
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $assets = $pdo->query('
-        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.requestable, a.image_url, a.created_at, m.name AS model_name
+        SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, a.requestable, a.created_at, m.name AS model_name
           FROM assets a
           JOIN asset_models m ON m.id = a.model_id
          ORDER BY a.asset_tag ASC
@@ -400,7 +378,7 @@ if ($assetEditId > 0) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= $editCategory ? 'Edit category' : 'Create category' ?></h5>
-                <form method="post" class="row g-3" enctype="multipart/form-data">
+                <form method="post" class="row g-3">
                     <input type="hidden" name="action" value="save_category">
                     <input type="hidden" name="category_id" value="<?= (int)($editCategory['id'] ?? 0) ?>">
                     <div class="col-md-4">
@@ -503,15 +481,6 @@ if ($assetEditId > 0) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Image URL</label>
-                        <input type="text" name="asset_image_url" class="form-control" value="<?= h($editAsset['image_url'] ?? '') ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Upload image</label>
-                        <input type="file" name="asset_image_upload" class="form-control">
-                        <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
                         <div class="form-check">

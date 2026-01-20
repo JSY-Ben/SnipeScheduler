@@ -25,9 +25,8 @@ function inventory_map_model_row(array $row): array
 
 function inventory_map_asset_row(array $row): array
 {
-    $assetImage = $row['asset_image_url'] ?? ($row['image_url'] ?? '');
     $modelImage = $row['model_image_url'] ?? '';
-    $image = $assetImage !== '' ? $assetImage : $modelImage;
+    $image = $modelImage;
 
     $asset = [
         'id' => (int)($row['asset_id'] ?? ($row['id'] ?? 0)),
@@ -228,7 +227,6 @@ function get_asset(int $assetId): array
             a.model_id,
             a.status,
             a.requestable,
-            a.image_url AS asset_image_url,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -263,7 +261,6 @@ function find_asset_by_tag(string $tag): array
             a.model_id,
             a.status,
             a.requestable,
-            a.image_url AS asset_image_url,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -313,7 +310,6 @@ function search_assets(string $query, int $limit = 20, bool $requestableOnly = f
             a.model_id,
             a.status,
             a.requestable,
-            a.image_url AS asset_image_url,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
@@ -354,7 +350,6 @@ function list_assets_by_model(int $modelId, int $maxResults = 300): array
             a.model_id,
             a.status,
             a.requestable,
-            a.image_url AS asset_image_url,
             m.name AS model_name,
             m.image_url AS model_image_url,
             co.assigned_to_id,
