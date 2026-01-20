@@ -393,7 +393,8 @@ if ($selectedUser) {
                                class="form-control form-control-lg checkin-search"
                                id="checkin_user_search"
                                placeholder="Filter by name or email"
-                               value="<?= h($userSearch) ?>">
+                               value="<?= h($userSearch) ?>"
+                               <?= $userSearch !== '' ? 'autofocus' : '' ?>>
                     </div>
                     <div>
                         <label class="form-label fw-semibold d-block">Per page</label>
@@ -682,6 +683,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const userPerPage = document.getElementById('checkin-user-per-page');
     const userForm = document.getElementById('checkin-user-form');
     if (userSearch && userForm) {
+        if (userSearch.value.trim() !== '') {
+            userSearch.focus();
+            const val = userSearch.value;
+            userSearch.setSelectionRange(val.length, val.length);
+        }
         let timer = null;
         userSearch.addEventListener('input', () => {
             if (timer) clearTimeout(timer);
