@@ -388,7 +388,7 @@ if ($selectedUser) {
                 <?php endforeach; ?>
                 <div class="d-flex flex-column flex-md-row gap-3 align-items-md-end">
                     <div class="flex-grow-1">
-                        <label for="checkin_user_search" class="form-label fw-semibold">Search checked-out users</label>
+                        <label for="checkin_user_search" class="form-label fw-semibold">Search for Users with Checked Out Equipment</label>
                         <input type="text"
                                name="user_q"
                                class="form-control form-control-lg checkin-search"
