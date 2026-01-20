@@ -9,7 +9,6 @@ $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
 $sectionRaw = $_GET['section'] ?? $_POST['section'] ?? 'inventory';
 $section = in_array($sectionRaw, ['categories', 'models', 'inventory'], true) ? $sectionRaw : 'inventory';
-$modelCreate = !empty($_GET['model_create']);
 
 if (!$isAdmin) {
     http_response_code(403);
@@ -379,61 +378,64 @@ if ($assetEditId > 0) {
         </ul>
 
         <?php if ($section === 'inventory'): ?>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title mb-1"><?= $editAsset ? 'Edit asset' : 'Create asset' ?></h5>
-                    <form method="post" class="row g-3" enctype="multipart/form-data">
-                        <input type="hidden" name="action" value="save_asset">
-                        <input type="hidden" name="asset_id" value="<?= (int)($editAsset['id'] ?? 0) ?>">
-                        <input type="hidden" name="section" value="inventory">
-                        <div class="col-md-3">
-                            <label class="form-label">Asset tag</label>
-                            <input type="text" name="asset_tag" class="form-control" value="<?= h($editAsset['asset_tag'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Asset name</label>
-                            <input type="text" name="asset_name" class="form-control" value="<?= h($editAsset['name'] ?? '') ?>" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Model</label>
-                            <select name="asset_model_id" class="form-select" required>
-                                <option value="">Select model</option>
-                                <?php foreach ($models as $model): ?>
-                                    <option value="<?= (int)$model['id'] ?>" <?= (int)($editAsset['model_id'] ?? 0) === (int)$model['id'] ? 'selected' : '' ?>>
-                                        <?= h($model['name'] ?? '') ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Status</label>
-                            <select name="asset_status" class="form-select">
-                                <?php foreach ($statusOptions as $opt): ?>
-                                    <option value="<?= h($opt) ?>" <?= ($editAsset['status'] ?? 'available') === $opt ? 'selected' : '' ?>>
-                                        <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="asset_requestable" id="asset_requestable" <?= !empty($editAsset['requestable']) ? 'checked' : '' ?>>
-                                <label class="form-check-label" for="asset_requestable">Requestable</label>
+            <?php if ($editAsset): ?>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Edit asset</h5>
+                        <form method="post" class="row g-3" enctype="multipart/form-data">
+                            <input type="hidden" name="action" value="save_asset">
+                            <input type="hidden" name="asset_id" value="<?= (int)($editAsset['id'] ?? 0) ?>">
+                            <input type="hidden" name="section" value="inventory">
+                            <div class="col-md-3">
+                                <label class="form-label">Asset tag</label>
+                                <input type="text" name="asset_tag" class="form-control" value="<?= h($editAsset['asset_tag'] ?? '') ?>" required>
                             </div>
-                        </div>
-                        <div class="col-12 d-flex justify-content-end gap-2">
-                            <?php if ($editAsset): ?>
+                            <div class="col-md-3">
+                                <label class="form-label">Asset name</label>
+                                <input type="text" name="asset_name" class="form-control" value="<?= h($editAsset['name'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Model</label>
+                                <select name="asset_model_id" class="form-select" required>
+                                    <option value="">Select model</option>
+                                    <?php foreach ($models as $model): ?>
+                                        <option value="<?= (int)$model['id'] ?>" <?= (int)($editAsset['model_id'] ?? 0) === (int)$model['id'] ? 'selected' : '' ?>>
+                                            <?= h($model['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+                                <select name="asset_status" class="form-select">
+                                    <?php foreach ($statusOptions as $opt): ?>
+                                        <option value="<?= h($opt) ?>" <?= ($editAsset['status'] ?? 'available') === $opt ? 'selected' : '' ?>>
+                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="asset_requestable" <?= !empty($editAsset['requestable']) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="asset_requestable">Requestable</label>
+                                </div>
+                            </div>
+                            <div class="col-12 d-flex justify-content-end gap-2">
                                 <a href="inventory_admin.php" class="btn btn-outline-secondary">Cancel</a>
-                            <?php endif; ?>
-                            <button type="submit" class="btn btn-primary"><?= $editAsset ? 'Update asset' : 'Create asset' ?></button>
-                        </div>
-                    </form>
+                                <button type="submit" class="btn btn-primary">Update asset</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
 
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title mb-1">Assets</h5>
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+                        <h5 class="card-title mb-0">Assets</h5>
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
+                    </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
                         <div class="text-muted small">No assets found yet.</div>
@@ -471,10 +473,10 @@ if ($assetEditId > 0) {
             </div>
         <?php else: ?>
             <?php if ($section === 'models'): ?>
-                <?php if ($modelCreate || $editModel): ?>
+                <?php if ($editModel): ?>
                     <div class="card mb-3">
                         <div class="card-body">
-                            <h5 class="card-title mb-1"><?= $editModel ? 'Edit model' : 'Create model' ?></h5>
+                            <h5 class="card-title mb-1">Edit model</h5>
                             <form method="post" class="row g-3" enctype="multipart/form-data">
                                 <input type="hidden" name="action" value="save_model">
                                 <input type="hidden" name="model_id" value="<?= (int)($editModel['id'] ?? 0) ?>">
@@ -512,10 +514,8 @@ if ($assetEditId > 0) {
                                     <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
                                 </div>
                                 <div class="col-12 d-flex justify-content-end gap-2">
-                                    <?php if ($editModel || $modelCreate): ?>
-                                        <a href="inventory_admin.php?section=models" class="btn btn-outline-secondary">Cancel</a>
-                                    <?php endif; ?>
-                                    <button type="submit" class="btn btn-primary"><?= $editModel ? 'Update model' : 'Create model' ?></button>
+                                    <a href="inventory_admin.php?section=models" class="btn btn-outline-secondary">Cancel</a>
+                                    <button type="submit" class="btn btn-primary">Update model</button>
                                 </div>
                             </form>
                         </div>
@@ -526,7 +526,7 @@ if ($assetEditId > 0) {
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                             <h5 class="card-title mb-0">Models</h5>
-                            <a class="btn btn-sm btn-primary" href="inventory_admin.php?section=models&model_create=1">Create Model</a>
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
                         </div>
                         <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
                         <?php if (empty($models)): ?>
@@ -570,29 +570,15 @@ if ($assetEditId > 0) {
             <?php else: ?>
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="card-title mb-1">Create category</h5>
-                    <form method="post" class="row g-3">
-                        <input type="hidden" name="action" value="save_category">
-                        <input type="hidden" name="category_id" value="0">
-                        <input type="hidden" name="section" value="categories">
-                        <div class="col-md-4">
-                            <label class="form-label">Category name</label>
-                            <input type="text" name="category_name" class="form-control" required>
-                        </div>
-                        <div class="col-md-8">
-                            <label class="form-label">Description</label>
-                            <input type="text" name="category_description" class="form-control">
-                        </div>
-                        <div class="col-12 d-flex justify-content-end gap-2">
-                            <button type="submit" class="btn btn-primary">Create category</button>
-                        </div>
-                    </form>
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+                        <h5 class="card-title mb-0">Categories</h5>
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
+                    </div>
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title mb-1">Categories</h5>
                     <p class="text-muted small mb-3"><?= count($categories) ?> total.</p>
                     <?php if (empty($categories)): ?>
                         <div class="text-muted small">No categories found yet.</div>
@@ -637,6 +623,150 @@ if ($assetEditId > 0) {
     </div>
 </div>
 <?php layout_footer(); ?>
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post">
+                <input type="hidden" name="action" value="save_category">
+                <input type="hidden" name="category_id" value="0">
+                <input type="hidden" name="section" value="categories">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createCategoryModalLabel">Create category</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Category name</label>
+                            <input type="text" name="category_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Description</label>
+                            <input type="text" name="category_description" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="createModelModal" tabindex="-1" aria-labelledby="createModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="save_model">
+                <input type="hidden" name="model_id" value="0">
+                <input type="hidden" name="section" value="models">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createModelModalLabel">Create model</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Model name</label>
+                            <input type="text" name="model_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Manufacturer</label>
+                            <input type="text" name="model_manufacturer" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Category</label>
+                            <select name="model_category_id" class="form-select">
+                                <option value="">Unassigned</option>
+                                <?php foreach ($categories as $category): ?>
+                                    <option value="<?= (int)$category['id'] ?>">
+                                        <?= h($category['name'] ?? '') ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Notes</label>
+                            <textarea name="model_notes" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Image URL</label>
+                            <input type="text" name="model_image_url" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Upload image</label>
+                            <input type="file" name="model_image_upload" class="form-control">
+                            <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create model</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="createAssetModal" tabindex="-1" aria-labelledby="createAssetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="save_asset">
+                <input type="hidden" name="asset_id" value="0">
+                <input type="hidden" name="section" value="inventory">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createAssetModalLabel">Create asset</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Asset tag</label>
+                            <input type="text" name="asset_tag" class="form-control" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Asset name</label>
+                            <input type="text" name="asset_name" class="form-control" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Model</label>
+                            <select name="asset_model_id" class="form-select" required>
+                                <option value="">Select model</option>
+                                <?php foreach ($models as $model): ?>
+                                    <option value="<?= (int)$model['id'] ?>">
+                                        <?= h($model['name'] ?? '') ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="asset_status" class="form-select">
+                                <?php foreach ($statusOptions as $opt): ?>
+                                    <option value="<?= h($opt) ?>">
+                                        <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="asset_requestable" id="create_asset_requestable">
+                                <label class="form-check-label" for="create_asset_requestable">Requestable</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create asset</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <script>
     document.querySelectorAll('.js-category-edit').forEach(function (button) {
         button.addEventListener('click', function () {
@@ -662,5 +792,6 @@ if ($assetEditId > 0) {
         });
     });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
