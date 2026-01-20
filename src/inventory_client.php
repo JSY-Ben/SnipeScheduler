@@ -25,6 +25,10 @@ function inventory_map_model_row(array $row): array
 
 function inventory_map_asset_row(array $row): array
 {
+    $assetImage = $row['asset_image_url'] ?? ($row['image_url'] ?? '');
+    $modelImage = $row['model_image_url'] ?? '';
+    $image = $assetImage !== '' ? $assetImage : $modelImage;
+
     $asset = [
         'id' => (int)($row['asset_id'] ?? ($row['id'] ?? 0)),
         'asset_tag' => $row['asset_tag'] ?? '',
@@ -32,6 +36,7 @@ function inventory_map_asset_row(array $row): array
         'model_id' => (int)($row['model_id'] ?? 0),
         'status' => $row['status'] ?? '',
         'requestable' => isset($row['requestable']) ? (int)$row['requestable'] : null,
+        'image' => $image ?? '',
     ];
 
     if (isset($row['model_name'])) {
@@ -39,6 +44,9 @@ function inventory_map_asset_row(array $row): array
             'id' => (int)($row['model_id'] ?? 0),
             'name' => $row['model_name'] ?? '',
         ];
+        if ($modelImage !== '') {
+            $asset['model']['image'] = $modelImage;
+        }
     }
 
     $assigned = [];
@@ -220,7 +228,9 @@ function get_asset(int $assetId): array
             a.model_id,
             a.status,
             a.requestable,
+            a.image_url AS asset_image_url,
             m.name AS model_name,
+            m.image_url AS model_image_url,
             co.assigned_to_id,
             co.assigned_to_name,
             co.assigned_to_email,
@@ -253,7 +263,9 @@ function find_asset_by_tag(string $tag): array
             a.model_id,
             a.status,
             a.requestable,
+            a.image_url AS asset_image_url,
             m.name AS model_name,
+            m.image_url AS model_image_url,
             co.assigned_to_id,
             co.assigned_to_name,
             co.assigned_to_email,
@@ -301,7 +313,9 @@ function search_assets(string $query, int $limit = 20, bool $requestableOnly = f
             a.model_id,
             a.status,
             a.requestable,
+            a.image_url AS asset_image_url,
             m.name AS model_name,
+            m.image_url AS model_image_url,
             co.assigned_to_id,
             co.assigned_to_name,
             co.assigned_to_email,
@@ -340,7 +354,9 @@ function list_assets_by_model(int $modelId, int $maxResults = 300): array
             a.model_id,
             a.status,
             a.requestable,
+            a.image_url AS asset_image_url,
             m.name AS model_name,
+            m.image_url AS model_image_url,
             co.assigned_to_id,
             co.assigned_to_name,
             co.assigned_to_email,
