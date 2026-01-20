@@ -13,81 +13,10 @@ $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'checkin_reservations.php';
 $baseQuery = $embedded ? ['tab' => 'checkin'] : [];
-$ajaxBase  = $pageBase . (empty($baseQuery) ? '?' : ('?' . http_build_query($baseQuery) . '&'));
 
 if (!$isStaff) {
     http_response_code(403);
     echo 'Access denied.';
-    exit;
-}
-
-if (($_GET['ajax'] ?? '') === 'user_search') {
-    header('Content-Type: application/json');
-    $q = trim($_GET['q'] ?? '');
-    if ($q === '' || strlen($q) < 2) {
-        echo json_encode(['results' => []]);
-        exit;
-    }
-
-    try {
-        $like = '%' . $q . '%';
-        $stmt = $pdo->prepare("
-            SELECT DISTINCT
-                   co.assigned_to_id,
-                   co.assigned_to_name,
-                   co.assigned_to_email,
-                   co.assigned_to_username,
-                   u.first_name,
-                   u.last_name,
-                   u.email AS user_email,
-                   u.username AS user_username
-              FROM checked_out_asset_cache co
-              LEFT JOIN users u ON u.id = co.assigned_to_id
-             WHERE (
-                    (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
-                    OR co.assigned_to_email <> ''
-                    OR co.assigned_to_name <> ''
-                    OR co.assigned_to_username <> ''
-               )
-               AND (
-                    co.assigned_to_name LIKE :q
-                    OR co.assigned_to_email LIKE :q
-                    OR co.assigned_to_username LIKE :q
-                    OR u.first_name LIKE :q
-                    OR u.last_name LIKE :q
-                    OR u.email LIKE :q
-                    OR u.username LIKE :q
-                    OR CONCAT(u.first_name, ' ', u.last_name) LIKE :q
-               )
-             ORDER BY COALESCE(u.first_name, co.assigned_to_name), COALESCE(u.last_name, co.assigned_to_email)
-             LIMIT 10
-        ");
-        $stmt->execute([':q' => $like]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $results = [];
-        foreach ($rows as $row) {
-            $userId = (int)($row['assigned_to_id'] ?? 0);
-            $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
-            $email = $row['user_email'] ?? '';
-            $username = $row['user_username'] ?? '';
-            if ($userId <= 0) {
-                $name = trim((string)($row['assigned_to_name'] ?? ''));
-                $email = $row['assigned_to_email'] ?? '';
-                $username = $row['assigned_to_username'] ?? '';
-            }
-            $results[] = [
-                'id'       => $userId > 0 ? $userId : null,
-                'name'     => $name,
-                'email'    => $email,
-                'username' => $username,
-            ];
-        }
-        echo json_encode(['results' => $results]);
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['error' => 'User search failed.']);
-    }
     exit;
 }
 
@@ -110,6 +39,7 @@ $errors   = [];
 $selectedUserId = (int)($_REQUEST['user_id'] ?? 0);
 $selectedUserEmail = trim((string)($_REQUEST['user_email'] ?? ''));
 $selectedUserNameInput = trim((string)($_REQUEST['user_name'] ?? ''));
+$userSearch = trim((string)($_GET['user_q'] ?? ''));
 $selectedUser = null;
 $checkedOut = [];
 $totalCheckedOut = 0;
@@ -118,6 +48,13 @@ $perPageRaw = (int)($_GET['per_page'] ?? 10);
 $page = $pageRaw > 0 ? $pageRaw : 1;
 $perPageOptions = [10, 25, 50, 100];
 $perPage = in_array($perPageRaw, $perPageOptions, true) ? $perPageRaw : 10;
+$userPageRaw = (int)($_GET['user_page'] ?? 1);
+$userPage = $userPageRaw > 0 ? $userPageRaw : 1;
+$userPerPageRaw = (int)($_GET['user_per_page'] ?? 25);
+$userPerPageOptions = [10, 25, 50, 100];
+$userPerPage = in_array($userPerPageRaw, $userPerPageOptions, true) ? $userPerPageRaw : 25;
+$userList = [];
+$userTotal = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
@@ -316,6 +253,83 @@ if ($selectedUserId > 0 || $selectedUserEmail !== '' || $selectedUserNameInput !
     }
 }
 
+$userSearchParams = [];
+$userSearchSql = '';
+if ($userSearch !== '') {
+    $userSearchSql = " AND (
+            co.assigned_to_name LIKE :user_q
+            OR co.assigned_to_email LIKE :user_q
+            OR co.assigned_to_username LIKE :user_q
+            OR u.first_name LIKE :user_q
+            OR u.last_name LIKE :user_q
+            OR u.email LIKE :user_q
+            OR u.username LIKE :user_q
+            OR CONCAT(u.first_name, ' ', u.last_name) LIKE :user_q
+        )";
+    $userSearchParams[':user_q'] = '%' . $userSearch . '%';
+}
+
+try {
+    $countStmt = $pdo->prepare("
+        SELECT COUNT(*) FROM (
+            SELECT COALESCE(u.id, 0) AS uid,
+                   COALESCE(u.email, co.assigned_to_email, '') AS email,
+                   COALESCE(CONCAT(u.first_name, ' ', u.last_name), co.assigned_to_name, '') AS name,
+                   COALESCE(u.username, co.assigned_to_username, '') AS username
+              FROM checked_out_asset_cache co
+              LEFT JOIN users u ON u.id = co.assigned_to_id
+             WHERE (
+                    (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
+                    OR co.assigned_to_email <> ''
+                    OR co.assigned_to_name <> ''
+                    OR co.assigned_to_username <> ''
+               )
+               {$userSearchSql}
+             GROUP BY uid, email, name, username
+        ) AS distinct_users
+    ");
+    foreach ($userSearchParams as $key => $value) {
+        $countStmt->bindValue($key, $value);
+    }
+    $countStmt->execute();
+    $userTotal = (int)($countStmt->fetchColumn() ?: 0);
+    $userTotalPages = max(1, (int)ceil($userTotal / $userPerPage));
+    if ($userPage > $userTotalPages) {
+        $userPage = $userTotalPages;
+    }
+    $userOffset = ($userPage - 1) * $userPerPage;
+
+    $stmt = $pdo->prepare("
+        SELECT
+            COALESCE(u.id, 0) AS uid,
+            COALESCE(u.email, co.assigned_to_email, '') AS email,
+            COALESCE(CONCAT(u.first_name, ' ', u.last_name), co.assigned_to_name, '') AS name,
+            COALESCE(u.username, co.assigned_to_username, '') AS username,
+            COUNT(*) AS asset_count
+          FROM checked_out_asset_cache co
+          LEFT JOIN users u ON u.id = co.assigned_to_id
+         WHERE (
+                (co.assigned_to_id IS NOT NULL AND co.assigned_to_id > 0)
+                OR co.assigned_to_email <> ''
+                OR co.assigned_to_name <> ''
+                OR co.assigned_to_username <> ''
+           )
+           {$userSearchSql}
+         GROUP BY uid, email, name, username
+         ORDER BY name, email
+         LIMIT :limit OFFSET :offset
+    ");
+    foreach ($userSearchParams as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', $userPerPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $userOffset, PDO::PARAM_INT);
+    $stmt->execute();
+    $userList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $errors[] = 'Could not load checked-out users: ' . $e->getMessage();
+}
+
 $selectedName = '';
 $selectedEmail = $selectedUserEmail;
 if ($selectedUser) {
@@ -349,9 +363,6 @@ if ($selectedUser) {
         .checkin-search {
             font-size: 1.1rem;
         }
-        .checkin-suggestions {
-            z-index: 1000;
-        }
     </style>
 </head>
 <body class="p-4">
@@ -382,18 +393,24 @@ if ($selectedUser) {
                 <?php foreach ($baseQuery as $k => $v): ?>
                     <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                 <?php endforeach; ?>
-                <input type="hidden" name="user_id" id="checkin_user_id" value="<?= $selectedUserId > 0 ? (int)$selectedUserId : '' ?>">
-                <input type="hidden" name="user_email" id="checkin_user_email" value="<?= h($selectedUserEmail) ?>">
-                <input type="hidden" name="user_name" id="checkin_user_name" value="<?= h($selectedUserNameInput) ?>">
-                <div class="user-autocomplete-wrapper position-relative">
-                    <label for="checkin_user_search" class="form-label fw-semibold">Search checked-out users</label>
-                    <input type="text"
-                           class="form-control form-control-lg checkin-search user-autocomplete"
-                           id="checkin_user_search"
-                           placeholder="Start typing a name or email"
-                           autocomplete="off"
-                           value="<?= h(trim($selectedName !== '' ? $selectedName : $selectedEmail)) ?>">
-                    <div class="list-group position-absolute w-100 shadow-sm checkin-suggestions" data-suggestions style="display:none;"></div>
+                <div class="d-flex flex-column flex-md-row gap-3 align-items-md-end">
+                    <div class="flex-grow-1">
+                        <label for="checkin_user_search" class="form-label fw-semibold">Search checked-out users</label>
+                        <input type="text"
+                               name="user_q"
+                               class="form-control form-control-lg checkin-search"
+                               id="checkin_user_search"
+                               placeholder="Filter by name or email"
+                               value="<?= h($userSearch) ?>">
+                    </div>
+                    <div>
+                        <label class="form-label fw-semibold d-block">Per page</label>
+                        <select class="form-select form-select-lg" name="user_per_page" id="checkin-user-per-page">
+                            <?php foreach ($userPerPageOptions as $option): ?>
+                                <option value="<?= $option ?>" <?= $userPerPage === $option ? 'selected' : '' ?>><?= $option ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
                 <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 mt-2">
                     <div class="form-text">Only users with checked-out equipment will appear.</div>
@@ -402,6 +419,98 @@ if ($selectedUser) {
                     <?php endif; ?>
                 </div>
             </form>
+        </div>
+
+        <div class="border rounded-3 p-3 mb-4">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Checked-out items</th>
+                            <th scope="col"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($userList)): ?>
+                            <tr>
+                                <td colspan="3" class="text-muted">No checked-out users found.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($userList as $userRow): ?>
+                                <?php
+                                    $uid = (int)($userRow['uid'] ?? 0);
+                                    $email = trim((string)($userRow['email'] ?? ''));
+                                    $name = trim((string)($userRow['name'] ?? ''));
+                                    $username = trim((string)($userRow['username'] ?? ''));
+                                    $count = (int)($userRow['asset_count'] ?? 0);
+                                    $label = $name !== '' ? $name : ($email !== '' ? $email : $username);
+                                    $subLabel = '';
+                                    if ($email !== '' && $label !== $email) {
+                                        $subLabel = $email;
+                                    }
+                                    $linkParams = $baseQuery;
+                                    $linkParams['user_id'] = $uid > 0 ? $uid : '';
+                                    $linkParams['user_email'] = $uid > 0 ? '' : $email;
+                                    $linkParams['user_name'] = $uid > 0 ? '' : $name;
+                                    $linkParams['user_q'] = $userSearch;
+                                    $linkParams['user_per_page'] = $userPerPage;
+                                    $linkParams['user_page'] = $userPage;
+                                    $link = $pageBase . '?' . http_build_query($linkParams);
+                                ?>
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold"><?= h($label !== '' ? $label : 'Unknown user') ?></div>
+                                        <?php if ($subLabel !== ''): ?>
+                                            <div class="text-muted small"><?= h($subLabel) ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= $count ?></td>
+                                    <td class="text-end">
+                                        <a class="btn btn-outline-primary btn-sm" href="<?= h($link) ?>">Check in</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php
+                $userTotalPages = max(1, (int)ceil($userTotal / $userPerPage));
+                $userPagerParams = array_merge($baseQuery, [
+                    'user_q' => $userSearch,
+                    'user_per_page' => $userPerPage,
+                ]);
+            ?>
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mt-3">
+                <div class="text-muted small">
+                    Showing <?= count($userList) ?> of <?= $userTotal ?> user(s)
+                </div>
+                <?php if ($userTotalPages > 1): ?>
+                    <nav>
+                        <ul class="pagination mb-0">
+                            <?php
+                                $userPrev = max(1, $userPage - 1);
+                                $userNext = min($userTotalPages, $userPage + 1);
+                                $userPagerParams['user_page'] = $userPrev;
+                            ?>
+                            <li class="page-item <?= $userPage <= 1 ? 'disabled' : '' ?>">
+                                <a class="page-link" href="<?= h($pageBase . '?' . http_build_query($userPagerParams)) ?>">Previous</a>
+                            </li>
+                            <?php for ($i = 1; $i <= $userTotalPages; $i++): ?>
+                                <?php $userPagerParams['user_page'] = $i; ?>
+                                <li class="page-item <?= $i === $userPage ? 'active' : '' ?>">
+                                    <a class="page-link" href="<?= h($pageBase . '?' . http_build_query($userPagerParams)) ?>"><?= $i ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            <?php $userPagerParams['user_page'] = $userNext; ?>
+                            <li class="page-item <?= $userPage >= $userTotalPages ? 'disabled' : '' ?>">
+                                <a class="page-link" href="<?= h($pageBase . '?' . http_build_query($userPagerParams)) ?>">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                <?php endif; ?>
+            </div>
         </div>
 
         <?php if ($selectedUserId > 0 || $selectedUserEmail !== '' || $selectedUserNameInput !== ''): ?>
@@ -557,92 +666,6 @@ if ($selectedUser) {
 <?php endif; ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const wrapper = document.querySelector('.user-autocomplete-wrapper');
-    if (!wrapper) return;
-    const input = wrapper.querySelector('.user-autocomplete');
-    const list = wrapper.querySelector('[data-suggestions]');
-    const hidden = document.getElementById('checkin_user_id');
-    const hiddenEmail = document.getElementById('checkin_user_email');
-    const hiddenName = document.getElementById('checkin_user_name');
-    const form = document.getElementById('checkin-user-form');
-    if (!input || !list || !hidden || !hiddenEmail || !hiddenName || !form) return;
-
-    let timer = null;
-    let lastQuery = '';
-
-    input.addEventListener('input', () => {
-        const q = input.value.trim();
-        hidden.value = '';
-        hiddenEmail.value = '';
-        hiddenName.value = '';
-        if (q.length < 2) {
-            hideSuggestions();
-            return;
-        }
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => fetchSuggestions(q), 250);
-    });
-
-    input.addEventListener('blur', () => {
-        setTimeout(hideSuggestions, 150);
-    });
-
-    function fetchSuggestions(q) {
-        lastQuery = q;
-        fetch('<?= h($ajaxBase) ?>ajax=user_search&q=' + encodeURIComponent(q), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then((res) => res.ok ? res.json() : Promise.reject())
-            .then((data) => {
-                if (lastQuery !== q) return;
-                renderSuggestions(data.results || []);
-            })
-            .catch(() => {
-                renderSuggestions([]);
-            });
-    }
-
-    function renderSuggestions(items) {
-        list.innerHTML = '';
-        if (!items || !items.length) {
-            hideSuggestions();
-            return;
-        }
-
-        items.forEach((item) => {
-            const email = item.email || '';
-            const name = item.name || item.username || email;
-            const label = (name && email && name !== email) ? `${name} (${email})` : (name || email);
-
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action';
-            btn.textContent = label;
-            btn.dataset.userId = item.id || '';
-            btn.dataset.label = label;
-            btn.dataset.email = email;
-            btn.dataset.name = name;
-
-            btn.addEventListener('click', () => {
-                input.value = btn.dataset.label;
-                hidden.value = btn.dataset.userId;
-                hiddenEmail.value = btn.dataset.email || '';
-                hiddenName.value = btn.dataset.name || '';
-                hideSuggestions();
-                form.submit();
-            });
-
-            list.appendChild(btn);
-        });
-
-        list.style.display = 'block';
-    }
-
-    function hideSuggestions() {
-        list.style.display = 'none';
-        list.innerHTML = '';
-    }
-
     const selectAll = document.getElementById('checkin-select-all');
     if (selectAll) {
         selectAll.addEventListener('change', () => {
@@ -660,6 +683,22 @@ document.addEventListener('DOMContentLoaded', function () {
             url.searchParams.set('per_page', perPageSelect.value);
             url.searchParams.set('page', '1');
             window.location.href = url.toString();
+        });
+    }
+
+    const userSearch = document.getElementById('checkin_user_search');
+    const userPerPage = document.getElementById('checkin-user-per-page');
+    const userForm = document.getElementById('checkin-user-form');
+    if (userSearch && userForm) {
+        let timer = null;
+        userSearch.addEventListener('input', () => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => userForm.submit(), 350);
+        });
+    }
+    if (userPerPage && userForm) {
+        userPerPage.addEventListener('change', () => {
+            userForm.submit();
         });
     }
 });
