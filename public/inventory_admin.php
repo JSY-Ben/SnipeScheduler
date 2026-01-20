@@ -17,7 +17,6 @@ if (!$isAdmin) {
 $messages = [];
 $errors   = [];
 
-$categoryEditId = (int)($_GET['category_edit'] ?? 0);
 $modelEditId = (int)($_GET['model_edit'] ?? 0);
 $assetEditId = (int)($_GET['asset_edit'] ?? 0);
 
@@ -218,53 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Asset save failed: ' . $e->getMessage();
             }
         }
-    } elseif ($action === 'save_category') {
-        $categoryEditId = (int)($_POST['category_id'] ?? 0);
-        $name = trim($_POST['category_name'] ?? '');
-        $description = trim($_POST['category_description'] ?? '');
-
-        if ($name === '') {
-            $errors[] = 'Category name is required.';
-        }
-
-        if (!$errors) {
-            try {
-                if ($categoryEditId > 0) {
-                    $stmt = $pdo->prepare("
-                        UPDATE asset_categories
-                           SET name = :name,
-                               description = :description
-                         WHERE id = :id
-                    ");
-                    $stmt->execute([
-                        ':name' => $name,
-                        ':description' => $description !== '' ? $description : null,
-                        ':id' => $categoryEditId,
-                    ]);
-                    $messages[] = 'Category updated.';
-                } else {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO asset_categories (name, description, created_at)
-                        VALUES (:name, :description, NOW())
-                    ");
-                    $stmt->execute([
-                        ':name' => $name,
-                        ':description' => $description !== '' ? $description : null,
-                    ]);
-                    $categoryEditId = (int)$pdo->lastInsertId();
-                    $messages[] = 'Category created.';
-                }
-            } catch (Throwable $e) {
-                $errors[] = 'Category save failed: ' . $e->getMessage();
-            }
-        }
     }
 }
 
 $categories = [];
 $models = [];
 $assets = [];
-$editCategory = null;
 $editModel = null;
 $editAsset = null;
 
@@ -284,15 +242,6 @@ try {
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
     $errors[] = 'Inventory lookup failed: ' . $e->getMessage();
-}
-
-if ($categoryEditId > 0) {
-    $stmt = $pdo->prepare('SELECT * FROM asset_categories WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $categoryEditId]);
-    $editCategory = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$editCategory) {
-        $errors[] = 'Category not found.';
-    }
 }
 
 if ($modelEditId > 0) {
@@ -362,6 +311,9 @@ if ($assetEditId > 0) {
 
         <ul class="nav nav-tabs reservations-subtabs mb-3">
             <li class="nav-item">
+                <a class="nav-link active" href="inventory_admin.php">Inventory</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" href="activity_log.php">Activity Log</a>
             </li>
             <li class="nav-item">
@@ -370,34 +322,7 @@ if ($assetEditId > 0) {
             <li class="nav-item">
                 <a class="nav-link" href="users.php">Users</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link active" href="inventory_admin.php">Inventory</a>
-            </li>
         </ul>
-
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title mb-1"><?= $editCategory ? 'Edit category' : 'Create category' ?></h5>
-                <form method="post" class="row g-3">
-                    <input type="hidden" name="action" value="save_category">
-                    <input type="hidden" name="category_id" value="<?= (int)($editCategory['id'] ?? 0) ?>">
-                    <div class="col-md-4">
-                        <label class="form-label">Category name</label>
-                        <input type="text" name="category_name" class="form-control" value="<?= h($editCategory['name'] ?? '') ?>" required>
-                    </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Description</label>
-                        <input type="text" name="category_description" class="form-control" value="<?= h($editCategory['description'] ?? '') ?>">
-                    </div>
-                    <div class="col-12 d-flex justify-content-end gap-2">
-                        <?php if ($editCategory): ?>
-                            <a href="inventory_admin.php" class="btn btn-outline-secondary">Cancel</a>
-                        <?php endif; ?>
-                        <button type="submit" class="btn btn-primary"><?= $editCategory ? 'Update category' : 'Create category' ?></button>
-                    </div>
-                </form>
-            </div>
-        </div>
 
         <div class="card mb-3">
             <div class="card-body">
@@ -500,7 +425,10 @@ if ($assetEditId > 0) {
 
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title mb-1">Categories</h5>
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+                    <h5 class="card-title mb-0">Categories</h5>
+                    <a class="btn btn-sm btn-primary" href="categories_admin.php">Create Category</a>
+                </div>
                 <p class="text-muted small mb-3"><?= count($categories) ?> total.</p>
                 <?php if (empty($categories)): ?>
                     <div class="text-muted small">No categories found yet.</div>
@@ -520,7 +448,7 @@ if ($assetEditId > 0) {
                                         <td><?= h($category['name'] ?? '') ?></td>
                                         <td><?= h($category['description'] ?? '') ?></td>
                                         <td class="text-end">
-                                            <a class="btn btn-sm btn-outline-secondary" href="inventory_admin.php?category_edit=<?= (int)$category['id'] ?>">Edit</a>
+                                            <a class="btn btn-sm btn-outline-secondary" href="categories_admin.php?category_edit=<?= (int)$category['id'] ?>">Edit</a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

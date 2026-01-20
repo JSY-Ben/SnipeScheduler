@@ -555,6 +555,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 
         <ul class="nav nav-tabs reservations-subtabs mb-3">
             <li class="nav-item">
+                <a class="nav-link" href="inventory_admin.php">Inventory</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" href="activity_log.php">Activity Log</a>
             </li>
             <li class="nav-item">
@@ -562,9 +565,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="users.php">Users</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="inventory_admin.php">Inventory</a>
             </li>
         </ul>
 
