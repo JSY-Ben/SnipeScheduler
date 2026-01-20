@@ -24,16 +24,17 @@ if ($exportType === 'users') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="users.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['id', 'name', 'email', 'username', 'is_admin', 'is_staff', 'auth_source', 'created_at']);
+    fputcsv($out, ['id', 'first_name', 'last_name', 'email', 'username', 'is_admin', 'is_staff', 'auth_source', 'created_at']);
     $rows = $pdo->query('
-        SELECT id, name, email, username, is_admin, is_staff, auth_source, created_at
+        SELECT id, first_name, last_name, email, username, is_admin, is_staff, auth_source, created_at
           FROM users
-         ORDER BY name ASC, email ASC
+         ORDER BY first_name ASC, last_name ASC, email ASC
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($rows as $row) {
         fputcsv($out, [
             (int)$row['id'],
-            $row['name'] ?? '',
+            $row['first_name'] ?? '',
+            $row['last_name'] ?? '',
             $row['email'] ?? '',
             $row['username'] ?? '',
             !empty($row['is_admin']) ? 1 : 0,
@@ -103,7 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_user') {
         $editId = (int)($_POST['user_id'] ?? 0);
         $email = strtolower(trim($_POST['email'] ?? ''));
-        $name = trim($_POST['name'] ?? '');
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName = trim($_POST['last_name'] ?? '');
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $isAdminFlag = isset($_POST['is_admin']);
@@ -152,7 +154,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Password is required for new users.');
                 }
 
-                $nameValue = $name !== '' ? $name : $email;
+                $firstNameValue = $firstName !== '' ? $firstName : $email;
+                $lastNameValue = $lastName !== '' ? $lastName : '';
                 $usernameValue = $username !== '' ? $username : null;
                 $passwordHash = $password !== ''
                     ? password_hash($password, PASSWORD_DEFAULT)
@@ -177,7 +180,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt = $pdo->prepare("
                             UPDATE users
                                SET user_id = :user_id,
-                                   name = :name,
+                                   first_name = :first_name,
+                                   last_name = :last_name,
                                    email = :email,
                                    username = :username,
                                    is_admin = :is_admin,
@@ -188,7 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ");
                         $stmt->execute([
                             ':user_id' => $userId,
-                            ':name' => $nameValue,
+                            ':first_name' => $firstNameValue,
+                            ':last_name' => $lastNameValue,
                             ':email' => $email,
                             ':username' => $usernameValue,
                             ':is_admin' => $isAdminFlag ? 1 : 0,
@@ -200,12 +205,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } else {
                     $stmt = $pdo->prepare("
-                        INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
-                        VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
+                        INSERT INTO users (user_id, first_name, last_name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                        VALUES (:user_id, :first_name, :last_name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
                     ");
                     $stmt->execute([
                         ':user_id' => $userId,
-                        ':name' => $nameValue,
+                        ':first_name' => $firstNameValue,
+                        ':last_name' => $lastNameValue,
                         ':email' => $email,
                         ':username' => $usernameValue,
                         ':is_admin' => $isAdminFlag ? 1 : 0,
@@ -225,7 +231,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rowErrors = [];
             foreach ($rows as $idx => $row) {
                 $email = strtolower(trim($row['email'] ?? ''));
-                $name = trim($row['name'] ?? '');
+                $firstName = trim($row['first_name'] ?? '');
+                $lastName = trim($row['last_name'] ?? '');
                 $username = trim($row['username'] ?? '');
                 $password = $row['password'] ?? '';
                 $isAdminFlag = !empty($row['is_admin']) && (int)$row['is_admin'] === 1;
@@ -242,7 +249,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
                     $stmt->execute([':email' => $email]);
                     $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-                    $nameValue = $name !== '' ? $name : $email;
+                    $firstNameValue = $firstName !== '' ? $firstName : $email;
+                    $lastNameValue = $lastName !== '' ? $lastName : '';
                     $usernameValue = $username !== '' ? $username : null;
                     if ($existing) {
                         $isExternal = !empty($existing['auth_source']) && $existing['auth_source'] !== 'local';
@@ -259,7 +267,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt = $pdo->prepare("
                                 UPDATE users
                                    SET user_id = :user_id,
-                                       name = :name,
+                                       first_name = :first_name,
+                                       last_name = :last_name,
                                        email = :email,
                                        username = :username,
                                        is_admin = :is_admin,
@@ -270,7 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ");
                             $stmt->execute([
                                 ':user_id' => $userId,
-                                ':name' => $nameValue,
+                                ':first_name' => $firstNameValue,
+                                ':last_name' => $lastNameValue,
                                 ':email' => $email,
                                 ':username' => $usernameValue,
                                 ':is_admin' => $isAdminFlag ? 1 : 0,
@@ -287,12 +297,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
                         $userId = sprintf('%u', crc32($email));
                         $stmt = $pdo->prepare("
-                            INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
-                            VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
+                            INSERT INTO users (user_id, first_name, last_name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                            VALUES (:user_id, :first_name, :last_name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
                         ");
                         $stmt->execute([
                             ':user_id' => $userId,
-                            ':name' => $nameValue,
+                            ':first_name' => $firstNameValue,
+                            ':last_name' => $lastNameValue,
                             ':email' => $email,
                             ':username' => $usernameValue,
                             ':is_admin' => $isAdminFlag ? 1 : 0,
@@ -318,9 +329,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $users = [];
 try {
     $stmt = $pdo->query('
-        SELECT id, name, email, username, is_admin, is_staff, auth_source, created_at
+        SELECT id, first_name, last_name, email, username, is_admin, is_staff, auth_source, created_at
           FROM users
-         ORDER BY name ASC, email ASC
+         ORDER BY first_name ASC, last_name ASC, email ASC
     ');
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
@@ -405,8 +416,10 @@ try {
                     </div>
                     <div class="col-md-3">
                         <select class="form-select" id="users-sort">
-                            <option value="name:asc">Sort by name (A-Z)</option>
-                            <option value="name:desc">Sort by name (Z-A)</option>
+                            <option value="first:asc">Sort by first name (A-Z)</option>
+                            <option value="first:desc">Sort by first name (Z-A)</option>
+                            <option value="last:asc">Sort by last name (A-Z)</option>
+                            <option value="last:desc">Sort by last name (Z-A)</option>
                             <option value="email:asc">Sort by email (A-Z)</option>
                             <option value="email:desc">Sort by email (Z-A)</option>
                             <option value="role:asc">Sort by role (A-Z)</option>
@@ -441,7 +454,8 @@ try {
                         <table class="table table-sm table-striped align-middle">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
+                                    <th>First name</th>
+                                    <th>Last name</th>
                                     <th>Email</th>
                                     <th>Username</th>
                                     <th>Role</th>
@@ -462,13 +476,15 @@ try {
                                     $createdAt = $user['created_at'] ? date('Y-m-d', strtotime($user['created_at'])) : '';
                                     $isRoleOnly = !empty($user['auth_source']) && $user['auth_source'] !== 'local';
                                     ?>
-                                    <tr data-name="<?= h($user['name'] ?? '') ?>"
+                                    <tr data-first="<?= h($user['first_name'] ?? '') ?>"
+                                        data-last="<?= h($user['last_name'] ?? '') ?>"
                                         data-email="<?= h($user['email'] ?? '') ?>"
                                         data-username="<?= h($user['username'] ?? '') ?>"
                                         data-role="<?= h($roleValue) ?>"
                                         data-source="<?= h($sourceValue) ?>"
                                         data-created="<?= h($createdAt) ?>">
-                                        <td><?= h($user['name'] ?? '') ?></td>
+                                        <td><?= h($user['first_name'] ?? '') ?></td>
+                                        <td><?= h($user['last_name'] ?? '') ?></td>
                                         <td><?= h($user['email'] ?? '') ?></td>
                                         <td><?= h($user['username'] ?? '') ?></td>
                                         <td><?= h($roleLabel) ?></td>
@@ -506,8 +522,12 @@ try {
                             <input type="email" name="email" class="form-control" required>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Display name</label>
-                            <input type="text" name="name" class="form-control" placeholder="User Name">
+                            <label class="form-label">First name</label>
+                            <input type="text" name="first_name" class="form-control" placeholder="First name">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Last name</label>
+                            <input type="text" name="last_name" class="form-control" placeholder="Last name">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Username</label>
@@ -549,7 +569,7 @@ try {
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small mb-3">Columns: email, name, username, password (required for new users), is_admin, is_staff</p>
+                    <p class="text-muted small mb-3">Columns: email, first_name, last_name, username, password (required for new users), is_admin, is_staff</p>
                     <div class="mb-3">
                         <a class="btn btn-outline-secondary btn-sm" href="users.php?template=users">Download template CSV</a>
                     </div>
@@ -587,8 +607,12 @@ try {
                                 <input type="email" name="email" class="form-control" value="<?= h($user['email'] ?? '') ?>" required <?= $roleOnly ? 'disabled' : '' ?>>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Display name</label>
-                                <input type="text" name="name" class="form-control" value="<?= h($user['name'] ?? '') ?>" placeholder="User Name" <?= $roleOnly ? 'disabled' : '' ?>>
+                                <label class="form-label">First name</label>
+                                <input type="text" name="first_name" class="form-control" value="<?= h($user['first_name'] ?? '') ?>" placeholder="First name" <?= $roleOnly ? 'disabled' : '' ?>>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Last name</label>
+                                <input type="text" name="last_name" class="form-control" value="<?= h($user['last_name'] ?? '') ?>" placeholder="Last name" <?= $roleOnly ? 'disabled' : '' ?>>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Username</label>

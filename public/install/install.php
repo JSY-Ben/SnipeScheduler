@@ -292,7 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $dbCharset = $post('db_charset', 'utf8mb4');
 
         $adminEmail = strtolower(trim($_POST['admin_email'] ?? ''));
-        $adminName = trim($_POST['admin_name'] ?? '');
+        $adminFirstName = trim($_POST['admin_first_name'] ?? '');
+        $adminLastName = trim($_POST['admin_last_name'] ?? '');
         $adminUsername = trim($_POST['admin_username'] ?? '');
         $adminPassword = $_POST['admin_password'] ?? '';
 
@@ -461,16 +462,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
                 $pdo = new PDO($dsn, $dbUser, $dbPass, [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 ]);
-                $adminNameValue = $adminName !== '' ? $adminName : $adminEmail;
+                $adminFirstNameValue = $adminFirstName !== '' ? $adminFirstName : $adminEmail;
+                $adminLastNameValue = $adminLastName !== '' ? $adminLastName : '';
                 $adminUsernameValue = $adminUsername !== '' ? $adminUsername : null;
                 $adminUserId = sprintf('%u', crc32($adminEmail));
                 $passwordHash = password_hash($adminPassword, PASSWORD_DEFAULT);
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
-                    VALUES (:user_id, :name, :email, :username, 1, 1, :password_hash, 'local', NOW())
+                    INSERT INTO users (user_id, first_name, last_name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                    VALUES (:user_id, :first_name, :last_name, :email, :username, 1, 1, :password_hash, 'local', NOW())
                     ON DUPLICATE KEY UPDATE
-                        name = VALUES(name),
+                        first_name = VALUES(first_name),
+                        last_name = VALUES(last_name),
                         username = VALUES(username),
                         is_admin = 1,
                         is_staff = 1,
@@ -478,7 +481,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
                 ");
                 $stmt->execute([
                     ':user_id' => $adminUserId,
-                    ':name' => $adminNameValue,
+                    ':first_name' => $adminFirstNameValue,
+                    ':last_name' => $adminLastNameValue,
                     ':email' => $adminEmail,
                     ':username' => $adminUsernameValue,
                     ':password_hash' => $passwordHash,
@@ -509,7 +513,8 @@ $pref = static function (array $path, $fallback = '') use ($prefillConfig) {
     return installer_value($prefillConfig, $path, $fallback);
 };
 $adminEmailPref = $_POST['admin_email'] ?? '';
-$adminNamePref = $_POST['admin_name'] ?? '';
+$adminFirstNamePref = $_POST['admin_first_name'] ?? '';
+$adminLastNamePref = $_POST['admin_last_name'] ?? '';
 $adminUsernamePref = $_POST['admin_username'] ?? '';
 
 ?>
@@ -675,8 +680,12 @@ $adminUsernamePref = $_POST['admin_username'] ?? '';
                                 <input type="email" name="admin_email" class="form-control" value="<?= installer_h($adminEmailPref) ?>" placeholder="admin@example.com" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Display name (optional)</label>
-                                <input type="text" name="admin_name" class="form-control" value="<?= installer_h($adminNamePref) ?>" placeholder="Admin User">
+                                <label class="form-label">First name (optional)</label>
+                                <input type="text" name="admin_first_name" class="form-control" value="<?= installer_h($adminFirstNamePref) ?>" placeholder="Admin">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Last name (optional)</label>
+                                <input type="text" name="admin_last_name" class="form-control" value="<?= installer_h($adminLastNamePref) ?>" placeholder="User">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Username (optional)</label>

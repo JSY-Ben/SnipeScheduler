@@ -1,2 +1,2 @@
-email,name,username,password,is_admin,is_staff
-jane.doe@example.com,Jane Doe,janedoe,ChangeMe123,0,1
+email,first_name,last_name,username,password,is_admin,is_staff
+jane.doe@example.com,Jane,Doe,janedoe,ChangeMe123,0,1

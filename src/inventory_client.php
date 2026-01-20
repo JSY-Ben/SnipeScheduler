@@ -401,10 +401,15 @@ function search_users(string $query, int $limit = 10): array
     }
 
     $stmt = $pdo->prepare("
-        SELECT id, name, email, username
+        SELECT id,
+               CONCAT(TRIM(first_name), IF(first_name <> '' AND last_name <> '', ' ', ''), TRIM(last_name)) AS name,
+               email,
+               username
           FROM users
          WHERE email LIKE :q
-            OR name LIKE :q
+            OR first_name LIKE :q
+            OR last_name LIKE :q
+            OR CONCAT(first_name, ' ', last_name) LIKE :q
             OR username LIKE :q
          ORDER BY email ASC
          LIMIT :limit
@@ -436,11 +441,15 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = '', ?s
         throw new Exception('Asset not found.');
     }
 
-    $userStmt = $pdo->prepare("SELECT id, name, email, username FROM users WHERE id = :id LIMIT 1");
+    $userStmt = $pdo->prepare("SELECT id, first_name, last_name, email, username FROM users WHERE id = :id LIMIT 1");
     $userStmt->execute([':id' => $userId]);
     $user = $userStmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) {
         throw new Exception('User not found.');
+    }
+    $assignedName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+    if ($assignedName === '') {
+        $assignedName = $user['email'] ?? '';
     }
 
     $checkStmt = $pdo->prepare("SELECT asset_id FROM checked_out_asset_cache WHERE asset_id = :asset_id");
@@ -487,7 +496,7 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = '', ?s
             ':model_id' => $asset['model']['id'] ?? ($asset['model_id'] ?? 0),
             ':model_name' => $asset['model']['name'] ?? '',
             ':assigned_to_id' => (int)$user['id'],
-            ':assigned_to_name' => $user['name'] ?? '',
+            ':assigned_to_name' => $assignedName,
             ':assigned_to_email' => $user['email'] ?? '',
             ':assigned_to_username' => $user['username'] ?? '',
             ':status_label' => 'Checked out',

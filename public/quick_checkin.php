@@ -157,11 +157,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $assignedEmail = $cached['email'] ?? '';
                             $assignedName = $assignedName !== '' ? $assignedName : ($cached['name'] ?? '');
                         } else {
-                            $stmt = $pdo->prepare("SELECT email, name FROM users WHERE id = :id LIMIT 1");
+                            $stmt = $pdo->prepare("SELECT email, first_name, last_name FROM users WHERE id = :id LIMIT 1");
                             $stmt->execute([':id' => $assignedId]);
                             $matchedUser = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
                             $matchedEmail = $matchedUser['email'] ?? '';
-                            $matchedName  = $matchedUser['name'] ?? '';
+                            $matchedName  = trim(($matchedUser['first_name'] ?? '') . ' ' . ($matchedUser['last_name'] ?? ''));
                             $userIdCache[$assignedId] = [
                                 'email' => $matchedEmail,
                                 'name'  => $matchedName,
