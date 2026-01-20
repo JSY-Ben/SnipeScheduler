@@ -61,6 +61,9 @@ $handleUpload = static function (string $field) use ($uploadDir, $uploadBaseUrl)
     if (!@move_uploaded_file($file['tmp_name'], $target)) {
         throw new Exception('Could not save uploaded file.');
     }
+    if (!is_file($target)) {
+        throw new Exception('Upload did not persist on disk.');
+    }
 
     return $uploadBaseUrl . $filename;
 };
