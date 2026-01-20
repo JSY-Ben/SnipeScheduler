@@ -437,8 +437,43 @@ if ($assetEditId > 0) {
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <input type="text" class="form-control" id="assets-filter" placeholder="Filter assets...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="assets-sort">
+                                <option value="tag:asc">Sort by tag (A-Z)</option>
+                                <option value="tag:desc">Sort by tag (Z-A)</option>
+                                <option value="name:asc">Sort by name (A-Z)</option>
+                                <option value="name:desc">Sort by name (Z-A)</option>
+                                <option value="model:asc">Sort by model (A-Z)</option>
+                                <option value="model:desc">Sort by model (Z-A)</option>
+                                <option value="status:asc">Sort by status (A-Z)</option>
+                                <option value="status:desc">Sort by status (Z-A)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="assets-status-filter">
+                                <option value="">All statuses</option>
+                                <?php foreach ($statusOptions as $opt): ?>
+                                    <option value="<?= h($opt) ?>"><?= h(ucwords(str_replace('_', ' ', $opt))) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="assets-requestable-filter">
+                                <option value="">All requestable</option>
+                                <option value="1">Requestable</option>
+                                <option value="0">Not requestable</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="assets-model-filter">
+                                <option value="">All models</option>
+                                <?php foreach ($models as $model): ?>
+                                    <option value="<?= h($model['name'] ?? '') ?>"><?= h($model['name'] ?? '') ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
@@ -459,7 +494,11 @@ if ($assetEditId > 0) {
                                 </thead>
                                 <tbody id="assets-table">
                                     <?php foreach ($assets as $asset): ?>
-                                        <tr>
+                                        <tr data-tag="<?= h($asset['asset_tag'] ?? '') ?>"
+                                            data-name="<?= h($asset['name'] ?? '') ?>"
+                                            data-model="<?= h($asset['model_name'] ?? '') ?>"
+                                            data-status="<?= h($asset['status'] ?? 'available') ?>"
+                                            data-requestable="<?= !empty($asset['requestable']) ? '1' : '0' ?>">
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
                                             <td><?= h($asset['name'] ?? '') ?></td>
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
@@ -485,8 +524,33 @@ if ($assetEditId > 0) {
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <input type="text" class="form-control" id="models-filter" placeholder="Filter models...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="models-sort">
+                                <option value="name:asc">Sort by name (A-Z)</option>
+                                <option value="name:desc">Sort by name (Z-A)</option>
+                                <option value="manufacturer:asc">Sort by manufacturer (A-Z)</option>
+                                <option value="manufacturer:desc">Sort by manufacturer (Z-A)</option>
+                                <option value="category:asc">Sort by category (A-Z)</option>
+                                <option value="category:desc">Sort by category (Z-A)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="models-category-filter">
+                                <option value="">All categories</option>
+                                <?php foreach ($categories as $category): ?>
+                                    <option value="<?= h($category['name'] ?? '') ?>"><?= h($category['name'] ?? '') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="models-image-filter">
+                                <option value="">All images</option>
+                                <option value="1">Has image</option>
+                                <option value="0">No image</option>
+                            </select>
                         </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
@@ -506,7 +570,10 @@ if ($assetEditId > 0) {
                                     </thead>
                                     <tbody id="models-table">
                                         <?php foreach ($models as $model): ?>
-                                            <tr>
+                                            <tr data-name="<?= h($model['name'] ?? '') ?>"
+                                                data-manufacturer="<?= h($model['manufacturer'] ?? '') ?>"
+                                                data-category="<?= h($model['category_name'] ?? '') ?>"
+                                                data-image="<?= !empty($model['image_url']) ? '1' : '0' ?>">
                                                 <td>
                                                     <?php if (!empty($model['image_url'])): ?>
                                                         <img src="<?= h($model['image_url']) ?>" alt="" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px;">
@@ -537,8 +604,23 @@ if ($assetEditId > 0) {
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <input type="text" class="form-control" id="categories-filter" placeholder="Filter categories...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="categories-sort">
+                                <option value="name:asc">Sort by name (A-Z)</option>
+                                <option value="name:desc">Sort by name (Z-A)</option>
+                                <option value="description:asc">Sort by description (A-Z)</option>
+                                <option value="description:desc">Sort by description (Z-A)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="categories-description-filter">
+                                <option value="">All descriptions</option>
+                                <option value="1">Has description</option>
+                                <option value="0">No description</option>
+                            </select>
                         </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($categories) ?> total.</p>
@@ -556,9 +638,10 @@ if ($assetEditId > 0) {
                                     </thead>
                                     <tbody id="categories-table">
                                         <?php foreach ($categories as $category): ?>
-                                            <tr>
-                                                <td>
-                                                    <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
+                                        <tr data-name="<?= h($category['name'] ?? '') ?>"
+                                            data-description="<?= h($category['description'] ?? '') ?>">
+                                            <td>
+                                                <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
                                             </td>
                                             <td>
                                                 <input type="text" name="category_description" class="form-control form-control-sm" value="<?= h($category['description'] ?? '') ?>" form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
@@ -835,24 +918,120 @@ if ($assetEditId > 0) {
     </div>
 </div>
 <script>
-    function wireTableFilter(inputId, tableId) {
-        var input = document.getElementById(inputId);
-        var table = document.getElementById(tableId);
+    function wireTableControls(config) {
+        var input = document.getElementById(config.filterId);
+        var table = document.getElementById(config.tableId);
+        var sortSelect = document.getElementById(config.sortId);
+        var filterSelects = (config.filterSelectIds || []).map(function (id) {
+            return document.getElementById(id);
+        }).filter(Boolean);
         if (!input || !table) {
             return;
         }
-        input.addEventListener('input', function () {
+        var rows = Array.from(table.querySelectorAll('tr'));
+
+        function getSortParts() {
+            var value = sortSelect && sortSelect.value ? sortSelect.value : '';
+            var parts = value.split(':');
+            return {
+                key: parts[0] || '',
+                dir: parts[1] || 'asc',
+            };
+        }
+
+        function compareRows(a, b, key, dir) {
+            var av = (a.dataset[key] || '').toLowerCase();
+            var bv = (b.dataset[key] || '').toLowerCase();
+            if (av === bv) {
+                return 0;
+            }
+            var result = av < bv ? -1 : 1;
+            return dir === 'desc' ? -result : result;
+        }
+
+        function matchesFilters(row) {
             var query = input.value.trim().toLowerCase();
-            table.querySelectorAll('tr').forEach(function (row) {
-                var text = row.textContent.toLowerCase();
-                row.style.display = text.indexOf(query) !== -1 ? '' : 'none';
+            if (query && row.textContent.toLowerCase().indexOf(query) === -1) {
+                return false;
+            }
+            return filterSelects.every(function (select) {
+                var value = select.value;
+                if (value === '') {
+                    return true;
+                }
+                return config.filterPredicates[select.id](row, value);
             });
+        }
+
+        function render() {
+            var sort = getSortParts();
+            var ordered = rows.slice();
+            if (sort.key) {
+                ordered.sort(function (a, b) {
+                    return compareRows(a, b, sort.key, sort.dir);
+                });
+            }
+            ordered.forEach(function (row) {
+                row.style.display = matchesFilters(row) ? '' : 'none';
+                table.appendChild(row);
+            });
+        }
+
+        input.addEventListener('input', render);
+        if (sortSelect) {
+            sortSelect.addEventListener('change', render);
+        }
+        filterSelects.forEach(function (select) {
+            select.addEventListener('change', render);
         });
+        render();
     }
 
-    wireTableFilter('assets-filter', 'assets-table');
-    wireTableFilter('models-filter', 'models-table');
-    wireTableFilter('categories-filter', 'categories-table');
+    wireTableControls({
+        filterId: 'assets-filter',
+        sortId: 'assets-sort',
+        tableId: 'assets-table',
+        filterSelectIds: ['assets-status-filter', 'assets-requestable-filter', 'assets-model-filter'],
+        filterPredicates: {
+            'assets-status-filter': function (row, value) {
+                return (row.dataset.status || '') === value;
+            },
+            'assets-requestable-filter': function (row, value) {
+                return (row.dataset.requestable || '') === value;
+            },
+            'assets-model-filter': function (row, value) {
+                return (row.dataset.model || '') === value;
+            },
+        },
+    });
+
+    wireTableControls({
+        filterId: 'models-filter',
+        sortId: 'models-sort',
+        tableId: 'models-table',
+        filterSelectIds: ['models-category-filter', 'models-image-filter'],
+        filterPredicates: {
+            'models-category-filter': function (row, value) {
+                return (row.dataset.category || '') === value;
+            },
+            'models-image-filter': function (row, value) {
+                return (row.dataset.image || '') === value;
+            },
+        },
+    });
+
+    wireTableControls({
+        filterId: 'categories-filter',
+        sortId: 'categories-sort',
+        tableId: 'categories-table',
+        filterSelectIds: ['categories-description-filter'],
+        filterPredicates: {
+            'categories-description-filter': function (row, value) {
+                var hasDescription = (row.dataset.description || '').trim() !== '' ? '1' : '0';
+                return hasDescription === value;
+            },
+        },
+    });
 
     document.querySelectorAll('.js-category-edit').forEach(function (button) {
         button.addEventListener('click', function () {
