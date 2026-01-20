@@ -20,7 +20,7 @@ $messages = [];
 $errors   = [];
 
 $modelEditId = (int)($_GET['model_edit'] ?? 0);
-$assetEditId = (int)($_GET['asset_edit'] ?? 0);
+$assetEditId = 0;
 
 $statusOptions = ['available', 'checked_out', 'maintenance', 'retired'];
 
@@ -265,7 +265,6 @@ $categories = [];
 $models = [];
 $assets = [];
 $editModel = null;
-$editAsset = null;
 
 try {
     $categories = $pdo->query('SELECT id, name, description FROM asset_categories ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -294,14 +293,6 @@ if ($modelEditId > 0) {
     }
 }
 
-if ($assetEditId > 0) {
-    $stmt = $pdo->prepare('SELECT * FROM assets WHERE id = :id LIMIT 1');
-    $stmt->execute([':id' => $assetEditId]);
-    $editAsset = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$editAsset) {
-        $errors[] = 'Asset not found.';
-    }
-}
 ?>
 <!DOCTYPE html>
 <html>
@@ -378,58 +369,6 @@ if ($assetEditId > 0) {
         </ul>
 
         <?php if ($section === 'inventory'): ?>
-            <?php if ($editAsset): ?>
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Edit asset</h5>
-                        <form method="post" class="row g-3" enctype="multipart/form-data">
-                            <input type="hidden" name="action" value="save_asset">
-                            <input type="hidden" name="asset_id" value="<?= (int)($editAsset['id'] ?? 0) ?>">
-                            <input type="hidden" name="section" value="inventory">
-                            <div class="col-md-3">
-                                <label class="form-label">Asset tag</label>
-                                <input type="text" name="asset_tag" class="form-control" value="<?= h($editAsset['asset_tag'] ?? '') ?>" required>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Asset name</label>
-                                <input type="text" name="asset_name" class="form-control" value="<?= h($editAsset['name'] ?? '') ?>" required>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Model</label>
-                                <select name="asset_model_id" class="form-select" required>
-                                    <option value="">Select model</option>
-                                    <?php foreach ($models as $model): ?>
-                                        <option value="<?= (int)$model['id'] ?>" <?= (int)($editAsset['model_id'] ?? 0) === (int)$model['id'] ? 'selected' : '' ?>>
-                                            <?= h($model['name'] ?? '') ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Status</label>
-                                <select name="asset_status" class="form-select">
-                                    <?php foreach ($statusOptions as $opt): ?>
-                                        <option value="<?= h($opt) ?>" <?= ($editAsset['status'] ?? 'available') === $opt ? 'selected' : '' ?>>
-                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="asset_requestable" <?= !empty($editAsset['requestable']) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="asset_requestable">Requestable</label>
-                                </div>
-                            </div>
-                            <div class="col-12 d-flex justify-content-end gap-2">
-                                <a href="inventory_admin.php" class="btn btn-outline-secondary">Cancel</a>
-                                <button type="submit" class="btn btn-primary">Update asset</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            <?php endif; ?>
-
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
@@ -494,13 +433,13 @@ if ($assetEditId > 0) {
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
                                             <td><?= h($asset['name'] ?? '') ?></td>
                                             <td><?= h($asset['model_name'] ?? '') ?></td>
-                                            <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
-                                            <td><?= !empty($asset['requestable']) ? 'Yes' : 'No' ?></td>
-                                            <td class="text-end">
-                                                <a class="btn btn-sm btn-outline-secondary" href="inventory_admin.php?asset_edit=<?= (int)$asset['id'] ?>">Edit</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
+                                                <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
+                                                <td><?= !empty($asset['requestable']) ? 'Yes' : 'No' ?></td>
+                                                <td class="text-end">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editAssetModal-<?= (int)$asset['id'] ?>">Edit</button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -861,6 +800,66 @@ if ($assetEditId > 0) {
         </div>
     </div>
 </div>
+<?php foreach ($assets as $asset): ?>
+    <div class="modal fade" id="editAssetModal-<?= (int)$asset['id'] ?>" tabindex="-1" aria-labelledby="editAssetModalLabel-<?= (int)$asset['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="save_asset">
+                    <input type="hidden" name="asset_id" value="<?= (int)$asset['id'] ?>">
+                    <input type="hidden" name="section" value="inventory">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editAssetModalLabel-<?= (int)$asset['id'] ?>">Edit asset</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Asset tag</label>
+                                <input type="text" name="asset_tag" class="form-control" value="<?= h($asset['asset_tag'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Asset name</label>
+                                <input type="text" name="asset_name" class="form-control" value="<?= h($asset['name'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Model</label>
+                                <select name="asset_model_id" class="form-select" required>
+                                    <option value="">Select model</option>
+                                    <?php foreach ($models as $model): ?>
+                                        <option value="<?= (int)$model['id'] ?>" <?= (int)($asset['model_id'] ?? 0) === (int)$model['id'] ? 'selected' : '' ?>>
+                                            <?= h($model['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+                                <select name="asset_status" class="form-select">
+                                    <?php foreach ($statusOptions as $opt): ?>
+                                        <option value="<?= h($opt) ?>" <?= ($asset['status'] ?? 'available') === $opt ? 'selected' : '' ?>>
+                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="asset_requestable" id="asset_requestable_<?= (int)$asset['id'] ?>" <?= !empty($asset['requestable']) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="asset_requestable_<?= (int)$asset['id'] ?>">Requestable</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update asset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
 <script>
     function wireTableControls(config) {
         var input = document.getElementById(config.filterId);
