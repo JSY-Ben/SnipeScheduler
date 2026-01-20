@@ -3,7 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/layout.php';
 
 $userOverride = $_SESSION['booking_user_override'] ?? null;
@@ -35,10 +35,10 @@ if ($end <= $start) {
     die('End time must be after start time.');
 }
 
-// Build user info from Snipe-IT user record
+// Build user info from local user record
 $userName  = trim($user['first_name'] . ' ' . $user['last_name']);
 $userEmail = $user['email'];
-$userId    = $user['id']; // Snipe-IT user id
+$userId    = $user['id'];
 
 $pdo->beginTransaction();
 
@@ -56,7 +56,7 @@ try {
 
         $model = get_model($modelId);
         if (empty($model['id'])) {
-            throw new Exception('Model not found in Snipe-IT: ID ' . $modelId);
+            throw new Exception('Model not found: ID ' . $modelId);
         }
 
         // How many units of this model are already booked for this time range?
@@ -77,7 +77,7 @@ try {
         $row = $stmt->fetch();
         $existingBooked = $row ? (int)$row['booked_qty'] : 0;
 
-        // Total requestable units in Snipe-IT
+        // Total requestable units in local inventory
         $totalRequestable = count_requestable_assets_by_model($modelId);
         $activeCheckedOut = count_checked_out_assets_by_model($modelId);
         $availableNow = $totalRequestable > 0 ? max(0, $totalRequestable - $activeCheckedOut) : 0;
@@ -110,23 +110,22 @@ try {
     }
 
     $insertRes = $pdo->prepare("
-        INSERT INTO reservations (
-            user_name, user_email, user_id, snipeit_user_id,
-            asset_id, asset_name_cache,
-            start_datetime, end_datetime, status
-        ) VALUES (
-            :user_name, :user_email, :user_id, :snipeit_user_id,
-            0, :asset_name_cache,
-            :start_datetime, :end_datetime, 'pending'
-        )
-    ");
-    $insertRes->execute([
-        ':user_name'        => $userName,
-        ':user_email'       => $userEmail,
-        ':user_id'          => $userId,
-        ':snipeit_user_id'  => $user['id'],
-        ':asset_name_cache' => 'Pending checkout',
-        ':start_datetime'   => $start,
+    INSERT INTO reservations (
+        user_name, user_email, user_id,
+        asset_id, asset_name_cache,
+        start_datetime, end_datetime, status
+    ) VALUES (
+        :user_name, :user_email, :user_id,
+        0, :asset_name_cache,
+        :start_datetime, :end_datetime, 'pending'
+    )
+");
+$insertRes->execute([
+    ':user_name'        => $userName,
+    ':user_email'       => $userEmail,
+    ':user_id'          => $userId,
+    ':asset_name_cache' => 'Pending checkout',
+    ':start_datetime'   => $start,
         ':end_datetime'     => $end,
     ]);
 

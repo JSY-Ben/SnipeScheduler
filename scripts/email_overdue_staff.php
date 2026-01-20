@@ -3,7 +3,7 @@
 // Send a consolidated overdue asset report via email to a designated staff user.
 //
 // Requirements:
-// - SnipeScheduler config with SMTP settings configured (host, from, auth, etc.).
+// - KitGrab config with SMTP settings configured (host, from, auth, etc.).
 // - Set STAFF_EMAIL (env) to the staff recipient; optional STAFF_NAME for display.
 // - CLI only; intended for cron.
 //
@@ -18,7 +18,7 @@ if (php_sapi_name() !== 'cli') {
 }
 
 require_once __DIR__ . '/../src/bootstrap.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/email.php';
 
 $config = load_config();
@@ -47,7 +47,7 @@ if (empty($staffEmails)) {
 
 function build_overdue_email_staff(array $rows, string $subject, array $config): array
 {
-    $appName = $config['app']['name'] ?? 'SnipeScheduler';
+    $appName = $config['app']['name'] ?? 'KitGrab';
     $logoUrl = trim($config['app']['logo_url'] ?? '');
 
     $textLines = ["Overdue assets report:"];
@@ -133,7 +133,7 @@ usort($lines, static function (array $a, array $b): int {
     return $b['days'] <=> $a['days'];
 });
 
-$appName = $config['app']['name'] ?? 'SnipeScheduler';
+$appName = $config['app']['name'] ?? 'KitGrab';
 $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
 

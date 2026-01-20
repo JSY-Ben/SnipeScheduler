@@ -1,6 +1,6 @@
 <?php
 /**
- * Web installer for SnipeScheduler.
+ * Web installer for KitGrab.
  *
  * Builds config/config.php and (optionally) creates the database using schema.sql.
  * Use only during initial setup. If config.php already exists, you must confirm overwriting it.
@@ -52,7 +52,6 @@ $prefillConfig   = $existingConfig ?: $defaultConfig;
 $configExists    = is_file($configPath);
 
 $definedValues = [
-    'SNIPEIT_API_PAGE_LIMIT'   => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE' => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
 ];
 
@@ -127,50 +126,6 @@ function installer_test_db(array $db): string
         throw new Exception('Connected but validation query failed.');
     }
     return 'Database connection succeeded.';
-}
-
-function installer_test_snipe(array $snipe): string
-{
-    if (!function_exists('curl_init')) {
-        throw new Exception('PHP cURL extension is not installed.');
-    }
-    $base   = rtrim($snipe['base_url'] ?? '', '/');
-    $token  = $snipe['api_token'] ?? '';
-    $verify = !empty($snipe['verify_ssl']);
-
-    if ($base === '' || $token === '') {
-        throw new Exception('Base URL or API token is missing.');
-    }
-
-    $url = $base . '/api/v1/models?limit=1';
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => [
-            'Accept: application/json',
-            'Authorization: Bearer ' . $token,
-        ],
-        CURLOPT_SSL_VERIFYPEER => $verify,
-        CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_CONNECTTIMEOUT => 4,
-    ]);
-    $raw = curl_exec($ch);
-    if ($raw === false) {
-        $err = curl_error($ch);
-        curl_close($ch);
-        throw new Exception('cURL error: ' . $err);
-    }
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $decoded = json_decode($raw, true);
-    if ($code >= 400) {
-        $msg = $decoded['message'] ?? $raw;
-        throw new Exception('HTTP ' . $code . ': ' . $msg);
-    }
-    return 'Snipe-IT API reachable (HTTP ' . $code . ').';
 }
 
 function installer_test_google(array $google, array $auth): string
@@ -336,11 +291,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $dbPass    = $dbPassRaw;
         $dbCharset = $post('db_charset', 'utf8mb4');
 
-        $snipeUrl     = $post('snipe_base_url', '');
-        $snipeTokenRaw = $_POST['snipe_api_token'] ?? '';
-        $snipeToken    = $snipeTokenRaw;
-        $snipeVerify   = isset($_POST['snipe_verify_ssl']);
-
         $ldapHost   = $post('ldap_host', 'ldaps://');
         $ldapBase   = $post('ldap_base_dn', '');
         $ldapBind   = $post('ldap_bind_dn', '');
@@ -377,8 +327,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $logoUrl     = '';
         $primary     = '#660000';
         $missed      = 60;
-        $apiCacheTtl = 60;
-        $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
         $cataloguePP = $definedValues['CATALOGUE_ITEMS_PER_PAGE'];
 
         $newConfig = $defaultConfig;
@@ -389,11 +337,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'username' => $dbUser,
             'password' => $dbPass,
             'charset'  => $dbCharset,
-        ];
-        $newConfig['snipeit'] = [
-            'base_url'   => $snipeUrl,
-            'api_token'  => $snipeToken,
-            'verify_ssl' => $snipeVerify,
         ];
         $newConfig['ldap'] = [
             'host'          => $ldapHost,
@@ -425,12 +368,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'allowed_domains' => $msAllowedDomains,
         ];
         $newConfig['app'] = [
+            'name'                  => 'KitGrab',
             'timezone'              => $timezone,
             'debug'                 => $debug,
             'logo_url'              => $logoUrl,
             'primary_color'         => $primary,
             'missed_cutoff_minutes' => $missed,
-            'api_cache_ttl_seconds' => $apiCacheTtl,
         ];
         $newConfig['catalogue'] = [
             'allowed_categories' => [],
@@ -443,15 +386,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'encryption' => $post('smtp_encryption', 'tls'),
             'auth_method'=> $post('smtp_auth_method', 'login'),
             'from_email' => $post('smtp_from_email', ''),
-            'from_name'  => $post('smtp_from_name', 'SnipeScheduler'),
+            'from_name'  => $post('smtp_from_name', 'KitGrab'),
         ];
 
         if ($isAjax && $action !== 'save') {
             try {
                 if ($action === 'test_db') {
                     $messages[] = installer_test_db($newConfig['db_booking']);
-                } elseif ($action === 'test_api') {
-                    $messages[] = installer_test_snipe($newConfig['snipeit']);
                 } elseif ($action === 'test_microsoft') {
                     $messages[] = installer_test_microsoft($newConfig['microsoft_oauth'], $newConfig['auth']);
                 } elseif ($action === 'test_google') {
@@ -468,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
                     $sent = layout_send_notification(
                         $targetEmail,
                         $targetName,
-                        'SnipeScheduler SMTP test',
+                        'KitGrab SMTP test',
                         ['This is a test email from the installer SMTP settings.'],
                         ['smtp' => $smtp]
                     );
@@ -498,7 +439,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         }
 
         $content = layout_build_config_file($newConfig, [
-            'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
         ]);
 
@@ -611,7 +551,7 @@ $msRedirectDefault = $host
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SnipeScheduler – Web Installer</title>
+    <title>KitGrab – Web Installer</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../assets/style.css">
@@ -627,7 +567,7 @@ $msRedirectDefault = $host
 <div class="container installer-page">
     <div class="page-shell">
         <div class="page-header">
-            <h1>SnipeScheduler Installer</h1>
+            <h1>KitGrab Installer</h1>
             <div class="page-subtitle">
                 Create config.php and initialise the database. For production security, remove or protect this file after setup.
             </div>
@@ -707,7 +647,7 @@ $msRedirectDefault = $host
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Database</h5>
-                        <p class="text-muted small mb-3">Booking app database connection (not the Snipe-IT DB). Installer will create the database and tables.</p>
+                        <p class="text-muted small mb-3">Booking app database connection. Installer will create the database and tables.</p>
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <label class="form-label">Host</label>
@@ -751,29 +691,8 @@ $msRedirectDefault = $host
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">Snipe-IT API</h5>
-                        <p class="text-muted small mb-3">Connection details for your Snipe-IT instance.</p>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Base URL</label>
-                                <input type="text" name="snipe_base_url" class="form-control" value="<?= installer_h($pref(['snipeit', 'base_url'], '')) ?>">
-                                <div class="form-text">Example: https://snipeit.example.com</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">API token</label>
-                                <input type="password" name="snipe_api_token" class="form-control">
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="snipe_verify_ssl" id="snipe_verify_ssl" <?= $pref(['snipeit', 'verify_ssl'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="snipe_verify_ssl">Verify SSL certificate</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="small text-muted" id="api-test-result"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_api" data-target="api-test-result">Test Snipe-IT API</button>
-                        </div>
+                        <h5 class="card-title mb-1">Inventory</h5>
+                        <p class="text-muted small mb-3">Asset models and assets live in this app database. Add them after install in your admin workflows.</p>
                     </div>
                 </div>
             </div>
@@ -988,7 +907,7 @@ $msRedirectDefault = $host
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">From name</label>
-                                <input type="text" name="smtp_from_name" class="form-control" value="<?= installer_h($pref(['smtp', 'from_name'], 'SnipeScheduler')) ?>">
+                                <input type="text" name="smtp_from_name" class="form-control" value="<?= installer_h($pref(['smtp', 'from_name'], 'KitGrab')) ?>">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">

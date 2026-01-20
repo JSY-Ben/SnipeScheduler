@@ -3,7 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/layout.php';
 
 $isAdmin = !empty($currentUser['is_admin']);
@@ -35,19 +35,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'model_search') {
         exit;
     }
     try {
-        $resp = snipeit_request('GET', 'models', [
-            'search' => $q,
-            'limit'  => 20,
-        ]);
+        $resp = get_bookable_models(1, $q, null, null, 20, []);
         $rows = $resp['rows'] ?? [];
         $results = [];
         foreach ($rows as $row) {
-            if (empty($row['requestable'])) {
-                continue;
-            }
             $mid = (int)($row['id'] ?? 0);
             $name = $row['name'] ?? '';
             if ($mid <= 0 || $name === '') {
+                continue;
+            }
+            if (count_requestable_assets_by_model($mid) <= 0) {
                 continue;
             }
             $manu = $row['manufacturer']['name'] ?? '';
@@ -231,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $addModel = get_model($addModelId);
                 if (empty($addModel['id'])) {
-                    throw new Exception('Model not found in Snipe-IT.');
+                    throw new Exception('Model not found.');
                 }
                 $addModelLabel = $addModel['name'] ?? ('Model #' . $addModelId);
                 $addModelImage = $addModel['image'] ?? '';
@@ -501,14 +498,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         $qty = $displayQty[$mid] ?? (int)($item['quantity'] ?? 0);
                                         $name = $item['model_name_cache'] ?? ('Model #' . $mid);
                                         $imagePath = $modelImageMap[$mid] ?? '';
-                                        $proxiedImage = $imagePath !== ''
-                                            ? 'image_proxy.php?src=' . urlencode($imagePath)
-                                            : '';
+                                        $imageUrl = $imagePath !== '' ? $imagePath : '';
                                     ?>
                                     <tr>
                                         <td>
-                                            <?php if ($proxiedImage !== ''): ?>
-                                                <img src="<?= h($proxiedImage) ?>"
+                                            <?php if ($imageUrl !== ''): ?>
+                                                <img src="<?= h($imageUrl) ?>"
                                                      alt="<?= h($name) ?>"
                                                      class="reservation-model-image">
                                             <?php else: ?>

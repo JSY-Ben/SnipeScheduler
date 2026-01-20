@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -58,7 +58,7 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
             $activeUserName,
         ])), 'strlen'));
 
-        $snipeUserId = 0;
+        $localUserId = 0;
         $lookupQueries = array_values(array_filter(array_unique([
             $activeUserEmail,
             $activeUserUsername,
@@ -69,8 +69,8 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
         foreach ($lookupQueries as $query) {
             try {
                 $matched = find_single_user_by_email_or_name($query);
-                $snipeUserId = (int)($matched['id'] ?? 0);
-                if ($snipeUserId > 0) {
+                $localUserId = (int)($matched['id'] ?? 0);
+                if ($localUserId > 0) {
                     break;
                 }
             } catch (Throwable $e) {
@@ -81,7 +81,7 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
         $overdueCandidates = list_checked_out_assets(true);
         $overdueAssets = [];
         foreach ($overdueCandidates as $row) {
-            if (row_assigned_to_matches_user($row, $lookupKeys, $snipeUserId)) {
+            if (row_assigned_to_matches_user($row, $lookupKeys, $localUserId)) {
                 $tag = $row['asset_tag'] ?? 'Unknown tag';
                 $modelName = $row['model']['name'] ?? '';
                 $expected = $row['_expected_checkin_norm'] ?? ($row['expected_checkin'] ?? '');
@@ -437,7 +437,7 @@ if ($isStaff && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') 
 $active  = basename($_SERVER['PHP_SELF']);
 
 // ---------------------------------------------------------------------
-// Helper: decode Snipe-IT strings safely
+// Helper: decode strings safely
 // ---------------------------------------------------------------------
 function label_safe(?string $str): string
 {
@@ -549,7 +549,7 @@ $perPage = defined('CATALOGUE_ITEMS_PER_PAGE')
     : 12;
 
 // ---------------------------------------------------------------------
-// Load categories from Snipe-IT
+// Load categories
 // ---------------------------------------------------------------------
 $categories   = [];
 $categoryErr  = '';
@@ -575,7 +575,7 @@ if (is_array($allowedCfg)) {
 }
 
 // ---------------------------------------------------------------------
-// Load models from Snipe-IT
+// Load models
 // ---------------------------------------------------------------------
 $models      = [];
 $modelErr    = '';
@@ -631,7 +631,7 @@ if (!empty($models)) {
     }
 }
 
-// Apply allowlist if configured; otherwise show all categories returned by Snipe-IT
+// Apply allowlist if configured; otherwise show all categories returned by the catalogue
 if (!empty($allowedCategoryMap) && !empty($categories)) {
     $categories = array_values(array_filter($categories, function ($cat) use ($allowedCategoryMap) {
         $id = isset($cat['id']) ? (int)$cat['id'] : 0;
@@ -693,7 +693,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <div id="overdue-alert" class="alert alert-danger<?= $catalogueBlocked ? '' : ' d-none' ?>">
                 <div class="fw-semibold mb-2">Catalogue unavailable</div>
                 <div class="mb-2">
-                    You have overdue items in Snipe-IT. Please return them before booking more equipment.
+                    You have overdue items. Please return them before booking more equipment.
                 </div>
                 <ul class="mb-0" id="overdue-list">
                     <?php foreach ($overdueAssets as $asset): ?>
@@ -715,13 +715,13 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
         <div id="catalogue-content" class="<?= $catalogueBlocked ? 'd-none' : '' ?>">
             <?php if ($categoryErr): ?>
                 <div class="alert alert-warning">
-                    Could not load categories from Snipe-IT: <?= htmlspecialchars($categoryErr) ?>
+                    Could not load categories: <?= htmlspecialchars($categoryErr) ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($modelErr): ?>
                 <div class="alert alert-danger">
-                    Error talking to Snipe-IT (models): <?= htmlspecialchars($modelErr) ?>
+                    Error loading models: <?= htmlspecialchars($modelErr) ?>
                 </div>
             <?php endif; ?>
 
@@ -878,16 +878,13 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         $notes = $notes['text'] ?? '';
                     }
 
-                    $proxiedImage = '';
-                    if ($imagePath !== '') {
-                        $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
-                    }
+                    $imageUrl = $imagePath !== '' ? $imagePath : '';
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card">
-                            <?php if ($proxiedImage !== ''): ?>
+                            <?php if ($imageUrl !== ''): ?>
                                 <div class="model-image-wrapper">
-                                    <img src="<?= htmlspecialchars($proxiedImage) ?>"
+                                    <img src="<?= htmlspecialchars($imageUrl) ?>"
                                          alt=""
                                          class="model-image img-fluid">
                                 </div>

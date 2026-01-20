@@ -2,8 +2,7 @@
 /**
  * db.php
  *
- * Single PDO connection for the booking app database (snipeit_reservations).
- * This file no longer connects to the live Snipe-IT database at all.
+ * Single PDO connection for the booking app database.
  */
 
 require_once __DIR__ . '/bootstrap.php';

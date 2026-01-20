@@ -4,7 +4,7 @@
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
@@ -133,16 +133,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $assetName = $asset['name'] ?? '';
                 $modelName = $asset['model']['name'] ?? '';
                 $status    = $asset['status_label'] ?? '';
+                $statusValue = strtolower((string)($asset['status'] ?? ''));
                 $isRequestable = !empty($asset['requestable']);
                 if (is_array($status)) {
                     $status = $status['name'] ?? $status['status_meta'] ?? $status['label'] ?? '';
                 }
+                if ($status === '' && $statusValue !== '') {
+                    $status = ucwords(str_replace('_', ' ', $statusValue));
+                }
 
                 if ($assetId <= 0 || $assetTag === '') {
-                    throw new Exception('Asset record from Snipe-IT is missing id/asset_tag.');
+                    throw new Exception('Asset record is missing id/asset_tag.');
                 }
                 if (!$isRequestable) {
-                    throw new Exception('This asset is not requestable in Snipe-IT.');
+                    throw new Exception('This asset is not requestable.');
+                }
+                if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
+                    throw new Exception('This asset is not available for checkout.');
                 }
 
                 $checkoutAssets[$assetId] = [
@@ -170,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $endTs   = strtotime($endRaw);
 
         if ($checkoutTo === '') {
-            $errors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
+            $errors[] = 'Please enter the user (email or name) to check out to.';
         } elseif (empty($checkoutAssets)) {
             $errors[] = 'There are no assets in the checkout list.';
         } elseif ($startTs === false || $endTs === false) {
@@ -274,11 +281,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         $insertRes = $pdo->prepare("
                             INSERT INTO reservations (
-                                user_name, user_email, user_id, snipeit_user_id,
+                                user_name, user_email, user_id,
                                 asset_id, asset_name_cache,
                                 start_datetime, end_datetime, status
                             ) VALUES (
-                                :user_name, :user_email, :user_id, :snipeit_user_id,
+                                :user_name, :user_email, :user_id,
                                 0, :asset_name_cache,
                                 :start_datetime, :end_datetime, 'completed'
                             )
@@ -287,7 +294,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':user_name'        => $userName,
                             ':user_email'       => $user['email'] ?? '',
                             ':user_id'          => (string)$userId,
-                            ':snipeit_user_id'  => $userId,
                             ':asset_name_cache' => $assetsText,
                             ':start_datetime'   => $reservationStart,
                             ':end_datetime'     => $reservationEnd,
@@ -359,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $checkoutAssets = [];
                 }
             } catch (Throwable $e) {
-                $errors[] = 'Could not find user in Snipe-IT: ' . $e->getMessage();
+                $errors[] = 'Could not find user: ' . $e->getMessage();
             }
         }
     }
@@ -370,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Quick Checkout – SnipeScheduler</title>
+    <title>Quick Checkout – KitGrab</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -383,7 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="page-header">
             <h1>Quick Checkout</h1>
             <div class="page-subtitle">
-                Ad-hoc bulk checkout via Snipe-IT (not tied to a reservation).
+                Ad-hoc bulk checkout (not tied to a reservation).
             </div>
         </div>
 
@@ -411,10 +417,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Bulk checkout (via Snipe-IT)</h5>
+                <h5 class="card-title">Bulk checkout</h5>
                 <p class="card-text">
                     Scan or type asset tags to add them to the checkout list. When ready, enter
-                    the Snipe-IT user (email or name) and check out all items in one go.
+                    the user (email or name) and check out all items in one go.
                 </p>
 
                 <form method="post" class="row g-2 mb-3">
@@ -452,7 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th>Asset Tag</th>
                                     <th>Name</th>
                                     <th>Model</th>
-                                    <th>Status (from Snipe-IT)</th>
+                                    <th>Status</th>
                                     <th style="width: 80px;"></th>
                                 </tr>
                             </thead>
@@ -515,7 +521,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">
-                                    Check out to (Snipe-IT user email or name)
+                                    Check out to (user email or name)
                                 </label>
                                 <div class="position-relative user-autocomplete-wrapper">
                                     <input type="text"

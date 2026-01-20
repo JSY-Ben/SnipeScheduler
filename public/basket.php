@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -110,7 +110,7 @@ if (!empty($basket)) {
                 $activeCheckedOut = count_checked_out_assets_by_model($mid);
                 $booked = $pendingQty + $activeCheckedOut;
 
-                // Total requestable units in Snipe-IT
+                // Total requestable units in local inventory
                 if ($requestableTotal === null) {
                     try {
                         $requestableTotal = count_requestable_assets_by_model($mid);
@@ -179,7 +179,7 @@ if (!empty($basket)) {
 
         <?php if ($errorMsg): ?>
             <div class="alert alert-danger">
-                Error talking to Snipe-IT: <?= htmlspecialchars($errorMsg) ?>
+                Error loading inventory data: <?= htmlspecialchars($errorMsg) ?>
             </div>
         <?php endif; ?>
 
@@ -247,7 +247,7 @@ if (!empty($basket)) {
                                 } elseif ($a['total'] > 0) {
                                     $availText = $a['total'] . ' units total (unable to compute free units)';
                                 } else {
-                                    $availText = 'Availability unknown (no total count from Snipe-IT)';
+                                    $availText = 'Availability unknown (no total count available)';
                                 }
                             }
                         ?>

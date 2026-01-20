@@ -1,8 +1,7 @@
 /*
- * Snipe-IT Booking App – Database Schema
+ * KitGrab – Database Schema
  * -------------------------------------
  * This schema contains ONLY tables owned by the booking application.
- * It does NOT modify or depend on the Snipe-IT production database.
  *
  * Safe to commit to GitHub.
  */
@@ -19,11 +18,67 @@ CREATE TABLE IF NOT EXISTS users (
     user_id VARCHAR(64) NOT NULL,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
+    username VARCHAR(255) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_user_id (user_id),
     UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------
+-- Asset categories
+-- ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS asset_categories (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_asset_categories_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------
+-- Asset models
+-- ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS asset_models (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    manufacturer VARCHAR(255) DEFAULT NULL,
+    category_id INT UNSIGNED DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    image_url VARCHAR(1024) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    KEY idx_asset_models_category (category_id),
+    CONSTRAINT fk_asset_models_category
+        FOREIGN KEY (category_id)
+        REFERENCES asset_categories (id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------
+-- Assets
+-- ------------------------------------------------------
+CREATE TABLE IF NOT EXISTS assets (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    asset_tag VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    model_id INT UNSIGNED NOT NULL,
+    status ENUM('available','checked_out','maintenance','retired') NOT NULL DEFAULT 'available',
+    requestable TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_assets_asset_tag (asset_tag),
+    KEY idx_assets_model (model_id),
+
+    CONSTRAINT fk_assets_model
+        FOREIGN KEY (model_id)
+        REFERENCES asset_models (id)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------
@@ -34,7 +89,6 @@ CREATE TABLE IF NOT EXISTS reservations (
     user_id VARCHAR(64) NOT NULL,    -- user identifier
     user_name VARCHAR(255) NOT NULL, -- user display name
     user_email VARCHAR(255) NOT NULL,
-    snipeit_user_id INT UNSIGNED DEFAULT NULL, -- optional link to Snipe-IT user id
 
     asset_id INT UNSIGNED NOT NULL DEFAULT 0,  -- optional: single-asset reservations
     start_datetime DATETIME NOT NULL,
@@ -75,7 +129,7 @@ CREATE TABLE IF NOT EXISTS reservation_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------
--- Cached checked-out assets (from Snipe-IT sync)
+-- Checked-out assets (local inventory)
 -- ------------------------------------------------------
 CREATE TABLE IF NOT EXISTS checked_out_asset_cache (
     asset_id INT UNSIGNED NOT NULL,
@@ -133,4 +187,4 @@ CREATE TABLE IF NOT EXISTS schema_version (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO schema_version (version)
-VALUES ('v0.8.0-beta');
+VALUES ('0.5 (alpha)');

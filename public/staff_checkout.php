@@ -3,15 +3,15 @@
 //
 // Staff-only page that:
 // 1) Shows today's bookings from the booking app.
-// 2) Provides a bulk checkout panel that uses the Snipe-IT API to
-//    check out scanned asset tags to a Snipe-IT user.
+// 2) Provides a bulk checkout panel that checks out scanned asset tags
+//    to a local user record.
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/booking_helpers.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -48,12 +48,7 @@ if (($_GET['ajax'] ?? '') === 'user_search') {
     }
 
     try {
-        $data = snipeit_request('GET', 'users', [
-            'search' => $q,
-            'limit'  => 10,
-        ]);
-
-        $rows = $data['rows'] ?? [];
+        $rows = search_users($q, 10);
         $results = [];
         foreach ($rows as $row) {
             $results[] = [
@@ -290,6 +285,10 @@ if ($selectedReservationId) {
                         if (empty($a['requestable'])) {
                             continue; // skip non-requestable assets
                         }
+                        $statusValue = strtolower((string)($a['status'] ?? ''));
+                        if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
+                            continue;
+                        }
                         $assigned = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
                         $statusRaw = $a['status_label'] ?? '';
                         if (is_array($statusRaw)) {
@@ -467,21 +466,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $modelName = $asset['model']['name'] ?? '';
                 $modelId   = (int)($asset['model']['id'] ?? 0);
                 $status    = $asset['status_label'] ?? '';
+                $statusValue = strtolower((string)($asset['status'] ?? ''));
                 $isRequestable = !empty($asset['requestable']);
 
                 // Normalise status label to a string (API may return array/object)
                 if (is_array($status)) {
                     $status = $status['name'] ?? $status['status_meta'] ?? $status['label'] ?? '';
                 }
+                if ($status === '' && $statusValue !== '') {
+                    $status = ucwords(str_replace('_', ' ', $statusValue));
+                }
 
                 if ($assetId <= 0 || $assetTag === '') {
-                    throw new Exception('Asset record from Snipe-IT is missing id/asset_tag.');
+                    throw new Exception('Asset record is missing id/asset_tag.');
                 }
                 if ($modelId <= 0) {
-                    throw new Exception('Asset record from Snipe-IT is missing model information.');
+                    throw new Exception('Asset record is missing model information.');
                 }
                 if (!$isRequestable) {
-                    throw new Exception('This asset is not requestable in Snipe-IT.');
+                    throw new Exception('This asset is not requestable.');
+                }
+                if (in_array($statusValue, ['checked_out', 'maintenance', 'retired'], true)) {
+                    throw new Exception('This asset is not available for checkout.');
                 }
 
                 // Enforce that the asset's model is in the selected reservation and within quantity.
@@ -656,12 +662,12 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation for today before checking out.';
         } elseif ($checkoutTo === '') {
-            $checkoutErrors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
+            $checkoutErrors[] = 'Please enter the user (email or name) to check out to.';
         } elseif (empty($checkoutAssets)) {
             $checkoutErrors[] = 'There are no assets in the checkout list.';
         } else {
             try {
-                // Find a single Snipe-IT user by email or name
+                // Find a single user by email or name
                 $user = find_single_user_by_email_or_name($checkoutTo);
                 $userId   = (int)($user['id'] ?? 0);
                 $userName = $user['name'] ?? ($user['username'] ?? $checkoutTo);
@@ -695,7 +701,7 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     }
 
                     try {
-                        // Pass expected end datetime to Snipe-IT so time is preserved
+                        // Store expected end datetime with the checkout
                         checkout_asset_to_user($assetId, $userId, $note, $selectedEnd);
                         $checkoutMessages[] = "Checked out asset {$assetTag} to {$userName}.";
                     } catch (Throwable $e) {
@@ -724,7 +730,7 @@ $checkoutTo = trim($selectedReservation['user_name'] ?? '');
                     $checkoutAssets = [];
                 }
             } catch (Throwable $e) {
-                $checkoutErrors[] = 'Could not find user in Snipe-IT: ' . $e->getMessage();
+                $checkoutErrors[] = 'Could not find user: ' . $e->getMessage();
             }
         }
     }
@@ -756,7 +762,7 @@ $active  = basename($_SERVER['PHP_SELF']);
         <div class="page-header">
             <h1>Today’s Reservations (Checkout)</h1>
             <div class="page-subtitle">
-                View today’s reservations and perform bulk checkouts via Snipe-IT.
+                View today’s reservations and perform bulk checkouts.
             </div>
         </div>
 
@@ -883,9 +889,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                 $qty     = (int)$item['qty'];
                                 $options = $modelAssets[$mid] ?? [];
                                 $imagePath = $item['image'] ?? '';
-                                $proxiedImage = $imagePath !== ''
-                                    ? 'image_proxy.php?src=' . urlencode($imagePath)
-                                    : '';
+                                $imageUrl = $imagePath !== '' ? $imagePath : '';
                             ?>
                             <div class="mb-3">
                                 <table class="table table-sm align-middle reservation-model-table">
@@ -893,8 +897,8 @@ $active  = basename($_SERVER['PHP_SELF']);
                                         <tr>
                                             <td class="reservation-model-cell">
                                                 <div class="reservation-model-header">
-                                                    <?php if ($proxiedImage !== ''): ?>
-                                                        <img src="<?= h($proxiedImage) ?>"
+                                                    <?php if ($imageUrl !== ''): ?>
+                                                        <img src="<?= h($imageUrl) ?>"
                                                              alt="<?= h($item['name'] ?? ('Model #' . $mid)) ?>"
                                                              class="reservation-model-image">
                                                     <?php else: ?>
@@ -922,7 +926,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                             <td>
                                                 <?php if (empty($options)): ?>
                                                     <div class="alert alert-warning mb-0">
-                                                        No assets found in Snipe-IT for this model.
+                                                        No assets found in inventory for this model.
                                                     </div>
                                                 <?php else: ?>
                                                     <div class="d-flex flex-column gap-2">

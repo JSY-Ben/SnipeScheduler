@@ -3,7 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/config_writer.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/email.php';
 
 $active  = basename($_SERVER['PHP_SELF']);
@@ -43,7 +43,6 @@ try {
 }
 
 $definedValues = [
-    'SNIPEIT_API_PAGE_LIMIT'    => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE'  => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
 ];
 
@@ -68,52 +67,6 @@ function layout_test_db_connection(array $db): string
     }
 
     return 'Database connection succeeded.';
-}
-
-function layout_test_snipe_api(array $snipe): string
-{
-    if (!function_exists('curl_init')) {
-        throw new Exception('PHP cURL extension is not installed.');
-    }
-
-    $base   = rtrim($snipe['base_url'] ?? '', '/');
-    $token  = $snipe['api_token'] ?? '';
-    $verify = !empty($snipe['verify_ssl']);
-
-    if ($base === '' || $token === '') {
-        throw new Exception('Base URL or API token is missing.');
-    }
-
-    $url = $base . '/api/v1/models?limit=1';
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => [
-            'Accept: application/json',
-            'Authorization: Bearer ' . $token,
-        ],
-        CURLOPT_SSL_VERIFYPEER => $verify,
-        CURLOPT_SSL_VERIFYHOST => $verify ? 2 : 0,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_CONNECTTIMEOUT => 4,
-    ]);
-    $raw = curl_exec($ch);
-    if ($raw === false) {
-        $err = curl_error($ch);
-        curl_close($ch);
-        throw new Exception('cURL error: ' . $err);
-    }
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $decoded = json_decode($raw, true);
-    if ($code >= 400) {
-        $msg = $decoded['message'] ?? $raw;
-        throw new Exception('HTTP ' . $code . ': ' . $msg);
-    }
-
-    return 'Snipe-IT API reachable (HTTP ' . $code . ').';
 }
 
 function layout_test_google_oauth(array $google, array $auth): string
@@ -268,7 +221,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         return trim($_POST[$key] ?? $fallback);
     };
 
-    $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
     $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
 
     $useRawSecrets = $action !== 'save';
@@ -297,16 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ldap['bind_password'] = $ldapPassInput === '' ? ($loadedConfig['ldap']['bind_password'] ?? '') : $ldapPassInput;
     }
     $ldap['ignore_cert']   = isset($_POST['ldap_ignore_cert']);
-
-    $snipe = $config['snipeit'] ?? [];
-    $snipe['base_url']  = $post('snipe_base_url', $snipe['base_url'] ?? '');
-    $snipeTokenInput    = $_POST['snipe_api_token'] ?? '';
-    if ($useRawSecrets) {
-        $snipe['api_token'] = $snipeTokenInput;
-    } else {
-        $snipe['api_token'] = $snipeTokenInput === '' ? ($loadedConfig['snipeit']['api_token'] ?? '') : $snipeTokenInput;
-    }
-    $snipe['verify_ssl'] = isset($_POST['snipe_verify_ssl']);
 
     $auth = $config['auth'] ?? [];
     $auth['ldap_enabled']        = isset($_POST['auth_ldap_enabled']);
@@ -364,7 +306,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
     $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
     $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
-    $app['api_cache_ttl_seconds'] = max(0, (int)$post('app_api_cache_ttl', $app['api_cache_ttl_seconds'] ?? 60));
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
@@ -390,12 +331,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $smtp['encryption'] = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
     $smtp['auth_method'] = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
     $smtp['from_email'] = $post('smtp_from_email', $smtp['from_email'] ?? '');
-    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? 'SnipeScheduler');
+    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? ($config['app']['name'] ?? 'KitGrab'));
 
     $newConfig = $config;
     $newConfig['db_booking'] = $db;
     $newConfig['ldap']       = $ldap;
-    $newConfig['snipeit']    = $snipe;
     $newConfig['auth']       = $auth;
     $newConfig['google_oauth'] = $google;
     $newConfig['microsoft_oauth'] = $ms;
@@ -406,7 +346,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Keep posted values in the form
     $config        = $newConfig;
     $definedValues = [
-        'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
         'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
     ];
 
@@ -415,12 +354,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messages[] = layout_test_db_connection($db);
         } catch (Throwable $e) {
             $errors[] = 'Database test failed: ' . $e->getMessage();
-        }
-    } elseif ($action === 'test_api') {
-        try {
-            $messages[] = layout_test_snipe_api($snipe);
-        } catch (Throwable $e) {
-            $errors[] = 'Snipe-IT API test failed: ' . $e->getMessage();
         }
     } elseif ($action === 'test_microsoft') {
         try {
@@ -450,8 +383,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sent = layout_send_notification(
                 $targetEmail,
                 $targetName,
-                'SnipeScheduler SMTP test',
-                ['This is a test email from SnipeScheduler SMTP settings.'],
+                'KitGrab SMTP test',
+                ['This is a test email from KitGrab SMTP settings.'],
                 ['smtp' => $smtp] + $config
             );
             if ($sent) {
@@ -464,7 +397,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         $content = layout_build_config_file($newConfig, [
-            'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
         ]);
 
@@ -578,7 +510,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin – SnipeScheduler</title>
+    <title>Admin – KitGrab</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -591,7 +523,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
         <div class="page-header">
             <h1>Admin</h1>
             <div class="page-subtitle">
-                Administrator-only configuration for database, LDAP, Snipe-IT, and app options. Leave secret fields blank to keep existing values.
+                Administrator-only configuration for database, LDAP, and app options. Leave secret fields blank to keep existing values.
             </div>
         </div>
 
@@ -634,7 +566,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 <div class="card" id="admin-settings">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Database</h5>
-                        <p class="text-muted small mb-3">Connection for the booking app tables (not the Snipe-IT DB). Password is optional to update; leave blank to keep the current value.</p>
+                        <p class="text-muted small mb-3">Connection for the booking app tables. Password is optional to update; leave blank to keep the current value.</p>
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <label class="form-label">Host</label>
@@ -664,37 +596,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="db-test-result"></div>
                             <button type="button" name="action" value="test_db" class="btn btn-outline-primary btn-sm" data-test-action="test_db" data-target="db-test-result">Test database connection</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Snipe-IT API</h5>
-                        <p class="text-muted small mb-3">Connection details for the Snipe-IT instance.</p>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Base URL</label>
-                                <input type="text" name="snipe_base_url" class="form-control" value="<?= h($cfg(['snipeit', 'base_url'], '')) ?>">
-                                <div class="form-text">Example: https://snipeit.example.com</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">API token</label>
-                                <input type="password" name="snipe_api_token" class="form-control" placeholder="Leave blank to keep">
-                                <div class="form-text">Token stays unchanged if left blank.</div>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="snipe_verify_ssl" id="snipe_verify_ssl" <?= $cfg(['snipeit', 'verify_ssl'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="snipe_verify_ssl">Verify SSL certificate</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="small text-muted" id="api-test-result"></div>
-                            <button type="button" name="action" value="test_api" class="btn btn-outline-primary btn-sm" data-test-action="test_api" data-target="api-test-result">Test Snipe-IT API</button>
                         </div>
                     </div>
                 </div>
@@ -910,7 +811,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">From name</label>
-                                <input type="text" name="smtp_from_name" class="form-control" value="<?= h($cfg(['smtp', 'from_name'], 'SnipeScheduler')) ?>">
+                                <input type="text" name="smtp_from_name" class="form-control" value="<?= h($cfg(['smtp', 'from_name'], $cfg(['app', 'name'], 'KitGrab'))) ?>">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -925,17 +826,12 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
-                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue and how long to cache API responses.</p>
+                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
                                 <input type="number" name="catalogue_items_per_page" min="1" class="form-control" value="<?= (int)$definedValues['CATALOGUE_ITEMS_PER_PAGE'] ?>">
                                 <div class="form-text">Adjust to show more or fewer items on each catalogue page.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">API cache TTL (seconds)</label>
-                                <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
-                                <div class="form-text">Cache Snipe-IT GET responses. Set 0 to disable.</div>
                             </div>
                         </div>
                     </div>
@@ -946,10 +842,10 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
-                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue. Leave everything unticked to show all categories.</p>
+                        <p class="text-muted small mb-3">Choose which inventory categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue. Leave everything unticked to show all categories.</p>
                         <?php if ($categoryFetchError): ?>
                             <div class="alert alert-warning small mb-3">
-                                Could not load categories from Snipe-IT: <?= h($categoryFetchError) ?>
+                                Could not load categories: <?= h($categoryFetchError) ?>
                             </div>
                         <?php elseif (empty($categoryOptions)): ?>
                             <div class="text-muted small">No categories available.</div>

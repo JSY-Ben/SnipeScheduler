@@ -11,7 +11,7 @@ $installed = is_file($configPath) || is_file($legacyConfigPath);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Install – SnipeScheduler</title>
+    <title>Install – KitGrab</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../assets/style.css">
@@ -29,9 +29,9 @@ $installed = is_file($configPath) || is_file($legacyConfigPath);
     <div class="page-shell">
         <?= str_replace('href="index.php"', 'href="../index.php"', layout_logo_tag()) ?>
         <div class="page-header">
-            <h1>SnipeScheduler Installer</h1>
+            <h1>KitGrab Installer</h1>
             <div class="page-subtitle">
-                Set up a new installation or run database upgrades. Remove or protect these tools after use.
+                Set up a new installation. Remove or protect these tools after use.
             </div>
         </div>
 
@@ -41,9 +41,8 @@ $installed = is_file($configPath) || is_file($legacyConfigPath);
             </div>
             <div class="card">
                 <div class="card-body">
-                    <p class="mb-3">Would you like to run the database upgrade?</p>
-                    <a class="btn btn-primary" href="upgrade/">Go to upgrade</a>
-                    <a class="btn btn-outline-danger ms-2" href="install.php">Run installer again</a>
+                    <p class="mb-3">If you need to reinstall, run the installer again.</p>
+                    <a class="btn btn-outline-danger" href="install.php">Run installer again</a>
                 </div>
             </div>
         <?php else: ?>

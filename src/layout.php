@@ -1,6 +1,6 @@
 <?php
 // layout.php
-// Shared layout helpers (nav, logo, theme, footer) for SnipeScheduler pages.
+// Shared layout helpers (nav, logo, theme, footer) for KitGrab pages.
 
 require_once __DIR__ . '/bootstrap.php';
 
@@ -174,10 +174,13 @@ if (!function_exists('layout_footer')) {
         $versionRaw  = is_file($versionFile) ? trim((string)@file_get_contents($versionFile)) : '';
         $version     = $versionRaw !== '' ? $versionRaw : 'dev';
         $versionEsc  = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
+        $cfg = layout_cached_config();
+        $appName = $cfg['app']['name'] ?? 'KitGrab';
+        $appNameEsc = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
 
         echo '<script src="assets/nav.js"></script>';
         echo '<footer class="text-center text-muted mt-4 small">'
-            . 'SnipeScheduler Version ' . $versionEsc . ' - Created by '
+            . $appNameEsc . ' Version ' . $versionEsc . ' - Created by '
             . '<a href="https://www.linkedin.com/in/ben-pirozzolo-76212a88" target="_blank" rel="noopener noreferrer">Ben Pirozzolo</a>'
             . '</footer>';
     }
@@ -198,9 +201,11 @@ if (!function_exists('layout_logo_tag')) {
         }
 
         $urlEsc = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
+        $appName = $cfg['app']['name'] ?? 'KitGrab';
+        $appNameEsc = htmlspecialchars($appName, ENT_QUOTES, 'UTF-8');
         return '<div class="app-logo text-center mb-3">'
             . '<a href="index.php" aria-label="Go to dashboard">'
-            . '<img src="' . $urlEsc . '" alt="SnipeScheduler logo" style="max-height:80px; width:auto; height:auto; max-width:100%; object-fit:contain;">'
+            . '<img src="' . $urlEsc . '" alt="' . $appNameEsc . ' logo" style="max-height:80px; width:auto; height:auto; max-width:100%; object-fit:contain;">'
             . '</a>'
             . '</div>';
     }

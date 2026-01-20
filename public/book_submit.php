@@ -3,7 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/layout.php';
 
 $userOverride = $_SESSION['booking_user_override'] ?? null;
@@ -31,11 +31,11 @@ if ($end <= $start) {
     die('End time must be after start time.');
 }
 
-// Load asset from Snipe-IT
+// Load asset from local inventory
 try {
     $asset = get_asset($assetId);
 } catch (Exception $e) {
-    die('Error loading asset from Snipe-IT: ' . htmlspecialchars($e->getMessage()));
+    die('Error loading asset: ' . htmlspecialchars($e->getMessage()));
 }
 
 if (empty($asset['id'])) {
@@ -65,19 +65,19 @@ if ($row && $row['c'] > 0) {
     die('Sorry, this item is already booked for that time.');
 }
 
-// Build user info from Snipe-IT user record
+// Build user info from local user record
 $userName  = trim($user['first_name'] . ' ' . $user['last_name']);
 $userEmail = $user['email'];
-$userId    = $user['id']; // store their Snipe-IT ID as "user_id" too if you like
+$userId    = $user['id'];
 
 // Insert booking
 $insert = $pdo->prepare("
     INSERT INTO reservations (
-        user_name, user_email, user_id, snipeit_user_id,
+        user_name, user_email, user_id,
         asset_id, asset_name_cache,
         start_datetime, end_datetime, status
     ) VALUES (
-        :user_name, :user_email, :user_id, :snipeit_user_id,
+        :user_name, :user_email, :user_id,
         :asset_id, :asset_name_cache,
         :start_datetime, :end_datetime, 'pending'
     )
@@ -86,7 +86,6 @@ $insert->execute([
     ':user_name'        => $userName,
     ':user_email'       => $userEmail,
     ':user_id'          => $userId,
-    ':snipeit_user_id'  => $user['id'],
     ':asset_id'         => $assetId,
     ':asset_name_cache' => 'Pending checkout',
     ':start_datetime'   => $start,

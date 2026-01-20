@@ -94,7 +94,7 @@ $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title">Quick Checkout</h5>
                             <p class="card-text">
-                                Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation.
+                                Perform ad-hoc bulk checkouts without selecting a reservation.
                             </p>
                             <a href="quick_checkout.php" class="btn btn-outline-primary mt-auto">
                                 Go to quick checkout
@@ -108,7 +108,7 @@ $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title">Quick Checkin</h5>
                             <p class="card-text">
-                                Scan asset tags to check items back in via Snipe-IT (quick scan style).
+                                Scan asset tags to check items back in (quick scan style).
                             </p>
                             <a href="quick_checkin.php" class="btn btn-outline-primary mt-auto">
                                 Go to quick checkin

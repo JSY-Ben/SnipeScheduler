@@ -2,7 +2,7 @@
 // booking_helpers.php
 // Shared helpers for working with reservations & items.
 
-require_once __DIR__ . '/snipeit_client.php';
+require_once __DIR__ . '/inventory_client.php';
 
 /**
  * Fetch all items for a reservation, with human-readable names.
@@ -14,7 +14,7 @@ require_once __DIR__ . '/snipeit_client.php';
  *   ]
  *
  * Assumes reservation_items has: reservation_id, model_id, quantity.
- * Uses Snipe-IT get_model($modelId) to resolve names.
+ * Uses local inventory model lookups to resolve names.
  */
 function get_reservation_items_with_names(PDO $pdo, int $reservationId): array
 {
@@ -47,7 +47,6 @@ function get_reservation_items_with_names(PDO $pdo, int $reservationId): array
 
         if (!isset($modelCache[$modelId])) {
             try {
-                // Uses Snipe-IT API client function we already have
                 $modelCache[$modelId] = get_model($modelId);
             } catch (Exception $e) {
                 $modelCache[$modelId] = null;

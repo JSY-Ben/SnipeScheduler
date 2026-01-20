@@ -91,7 +91,7 @@ $redirectWithError = static function (string $message) {
     exit;
 };
 
-$upsertUser = static function (PDO $pdo, string $email, string $fullName): int {
+$upsertUser = static function (PDO $pdo, string $email, string $fullName, string $username): int {
     $userTable = 'users';
     $userIdCol = 'user_id';
 
@@ -102,11 +102,13 @@ $upsertUser = static function (PDO $pdo, string $email, string $fullName): int {
     if ($existing) {
         $update = $pdo->prepare("
             UPDATE {$userTable}
-               SET name = :name
+               SET name = :name,
+                   username = :username
              WHERE id = :id
         ");
         $update->execute([
             ':name' => $fullName,
+            ':username' => $username !== '' ? $username : null,
             ':id'   => $existing['id'],
         ]);
         return (int)$existing['id'];
@@ -114,13 +116,14 @@ $upsertUser = static function (PDO $pdo, string $email, string $fullName): int {
 
     $userIdHex = sprintf('%u', crc32(strtolower($email)));
     $insert = $pdo->prepare("
-        INSERT INTO {$userTable} ({$userIdCol}, name, email, created_at)
-        VALUES (:user_id, :name, :email, NOW())
+        INSERT INTO {$userTable} ({$userIdCol}, name, email, username, created_at)
+        VALUES (:user_id, :name, :email, :username, NOW())
     ");
     $insert->execute([
         ':user_id' => $userIdHex,
         ':name'    => $fullName,
         ':email'   => $email,
+        ':username' => $username !== '' ? $username : null,
     ]);
     return (int)$pdo->lastInsertId();
 };
@@ -255,7 +258,7 @@ if ($provider === 'google') {
     }
 
     try {
-        $userId = $upsertUser($pdo, $email, $fullName);
+        $userId = $upsertUser($pdo, $email, $fullName, $email);
     } catch (Throwable $e) {
         $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable (database error).');
     }
@@ -458,7 +461,7 @@ if ($provider === 'microsoft') {
     }
 
     try {
-        $userId = $upsertUser($pdo, $email, $fullName);
+        $userId = $upsertUser($pdo, $email, $fullName, $email);
     } catch (Throwable $e) {
         $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable (database error).');
     }
@@ -665,7 +668,7 @@ if ($isAdmin || $isCheckout) {
 // `user_id` must be UNIQUE, so we derive a stable numeric ID from email.
 // ------------------------------------------------------------------
 try {
-    $userId = $upsertUser($pdo, $mail, $fullName);
+    $userId = $upsertUser($pdo, $mail, $fullName, $sam);
 } catch (Throwable $e) {
     $redirectWithError($debugOn
         ? 'Login system is currently unavailable (database error): ' . $e->getMessage()

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 
 // Only allow POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -23,7 +23,7 @@ if ($qtyRequested > 100) {
     $qtyRequested = 100;
 }
 
-// Enforce hardware limits from Snipe-IT (if available)
+// Enforce hardware limits from local inventory (if available)
 try {
     $requestableTotal = count_requestable_assets_by_model($modelId);
     $activeCheckedOut = count_checked_out_assets_by_model($modelId);

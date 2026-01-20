@@ -4,7 +4,7 @@
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
@@ -79,12 +79,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $assetName = $asset['name'] ?? '';
                 $modelName = $asset['model']['name'] ?? '';
                 $status    = $asset['status_label'] ?? '';
+                $statusValue = strtolower((string)($asset['status'] ?? ''));
                 if (is_array($status)) {
                     $status = $status['name'] ?? $status['status_meta'] ?? $status['label'] ?? '';
                 }
+                if ($status === '' && $statusValue !== '') {
+                    $status = ucwords(str_replace('_', ' ', $statusValue));
+                }
 
                 if ($assetId <= 0 || $assetTag === '') {
-                    throw new Exception('Asset record from Snipe-IT is missing id/asset_tag.');
+                    throw new Exception('Asset record is missing id/asset_tag.');
                 }
 
                 $assigned = $asset['assigned_to'] ?? null;
@@ -141,25 +145,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $assignedEmail = $asset['assigned_email'] ?? '';
                     $assignedName  = $asset['assigned_name'] ?? '';
                     $assignedId    = (int)($asset['assigned_id'] ?? 0);
-                    if (($assignedEmail === '' && $assignedName === '') || $assignedId === 0) {
-                        try {
-                            $freshAsset = snipeit_request('GET', 'hardware/' . $assetId);
-                            $freshAssigned = $freshAsset['assigned_to'] ?? null;
-                            if (empty($freshAssigned) && isset($freshAsset['assigned_to_fullname'])) {
-                                $freshAssigned = $freshAsset['assigned_to_fullname'];
-                            }
-                            if (is_array($freshAssigned)) {
-                                $assignedId    = (int)($freshAssigned['id'] ?? $assignedId);
-                                $assignedEmail = $freshAssigned['email'] ?? ($freshAssigned['username'] ?? $assignedEmail);
-                                $assignedName  = $freshAssigned['name'] ?? ($freshAssigned['username'] ?? ($freshAssigned['email'] ?? $assignedName));
-                            } elseif (is_string($freshAssigned) && $assignedName === '') {
-                                $assignedName = $freshAssigned;
-                            }
-                        } catch (Throwable $e) {
-                            // Skip fresh lookup; proceed with stored assignment data.
-                        }
-                    }
-
                     checkin_asset($assetId, $note);
                     $messages[] = "Checked in asset {$assetTag}.";
                     $model = $asset['model'] ?? '';
@@ -172,22 +157,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $assignedEmail = $cached['email'] ?? '';
                             $assignedName = $assignedName !== '' ? $assignedName : ($cached['name'] ?? '');
                         } else {
-                            try {
-                                $matchedUser = snipeit_request('GET', 'users/' . $assignedId);
-                                $matchedEmail = $matchedUser['email'] ?? ($matchedUser['username'] ?? '');
-                                $matchedName  = $matchedUser['name'] ?? ($matchedUser['username'] ?? '');
-                                $userIdCache[$assignedId] = [
-                                    'email' => $matchedEmail,
-                                    'name'  => $matchedName,
-                                ];
-                                if ($matchedEmail !== '') {
-                                    $assignedEmail = $matchedEmail;
-                                }
-                                if ($assignedName === '' && $matchedName !== '') {
-                                    $assignedName = $matchedName;
-                                }
-                            } catch (Throwable $e) {
-                                // Skip lookup failure; user details may be unavailable.
+                            $stmt = $pdo->prepare("SELECT email, name FROM users WHERE id = :id LIMIT 1");
+                            $stmt->execute([':id' => $assignedId]);
+                            $matchedUser = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $matchedEmail = $matchedUser['email'] ?? '';
+                            $matchedName  = $matchedUser['name'] ?? '';
+                            $userIdCache[$assignedId] = [
+                                'email' => $matchedEmail,
+                                'name'  => $matchedName,
+                            ];
+                            if ($matchedEmail !== '') {
+                                $assignedEmail = $matchedEmail;
+                            }
+                            if ($assignedName === '' && $matchedName !== '') {
+                                $assignedName = $matchedName;
                             }
                         }
                     }
@@ -204,95 +187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $userLookupCache[$cacheKey] = $matchedEmail;
                                 }
                             } catch (Throwable $e) {
-                                try {
-                                    $data = snipeit_request('GET', 'users', [
-                                        'search' => $assignedName,
-                                        'limit'  => 50,
-                                    ]);
-                                    $rows = $data['rows'] ?? [];
-                                    $exact = [];
-                                    $nameLower = strtolower(trim($assignedName));
-                                    foreach ($rows as $row) {
-                                        $rowName = strtolower(trim((string)($row['name'] ?? '')));
-                                        $rowEmail = strtolower(trim((string)($row['email'] ?? ($row['username'] ?? ''))));
-                                        if ($rowName !== '' && $rowName === $nameLower) {
-                                            $exact[] = $row;
-                                        } elseif ($rowEmail !== '' && $rowEmail === $nameLower) {
-                                            $exact[] = $row;
-                                        }
-                                    }
-                                    if (!empty($exact)) {
-                                        $picked = $exact[0];
-                                        $matchedEmail = $picked['email'] ?? ($picked['username'] ?? '');
-                                        if ($matchedEmail !== '') {
-                                            $assignedEmail = $matchedEmail;
-                                            $userLookupCache[$cacheKey] = $matchedEmail;
-                                        }
-                                        if ($assignedName === '') {
-                                            $assignedName = $picked['name'] ?? ($picked['username'] ?? '');
-                                        }
-                                    }
-                                } catch (Throwable $e2) {
-                                    // Skip lookup failure; user email may be unavailable.
-                                }
+                                // Skip lookup failure; user email may be unavailable.
                             }
-                        }
-                    }
-                    if ($assignedEmail === '' && $assignedName === '' && $assignedId === 0) {
-                        try {
-                            $history = snipeit_request('GET', 'hardware/' . $assetId . '/history');
-                            $rows = $history['rows'] ?? [];
-                            foreach ($rows as $row) {
-                                $action = strtolower((string)($row['action_type'] ?? ($row['action'] ?? '')));
-                                if ($action === '' || strpos($action, 'checkout') === false) {
-                                    continue;
-                                }
-                                $target = $row['target'] ?? null;
-                                $histId = 0;
-                                $histName = '';
-                                $histEmail = '';
-                                if (is_array($target)) {
-                                    $histId = (int)($target['id'] ?? 0);
-                                    $histName = $target['name'] ?? ($target['username'] ?? '');
-                                    $histEmail = $target['email'] ?? ($target['username'] ?? '');
-                                } else {
-                                    $histId = (int)($row['target_id'] ?? 0);
-                                    $histName = $row['target_name'] ?? ($row['checkedout_to'] ?? '');
-                                    $histEmail = $row['target_email'] ?? '';
-                                }
-
-                                if ($histEmail === '' && $histId > 0) {
-                                    if (isset($userIdCache[$histId])) {
-                                        $cached = $userIdCache[$histId];
-                                        $histEmail = $cached['email'] ?? '';
-                                        $histName = $histName !== '' ? $histName : ($cached['name'] ?? '');
-                                    } else {
-                                        try {
-                                            $matchedUser = snipeit_request('GET', 'users/' . $histId);
-                                            $matchedEmail = $matchedUser['email'] ?? ($matchedUser['username'] ?? '');
-                                            $matchedName  = $matchedUser['name'] ?? ($matchedUser['username'] ?? '');
-                                            $userIdCache[$histId] = [
-                                                'email' => $matchedEmail,
-                                                'name'  => $matchedName,
-                                            ];
-                                            $histEmail = $matchedEmail;
-                                            if ($histName === '' && $matchedName !== '') {
-                                                $histName = $matchedName;
-                                            }
-                                        } catch (Throwable $e) {
-                                            // Skip lookup failure; user details may be unavailable.
-                                        }
-                                    }
-                                }
-
-                                if ($histEmail !== '' || $histName !== '') {
-                                    $assignedEmail = $histEmail !== '' ? $histEmail : $assignedEmail;
-                                    $assignedName = $histName !== '' ? $histName : $assignedName;
-                                    break;
-                                }
-                            }
-                        } catch (Throwable $e) {
-                            // Skip history lookup failure.
                         }
                     }
 
@@ -389,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Quick Checkin – SnipeScheduler</title>
+    <title>Quick Checkin – KitGrab</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -402,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="page-header">
             <h1>Quick Checkin</h1>
             <div class="page-subtitle">
-                Scan or type asset tags to check items back in via Snipe-IT.
+                Scan or type asset tags to check items back in.
             </div>
         </div>
 

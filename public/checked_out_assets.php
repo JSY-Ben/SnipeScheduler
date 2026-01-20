@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
-require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/inventory_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/layout.php';
@@ -145,14 +145,6 @@ $sortOptions = [
     'checkout_asc',
 ];
 $sort = in_array($sortRaw, $sortOptions, true) ? $sortRaw : 'expected_asc';
-$forceRefresh = isset($_REQUEST['refresh']) && $_REQUEST['refresh'] === '1';
-if ($forceRefresh) {
-    // Disable cached Snipe-IT responses for this request
-    if (isset($cacheTtl)) {
-        $GLOBALS['_layout_prev_cache_ttl'] = $cacheTtl;
-    }
-    $cacheTtl = 0;
-}
 
 // Handle renew actions (all/overdue tabs)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -366,7 +358,7 @@ function layout_checked_out_url(string $base, array $params): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Checked Out Reservations – SnipeScheduler</title>
+    <title>Checked Out Reservations – KitGrab</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -380,7 +372,7 @@ function layout_checked_out_url(string $base, array $params): string
         <div class="page-header">
             <h1>Checked Out Reservations</h1>
             <div class="page-subtitle">
-                Showing requestable assets currently checked out in Snipe-IT.
+                Showing requestable assets currently checked out.
             </div>
         </div>
 

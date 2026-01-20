@@ -1,6 +1,6 @@
 <?php
 /**
- * Global configuration for the Snipe-IT booking app.
+ * Global configuration for KitGrab.
  *
  * Edit the values below to match your environment.
  *
@@ -8,15 +8,11 @@
  */
 
 /**
- * Paging / limits for catalogue + Snipe-IT API
+ * Paging / limits for catalogue
  * These run as soon as config.php is required.
  */
-if (!defined('SNIPEIT_API_PAGE_LIMIT')) {
-    define('SNIPEIT_API_PAGE_LIMIT', 12); // or whatever default you want
-}
-
 if (!defined('CATALOGUE_ITEMS_PER_PAGE')) {
-    define('CATALOGUE_ITEMS_PER_PAGE', SNIPEIT_API_PAGE_LIMIT);
+    define('CATALOGUE_ITEMS_PER_PAGE', 12);
 }
 
 // ---------------------------------------------------------------------
@@ -31,12 +27,6 @@ return [
         'username' => '',
         'password' => '',      // keep your existing password
         'charset'  => 'utf8mb4',
-    ],
-
-    'snipeit' => [
-        'base_url'  => '',
-        'api_token' => '',     // keep your existing token
-        'verify_ssl' => false,
     ],
 
     'ldap' => [
@@ -119,12 +109,12 @@ return [
     ],
 
     'app' => [
+        'name' => 'KitGrab',
         'timezone' => 'Europe/Jersey',
         'debug'    => true,
         'logo_url' => '', // optional: full URL or relative path to logo image
         'primary_color' => '#660000', // main UI colour for gradients/buttons
         'missed_cutoff_minutes' => 60, // minutes after start time before marking reservation as missed
-        'api_cache_ttl_seconds' => 60, // cache Snipe-IT GET responses for this many seconds
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'block_catalogue_overdue' => true, // block catalogue for users with overdue checkouts
@@ -132,7 +122,7 @@ return [
 
     'catalogue' => [
         // Restrict which categories appear in the catalogue filter.
-        // Leave empty to show all categories returned by Snipe-IT.
+        // Leave empty to show all categories.
         'allowed_categories' => [],
     ],
 
@@ -144,6 +134,6 @@ return [
         'encryption' => 'tls', // none|ssl|tls
         'auth_method'=> 'login', // login|plain|none
         'from_email' => '',
-        'from_name'  => 'SnipeScheduler',
+        'from_name'  => 'KitGrab',
     ],
 ];
