@@ -481,13 +481,6 @@ if ($modelEditId > 0) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="models-image-filter">
-                                <option value="">All images</option>
-                                <option value="1">Has image</option>
-                                <option value="0">No image</option>
-                            </select>
-                        </div>
                     </div>
                     <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
                     <?php if (empty($models)): ?>
@@ -510,8 +503,7 @@ if ($modelEditId > 0) {
                                             <tr data-id="<?= (int)($model['id'] ?? 0) ?>"
                                                 data-name="<?= h($model['name'] ?? '') ?>"
                                                 data-manufacturer="<?= h($model['manufacturer'] ?? '') ?>"
-                                                data-category="<?= h($model['category_name'] ?? '') ?>"
-                                                data-image="<?= !empty($model['image_url']) ? '1' : '0' ?>">
+                                                data-category="<?= h($model['category_name'] ?? '') ?>">
                                                 <td><?= (int)($model['id'] ?? 0) ?></td>
                                                 <td>
                                                     <?php if (!empty($model['image_url'])): ?>
@@ -1024,13 +1016,10 @@ if ($modelEditId > 0) {
         filterId: 'models-filter',
         sortId: 'models-sort',
         tableId: 'models-table',
-        filterSelectIds: ['models-category-filter', 'models-image-filter'],
+        filterSelectIds: ['models-category-filter'],
         filterPredicates: {
             'models-category-filter': function (row, value) {
                 return (row.dataset.category || '') === value;
-            },
-            'models-image-filter': function (row, value) {
-                return (row.dataset.image || '') === value;
             },
         },
     });
