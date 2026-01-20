@@ -22,7 +22,7 @@ $debugOn  = !empty($appCfg['debug']);
 $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     ? !empty($appCfg['block_catalogue_overdue'])
     : true;
-$overdueCacheTtl = 0;
+$overdueCacheTtl = (int)($appCfg['catalogue_cache_ttl'] ?? 0);
 
 if (($_GET['ajax'] ?? '') === 'overdue_check') {
     header('Content-Type: application/json');

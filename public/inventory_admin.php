@@ -96,10 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([':id' => $modelEditId]);
                     $existingImageUrl = $stmt->fetchColumn() ?: null;
                 }
-                if ($uploadedModelImage) {
-                    $finalImageUrl = ($imageUrl !== '' && $imageUrl !== $existingImageUrl) ? $imageUrl : $uploadedModelImage;
-                } else {
-                    $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                if ($uploadedModelImage && ($imageUrl === '' || $imageUrl === $existingImageUrl)) {
+                    $finalImageUrl = $uploadedModelImage;
                 }
 
                 if ($modelEditId > 0) {
@@ -192,10 +191,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->execute([':id' => $assetEditId]);
                     $existingImageUrl = $stmt->fetchColumn() ?: null;
                 }
-                if ($uploadedAssetImage) {
-                    $finalImageUrl = ($imageUrl !== '' && $imageUrl !== $existingImageUrl) ? $imageUrl : $uploadedAssetImage;
-                } else {
-                    $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                $finalImageUrl = $imageUrl !== '' ? $imageUrl : $existingImageUrl;
+                if ($uploadedAssetImage && ($imageUrl === '' || $imageUrl === $existingImageUrl)) {
+                    $finalImageUrl = $uploadedAssetImage;
                 }
 
                 if ($assetEditId > 0) {

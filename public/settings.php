@@ -308,7 +308,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
         $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
         $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
-        $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
+    $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
+    $app['catalogue_cache_ttl'] = max(0, (int)$post('app_catalogue_cache_ttl', $app['catalogue_cache_ttl'] ?? 0));
 
         $catalogue = $config['catalogue'] ?? [];
         $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -941,6 +942,15 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                                 <div class="form-text mt-1">
                                     When enabled, users with overdue assets cannot access the catalogue until items are returned.
                                 </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Catalogue cache TTL (seconds)</label>
+                                <input type="number"
+                                       name="app_catalogue_cache_ttl"
+                                       min="0"
+                                       class="form-control"
+                                       value="<?= (int)$cfg(['app', 'catalogue_cache_ttl'], 0) ?>">
+                                <div class="form-text">Set to 0 to disable cached overdue checks.</div>
                             </div>
                         </div>
                     </div>
