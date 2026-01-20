@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $count = count($validIds);
                     $messages[] = "Checked in {$count} asset(s).";
-                    activity_log_event('asset_checkin', 'Reservation Checkin Completed', [
+                    activity_log_event('asset_checkin', 'Assets Checked in by User', [
                         'metadata' => [
                             'count' => $count,
                             'assets' => $labels,
