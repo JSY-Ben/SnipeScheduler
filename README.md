@@ -10,7 +10,7 @@ Please note - this app is still in a beta stage of development as a product. It 
 
 KitGrab is a PHP/MySQL web app for equipment booking, checkout workflows, and asset tracking. It uses its own local asset model and asset inventory database and stores users locally (created automatically when they sign in).
 
-Authentication is handled via LDAP, Google OAuth or Microsoft Entra OAuth. When a user signs in, they are added to the local user database automatically. There is currently no local signup/login flow.
+Authentication supports local accounts plus LDAP, Google OAuth, or Microsoft Entra OAuth. The installer creates an initial local admin account. When users sign in via external providers, they are added to the local user database automatically.
 
 In the app, users can request equipment, and staff can manage reservations, checkouts, and checked-out assets from a unified "Reservations" hub.
 
@@ -31,8 +31,9 @@ In the app, users can request equipment, and staff can manage reservations, chec
 2. Ensure the web server user can write to `config/` (for `config.php`).
 3. Point your web server at the `public/` directory.
 4. Visit https://www.yourinstallation.com/install/ in your browser:
-   - Fill in database details and at least one of the authentication (LDAP/Google/Entra) methods (tests are available inline).
+   - Fill in database details and create the initial local admin account.
    - Generate `config/config.php` and optionally create the database from `public/install/schema.sql`.
+   - Configure LDAP/Google/Entra later in the Admin Settings page if needed.
    - Remove or restrict access to `public/install` after successful setup.
 5. If you prefer manual configuration, copy `config/config.example.php` to `config/config.php` and update values. Then import `public/install/schema.sql` into your database.
 
@@ -56,7 +57,7 @@ In the app, users can request equipment, and staff can manage reservations, chec
 
 ## Setting up Admins/Staff
 
-This app uses LDAP, Google OAuth or Microsoft Entra for authentication. When installing this app, add users/groups in the initial config that should be admins or staff. Standard users only have access to reservations, whereas specified groups/users assigned to the staff section can checkout/checkin equipment.
+This app supports local accounts plus LDAP, Google OAuth, or Microsoft Entra. During installation you create the first local admin. After install, define admins/staff via local users or external groups/emails in the settings page. Standard users only have access to reservations, whereas specified staff can checkout/checkin equipment.
 
 ## CRON Scripts
 

@@ -217,208 +217,278 @@ function layout_test_ldap(array $ldap): string
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
-    $post = static function (string $key, $fallback = '') {
-        return trim($_POST[$key] ?? $fallback);
-    };
+    if ($action === 'create_user') {
+        $email = strtolower(trim($_POST['new_user_email'] ?? ''));
+        $name = trim($_POST['new_user_name'] ?? '');
+        $username = trim($_POST['new_user_username'] ?? '');
+        $password = $_POST['new_user_password'] ?? '';
+        $isAdmin = isset($_POST['new_user_is_admin']);
+        $isStaff = isset($_POST['new_user_is_staff']) || $isAdmin;
 
-    $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
-
-    $useRawSecrets = $action !== 'save';
-
-    $db = $config['db_booking'] ?? [];
-    $db['host']     = $post('db_host', $db['host'] ?? 'localhost');
-    $db['port']     = (int)$post('db_port', $db['port'] ?? 3306);
-    $db['dbname']   = $post('db_name', $db['dbname'] ?? '');
-    $db['username'] = $post('db_username', $db['username'] ?? '');
-    $dbPassInput    = $_POST['db_password'] ?? '';
-    if ($useRawSecrets) {
-        $db['password'] = $dbPassInput;
-    } else {
-        $db['password'] = $dbPassInput === '' ? ($loadedConfig['db_booking']['password'] ?? '') : $dbPassInput;
-    }
-    $db['charset']  = $post('db_charset', $db['charset'] ?? 'utf8mb4');
-
-    $ldap = $config['ldap'] ?? [];
-    $ldap['host']          = $post('ldap_host', $ldap['host'] ?? 'ldaps://');
-    $ldap['base_dn']       = $post('ldap_base_dn', $ldap['base_dn'] ?? '');
-    $ldap['bind_dn']       = $post('ldap_bind_dn', $ldap['bind_dn'] ?? '');
-    $ldapPassInput         = $_POST['ldap_bind_password'] ?? '';
-    if ($useRawSecrets) {
-        $ldap['bind_password'] = $ldapPassInput;
-    } else {
-        $ldap['bind_password'] = $ldapPassInput === '' ? ($loadedConfig['ldap']['bind_password'] ?? '') : $ldapPassInput;
-    }
-    $ldap['ignore_cert']   = isset($_POST['ldap_ignore_cert']);
-
-    $auth = $config['auth'] ?? [];
-    $auth['ldap_enabled']        = isset($_POST['auth_ldap_enabled']);
-    $auth['google_oauth_enabled'] = isset($_POST['auth_google_enabled']);
-    $auth['microsoft_oauth_enabled'] = isset($_POST['auth_microsoft_enabled']);
-    $adminCnsRaw     = $post('admin_group_cn', '');
-    $checkoutCnsRaw  = $post('checkout_group_cn', '');
-    $adminGroupCns    = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $adminCnsRaw))));
-    $checkoutGroupCns = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $checkoutCnsRaw))));
-    $auth['admin_group_cn'] = $adminGroupCns;
-    $auth['checkout_group_cn'] = $checkoutGroupCns;
-
-    $googleAdminRaw = $post('google_admin_emails', '');
-    $googleCheckoutRaw = $post('google_checkout_emails', '');
-    $googleAdminList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleAdminRaw))));
-    $googleCheckoutList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleCheckoutRaw))));
-    $auth['google_admin_emails'] = $googleAdminList;
-    $auth['google_checkout_emails'] = $googleCheckoutList;
-
-    $msAdminRaw = $post('microsoft_admin_emails', '');
-    $msCheckoutRaw = $post('microsoft_checkout_emails', '');
-    $msAdminList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msAdminRaw))));
-    $msCheckoutList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msCheckoutRaw))));
-    $auth['microsoft_admin_emails'] = $msAdminList;
-    $auth['microsoft_checkout_emails'] = $msCheckoutList;
-
-    $google = $config['google_oauth'] ?? [];
-    $google['client_id']     = $post('google_client_id', $google['client_id'] ?? '');
-    $googleSecretInput       = $_POST['google_client_secret'] ?? '';
-    if ($useRawSecrets) {
-        $google['client_secret'] = $googleSecretInput;
-    } else {
-        $google['client_secret'] = $googleSecretInput === '' ? ($loadedConfig['google_oauth']['client_secret'] ?? '') : $googleSecretInput;
-    }
-    $google['redirect_uri']  = $post('google_redirect_uri', $google['redirect_uri'] ?? '');
-    $domainsRaw = $post('google_allowed_domains', '');
-    $google['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $domainsRaw))));
-
-    $ms = $config['microsoft_oauth'] ?? [];
-    $ms['client_id']     = $post('microsoft_client_id', $ms['client_id'] ?? '');
-    $msSecretInput       = $_POST['microsoft_client_secret'] ?? '';
-    if ($useRawSecrets) {
-        $ms['client_secret'] = $msSecretInput;
-    } else {
-        $ms['client_secret'] = $msSecretInput === '' ? ($loadedConfig['microsoft_oauth']['client_secret'] ?? '') : $msSecretInput;
-    }
-    $ms['tenant']        = $post('microsoft_tenant', $ms['tenant'] ?? '');
-    $ms['redirect_uri']  = $post('microsoft_redirect_uri', $ms['redirect_uri'] ?? '');
-    $msDomainsRaw = $post('microsoft_allowed_domains', '');
-    $ms['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
-
-    $app = $config['app'] ?? [];
-    $app['timezone']              = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
-    $app['debug']                 = isset($_POST['app_debug']);
-    $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
-    $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
-    $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
-    $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
-    $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
-    $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
-
-    $catalogue = $config['catalogue'] ?? [];
-    $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
-    $allowedCategories = [];
-    if (is_array($allowedRaw)) {
-        foreach ($allowedRaw as $cid) {
-            if (ctype_digit((string)$cid)) {
-                $allowedCategories[] = (int)$cid;
-            }
+        if ($email === '') {
+            $errors[] = 'User email is required.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'User email is not valid.';
         }
-    }
-    $catalogue['allowed_categories'] = $allowedCategories;
 
-    $smtp = $config['smtp'] ?? [];
-    $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
-    $smtp['port']       = (int)$post('smtp_port', $smtp['port'] ?? 587);
-    $smtp['username']   = $post('smtp_username', $smtp['username'] ?? '');
-    $smtpPassInput      = $_POST['smtp_password'] ?? '';
-    $smtp['password']   = $smtpPassInput === '' ? ($config['smtp']['password'] ?? '') : $smtpPassInput;
-    $smtp['encryption'] = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
-    $smtp['auth_method'] = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
-    $smtp['from_email'] = $post('smtp_from_email', $smtp['from_email'] ?? '');
-    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? ($config['app']['name'] ?? 'KitGrab'));
-
-    $newConfig = $config;
-    $newConfig['db_booking'] = $db;
-    $newConfig['ldap']       = $ldap;
-    $newConfig['auth']       = $auth;
-    $newConfig['google_oauth'] = $google;
-    $newConfig['microsoft_oauth'] = $ms;
-    $newConfig['app']        = $app;
-    $newConfig['catalogue']  = $catalogue;
-    $newConfig['smtp']       = $smtp;
-
-    // Keep posted values in the form
-    $config        = $newConfig;
-    $definedValues = [
-        'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
-    ];
-
-    if ($action === 'test_db') {
-        try {
-            $messages[] = layout_test_db_connection($db);
-        } catch (Throwable $e) {
-            $errors[] = 'Database test failed: ' . $e->getMessage();
-        }
-    } elseif ($action === 'test_microsoft') {
-        try {
-            $messages[] = layout_test_microsoft_oauth($ms, $auth);
-        } catch (Throwable $e) {
-            $errors[] = 'Microsoft OAuth test failed: ' . $e->getMessage();
-        }
-    } elseif ($action === 'test_google') {
-        try {
-            $messages[] = layout_test_google_oauth($google, $auth);
-        } catch (Throwable $e) {
-            $errors[] = 'Google OAuth test failed: ' . $e->getMessage();
-        }
-    } elseif ($action === 'test_ldap') {
-        try {
-            $messages[] = layout_test_ldap($ldap);
-        } catch (Throwable $e) {
-            $errors[] = 'LDAP test failed: ' . $e->getMessage();
-        }
-    } elseif ($action === 'test_smtp') {
-        try {
-            if (empty($smtp['host']) || empty($smtp['from_email'])) {
-                throw new Exception('SMTP host and from email are required.');
-            }
-            $targetEmail = $smtp['from_email'];
-            $targetName  = $smtp['from_name'] ?? $targetEmail;
-            $sent = layout_send_notification(
-                $targetEmail,
-                $targetName,
-                'KitGrab SMTP test',
-                ['This is a test email from KitGrab SMTP settings.'],
-                ['smtp' => $smtp] + $config
+        if (!$errors) {
+            $dbCfg = $config['db_booking'] ?? [];
+            $dsn = sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+                $dbCfg['host'] ?? 'localhost',
+                (int)($dbCfg['port'] ?? 3306),
+                $dbCfg['dbname'] ?? '',
+                $dbCfg['charset'] ?? 'utf8mb4'
             );
-            if ($sent) {
-                $messages[] = 'SMTP test email sent to ' . $targetEmail . '.';
-            } else {
-                throw new Exception('SMTP send failed (see logs).');
+
+            try {
+                $pdo = new PDO($dsn, $dbCfg['username'] ?? '', $dbCfg['password'] ?? '', [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                ]);
+                $userId = sprintf('%u', crc32($email));
+                $checkStmt = $pdo->prepare('SELECT password_hash FROM users WHERE email = :email LIMIT 1');
+                $checkStmt->execute([':email' => $email]);
+                $existing = $checkStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+                if ($password === '' && !$existing) {
+                    throw new Exception('User password is required for new users.');
+                }
+
+                $passwordHash = $password !== ''
+                    ? password_hash($password, PASSWORD_DEFAULT)
+                    : ($existing['password_hash'] ?? null);
+                $nameValue = $name !== '' ? $name : $email;
+                $usernameValue = $username !== '' ? $username : null;
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, created_at)
+                    VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        username = VALUES(username),
+                        is_admin = VALUES(is_admin),
+                        is_staff = VALUES(is_staff),
+                        password_hash = VALUES(password_hash)
+                ");
+                $stmt->execute([
+                    ':user_id' => $userId,
+                    ':name' => $nameValue,
+                    ':email' => $email,
+                    ':username' => $usernameValue,
+                    ':is_admin' => $isAdmin ? 1 : 0,
+                    ':is_staff' => $isStaff ? 1 : 0,
+                    ':password_hash' => $passwordHash,
+                ]);
+
+                $messages[] = 'User saved successfully.';
+            } catch (Throwable $e) {
+                $errors[] = 'User creation failed: ' . $e->getMessage();
             }
-        } catch (Throwable $e) {
-            $errors[] = 'SMTP test failed: ' . $e->getMessage();
         }
     } else {
-        $content = layout_build_config_file($newConfig, [
-            'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
-        ]);
+        $post = static function (string $key, $fallback = '') {
+            return trim($_POST[$key] ?? $fallback);
+        };
 
-        if (!is_dir(CONFIG_PATH)) {
-            @mkdir(CONFIG_PATH, 0755, true);
-        }
+        $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
 
-        if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
-            $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
+        $useRawSecrets = $action !== 'save';
+
+        $db = $config['db_booking'] ?? [];
+        $db['host']     = $post('db_host', $db['host'] ?? 'localhost');
+        $db['port']     = (int)$post('db_port', $db['port'] ?? 3306);
+        $db['dbname']   = $post('db_name', $db['dbname'] ?? '');
+        $db['username'] = $post('db_username', $db['username'] ?? '');
+        $dbPassInput    = $_POST['db_password'] ?? '';
+        if ($useRawSecrets) {
+            $db['password'] = $dbPassInput;
         } else {
-            $messages[] = 'Config saved successfully.';
+            $db['password'] = $dbPassInput === '' ? ($loadedConfig['db_booking']['password'] ?? '') : $dbPassInput;
         }
-    }
+        $db['charset']  = $post('db_charset', $db['charset'] ?? 'utf8mb4');
 
-    if ($isAjax && $action !== 'save') {
-        header('Content-Type: application/json');
-        echo json_encode([
-            'ok'       => empty($errors),
-            'messages' => $messages,
-            'errors'   => $errors,
-        ]);
-        exit;
+        $ldap = $config['ldap'] ?? [];
+        $ldap['host']          = $post('ldap_host', $ldap['host'] ?? 'ldaps://');
+        $ldap['base_dn']       = $post('ldap_base_dn', $ldap['base_dn'] ?? '');
+        $ldap['bind_dn']       = $post('ldap_bind_dn', $ldap['bind_dn'] ?? '');
+        $ldapPassInput         = $_POST['ldap_bind_password'] ?? '';
+        if ($useRawSecrets) {
+            $ldap['bind_password'] = $ldapPassInput;
+        } else {
+            $ldap['bind_password'] = $ldapPassInput === '' ? ($loadedConfig['ldap']['bind_password'] ?? '') : $ldapPassInput;
+        }
+        $ldap['ignore_cert']   = isset($_POST['ldap_ignore_cert']);
+
+        $auth = $config['auth'] ?? [];
+        $auth['ldap_enabled']        = isset($_POST['auth_ldap_enabled']);
+        $auth['google_oauth_enabled'] = isset($_POST['auth_google_enabled']);
+        $auth['microsoft_oauth_enabled'] = isset($_POST['auth_microsoft_enabled']);
+        $adminCnsRaw     = $post('admin_group_cn', '');
+        $checkoutCnsRaw  = $post('checkout_group_cn', '');
+        $adminGroupCns    = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $adminCnsRaw))));
+        $checkoutGroupCns = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $checkoutCnsRaw))));
+        $auth['admin_group_cn'] = $adminGroupCns;
+        $auth['checkout_group_cn'] = $checkoutGroupCns;
+
+        $googleAdminRaw = $post('google_admin_emails', '');
+        $googleCheckoutRaw = $post('google_checkout_emails', '');
+        $googleAdminList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleAdminRaw))));
+        $googleCheckoutList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleCheckoutRaw))));
+        $auth['google_admin_emails'] = $googleAdminList;
+        $auth['google_checkout_emails'] = $googleCheckoutList;
+
+        $msAdminRaw = $post('microsoft_admin_emails', '');
+        $msCheckoutRaw = $post('microsoft_checkout_emails', '');
+        $msAdminList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msAdminRaw))));
+        $msCheckoutList = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msCheckoutRaw))));
+        $auth['microsoft_admin_emails'] = $msAdminList;
+        $auth['microsoft_checkout_emails'] = $msCheckoutList;
+
+        $google = $config['google_oauth'] ?? [];
+        $google['client_id']     = $post('google_client_id', $google['client_id'] ?? '');
+        $googleSecretInput       = $_POST['google_client_secret'] ?? '';
+        if ($useRawSecrets) {
+            $google['client_secret'] = $googleSecretInput;
+        } else {
+            $google['client_secret'] = $googleSecretInput === '' ? ($loadedConfig['google_oauth']['client_secret'] ?? '') : $googleSecretInput;
+        }
+        $google['redirect_uri']  = $post('google_redirect_uri', $google['redirect_uri'] ?? '');
+        $domainsRaw = $post('google_allowed_domains', '');
+        $google['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $domainsRaw))));
+
+        $ms = $config['microsoft_oauth'] ?? [];
+        $ms['client_id']     = $post('microsoft_client_id', $ms['client_id'] ?? '');
+        $msSecretInput       = $_POST['microsoft_client_secret'] ?? '';
+        if ($useRawSecrets) {
+            $ms['client_secret'] = $msSecretInput;
+        } else {
+            $ms['client_secret'] = $msSecretInput === '' ? ($loadedConfig['microsoft_oauth']['client_secret'] ?? '') : $msSecretInput;
+        }
+        $ms['tenant']        = $post('microsoft_tenant', $ms['tenant'] ?? '');
+        $ms['redirect_uri']  = $post('microsoft_redirect_uri', $ms['redirect_uri'] ?? '');
+        $msDomainsRaw = $post('microsoft_allowed_domains', '');
+        $ms['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
+
+        $app = $config['app'] ?? [];
+        $app['timezone']              = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
+        $app['debug']                 = isset($_POST['app_debug']);
+        $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
+        $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
+        $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
+        $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
+        $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
+        $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
+
+        $catalogue = $config['catalogue'] ?? [];
+        $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
+        $allowedCategories = [];
+        if (is_array($allowedRaw)) {
+            foreach ($allowedRaw as $cid) {
+                if (ctype_digit((string)$cid)) {
+                    $allowedCategories[] = (int)$cid;
+                }
+            }
+        }
+        $catalogue['allowed_categories'] = $allowedCategories;
+
+        $smtp = $config['smtp'] ?? [];
+        $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
+        $smtp['port']       = (int)$post('smtp_port', $smtp['port'] ?? 587);
+        $smtp['username']   = $post('smtp_username', $smtp['username'] ?? '');
+        $smtpPassInput      = $_POST['smtp_password'] ?? '';
+        $smtp['password']   = $smtpPassInput === '' ? ($config['smtp']['password'] ?? '') : $smtpPassInput;
+        $smtp['encryption'] = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
+        $smtp['auth_method'] = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
+        $smtp['from_email'] = $post('smtp_from_email', $smtp['from_email'] ?? '');
+        $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? ($config['app']['name'] ?? 'KitGrab'));
+
+        $newConfig = $config;
+        $newConfig['db_booking'] = $db;
+        $newConfig['ldap']       = $ldap;
+        $newConfig['auth']       = $auth;
+        $newConfig['google_oauth'] = $google;
+        $newConfig['microsoft_oauth'] = $ms;
+        $newConfig['app']        = $app;
+        $newConfig['catalogue']  = $catalogue;
+        $newConfig['smtp']       = $smtp;
+
+        // Keep posted values in the form
+        $config        = $newConfig;
+        $definedValues = [
+            'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
+        ];
+
+        if ($action === 'test_db') {
+            try {
+                $messages[] = layout_test_db_connection($db);
+            } catch (Throwable $e) {
+                $errors[] = 'Database test failed: ' . $e->getMessage();
+            }
+        } elseif ($action === 'test_microsoft') {
+            try {
+                $messages[] = layout_test_microsoft_oauth($ms, $auth);
+            } catch (Throwable $e) {
+                $errors[] = 'Microsoft OAuth test failed: ' . $e->getMessage();
+            }
+        } elseif ($action === 'test_google') {
+            try {
+                $messages[] = layout_test_google_oauth($google, $auth);
+            } catch (Throwable $e) {
+                $errors[] = 'Google OAuth test failed: ' . $e->getMessage();
+            }
+        } elseif ($action === 'test_ldap') {
+            try {
+                $messages[] = layout_test_ldap($ldap);
+            } catch (Throwable $e) {
+                $errors[] = 'LDAP test failed: ' . $e->getMessage();
+            }
+        } elseif ($action === 'test_smtp') {
+            try {
+                if (empty($smtp['host']) || empty($smtp['from_email'])) {
+                    throw new Exception('SMTP host and from email are required.');
+                }
+                $targetEmail = $smtp['from_email'];
+                $targetName  = $smtp['from_name'] ?? $targetEmail;
+                $sent = layout_send_notification(
+                    $targetEmail,
+                    $targetName,
+                    'KitGrab SMTP test',
+                    ['This is a test email from KitGrab SMTP settings.'],
+                    ['smtp' => $smtp] + $config
+                );
+                if ($sent) {
+                    $messages[] = 'SMTP test email sent to ' . $targetEmail . '.';
+                } else {
+                    throw new Exception('SMTP send failed (see logs).');
+                }
+            } catch (Throwable $e) {
+                $errors[] = 'SMTP test failed: ' . $e->getMessage();
+            }
+        } else {
+            $content = layout_build_config_file($newConfig, [
+                'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
+            ]);
+
+            if (!is_dir(CONFIG_PATH)) {
+                @mkdir(CONFIG_PATH, 0755, true);
+            }
+
+            if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
+                $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
+            } else {
+                $messages[] = 'Config saved successfully.';
+            }
+        }
+
+        if ($isAjax && $action !== 'save') {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'ok'       => empty($errors),
+                'messages' => $messages,
+                'errors'   => $errors,
+            ]);
+            exit;
+        }
     }
 }
 
@@ -754,6 +824,49 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="ms-test-result"></div>
                             <button type="button" name="action" value="test_microsoft" class="btn btn-outline-primary btn-sm" data-test-action="test_microsoft" data-target="ms-test-result">Test Microsoft OAuth</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card" id="admin-users">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Users</h5>
+                        <p class="text-muted small mb-3">Create or update a local user account. Email is required and must be unique.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Email</label>
+                                <input type="email" name="new_user_email" class="form-control" placeholder="user@example.com" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Display name (optional)</label>
+                                <input type="text" name="new_user_name" class="form-control" placeholder="User Name">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Username (optional)</label>
+                                <input type="text" name="new_user_username" class="form-control" placeholder="username">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="new_user_password" class="form-control" placeholder="Set a password">
+                                <div class="form-text">Leave blank to keep the existing password. Strong passwords are recommended.</div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="new_user_is_admin" id="new_user_is_admin">
+                                    <label class="form-check-label" for="new_user_is_admin">Admin</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="new_user_is_staff" id="new_user_is_staff">
+                                    <label class="form-check-label" for="new_user_is_staff">Staff</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end align-items-center mt-3">
+                            <button type="submit" name="action" value="create_user" class="btn btn-outline-primary">Create/Update User</button>
                         </div>
                     </div>
                 </div>

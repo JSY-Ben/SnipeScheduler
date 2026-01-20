@@ -291,49 +291,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $dbPass    = $dbPassRaw;
         $dbCharset = $post('db_charset', 'utf8mb4');
 
-        $ldapHost   = $post('ldap_host', 'ldaps://');
-        $ldapBase   = $post('ldap_base_dn', '');
-        $ldapBind   = $post('ldap_bind_dn', '');
-        $ldapPassRaw = $_POST['ldap_bind_password'] ?? '';
-        $ldapPass    = $ldapPassRaw;
-        $ldapIgnore  = isset($_POST['ldap_ignore_cert']);
-        $authLdapEnabled   = isset($_POST['auth_ldap_enabled']);
-        $authGoogleEnabled = isset($_POST['auth_google_enabled']);
-        $googleClientId    = $post('google_client_id', '');
-        $googleClientSecret = $_POST['google_client_secret'] ?? '';
-        $googleRedirectUri = $post('google_redirect_uri', '');
-        $googleDomainsRaw  = $post('google_allowed_domains', '');
-        $googleAdminRaw    = $post('google_admin_emails', '');
-        $googleCheckoutRaw = $post('google_checkout_emails', '');
-        $googleAllowedDomains = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleDomainsRaw))));
-        $googleAdminEmails    = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleAdminRaw))));
-        $googleCheckoutEmails = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $googleCheckoutRaw))));
-        $msClientId    = $post('microsoft_client_id', '');
-        $msClientSecret = $_POST['microsoft_client_secret'] ?? '';
-        $msTenant       = $post('microsoft_tenant', '');
-        $msRedirectUri  = $post('microsoft_redirect_uri', '');
-        $msDomainsRaw   = $post('microsoft_allowed_domains', '');
-        $msAdminRaw     = $post('microsoft_admin_emails', '');
-        $msCheckoutRaw  = $post('microsoft_checkout_emails', '');
-        $msAllowedDomains = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
-        $msAdminEmails    = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msAdminRaw))));
-        $msCheckoutEmails = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msCheckoutRaw))));
-        $localAdminEnabled = isset($_POST['local_admin_enabled']);
-        $localAdminEmail = strtolower(trim($_POST['local_admin_email'] ?? ''));
-        $localAdminName = trim($_POST['local_admin_name'] ?? '');
-        $localAdminUsername = trim($_POST['local_admin_username'] ?? '');
+        $adminEmail = strtolower(trim($_POST['admin_email'] ?? ''));
+        $adminName = trim($_POST['admin_name'] ?? '');
+        $adminUsername = trim($_POST['admin_username'] ?? '');
+        $adminPassword = $_POST['admin_password'] ?? '';
 
-        if ($action === 'save' && $localAdminEnabled) {
-            if ($localAdminEmail === '') {
-                $errors[] = 'Local admin email is required when creating a local admin account.';
-            } elseif (!filter_var($localAdminEmail, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = 'Local admin email is not a valid email address.';
+        if ($action === 'save') {
+            if ($adminEmail === '') {
+                $errors[] = 'Admin email is required.';
+            } elseif (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Admin email is not a valid email address.';
+            }
+            if ($adminPassword === '') {
+                $errors[] = 'Admin password is required.';
             }
         }
 
         // Defaults for omitted settings
-        $adminCns   = [];
-        $checkoutCns = [];
         $timezone    = 'Europe/Jersey';
         $debug       = true;
         $logoUrl     = '';
@@ -351,33 +325,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'charset'  => $dbCharset,
         ];
         $newConfig['ldap'] = [
-            'host'          => $ldapHost,
-            'base_dn'       => $ldapBase,
-            'bind_dn'       => $ldapBind,
-            'bind_password' => $ldapPass,
-            'ignore_cert'   => $ldapIgnore,
+            'host'          => 'ldaps://',
+            'base_dn'       => '',
+            'bind_dn'       => '',
+            'bind_password' => '',
+            'ignore_cert'   => true,
         ];
-        $newConfig['auth']['ldap_enabled']           = $authLdapEnabled;
-        $newConfig['auth']['google_oauth_enabled']   = $authGoogleEnabled;
-        $newConfig['auth']['microsoft_oauth_enabled'] = isset($_POST['auth_microsoft_enabled']);
-        $newConfig['auth']['admin_group_cn']         = $adminCns;
-        $newConfig['auth']['checkout_group_cn']      = $checkoutCns;
-        $newConfig['auth']['google_admin_emails']    = $googleAdminEmails;
-        $newConfig['auth']['google_checkout_emails'] = $googleCheckoutEmails;
-        $newConfig['auth']['microsoft_admin_emails'] = $msAdminEmails;
-        $newConfig['auth']['microsoft_checkout_emails'] = $msCheckoutEmails;
+        $newConfig['auth']['ldap_enabled']             = false;
+        $newConfig['auth']['google_oauth_enabled']     = false;
+        $newConfig['auth']['microsoft_oauth_enabled']  = false;
+        $newConfig['auth']['admin_group_cn']           = [];
+        $newConfig['auth']['checkout_group_cn']        = [];
+        $newConfig['auth']['google_admin_emails']      = [];
+        $newConfig['auth']['google_checkout_emails']   = [];
+        $newConfig['auth']['microsoft_admin_emails']   = [];
+        $newConfig['auth']['microsoft_checkout_emails'] = [];
         $newConfig['google_oauth'] = [
-            'client_id'       => $googleClientId,
-            'client_secret'   => $googleClientSecret,
-            'redirect_uri'    => $googleRedirectUri,
-            'allowed_domains' => $googleAllowedDomains,
+            'client_id'       => '',
+            'client_secret'   => '',
+            'redirect_uri'    => '',
+            'allowed_domains' => [],
         ];
         $newConfig['microsoft_oauth'] = [
-            'client_id'       => $msClientId,
-            'client_secret'   => $msClientSecret,
-            'tenant'          => $msTenant,
-            'redirect_uri'    => $msRedirectUri,
-            'allowed_domains' => $msAllowedDomains,
+            'client_id'       => '',
+            'client_secret'   => '',
+            'tenant'          => '',
+            'redirect_uri'    => '',
+            'allowed_domains' => [],
         ];
         $newConfig['app'] = [
             'name'                  => 'KitGrab',
@@ -405,12 +379,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             try {
                 if ($action === 'test_db') {
                     $messages[] = installer_test_db($newConfig['db_booking']);
-                } elseif ($action === 'test_microsoft') {
-                    $messages[] = installer_test_microsoft($newConfig['microsoft_oauth'], $newConfig['auth']);
-                } elseif ($action === 'test_google') {
-                    $messages[] = installer_test_google($newConfig['google_oauth'], $newConfig['auth']);
-                } elseif ($action === 'test_ldap') {
-                    $messages[] = installer_test_ldap($newConfig['ldap']);
                 } elseif ($action === 'test_smtp') {
                     $smtp = $newConfig['smtp'];
                     if (empty($smtp['host']) || empty($smtp['from_email'])) {
@@ -487,31 +455,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             }
         }
 
-        if (!$errors && $localAdminEnabled && $localAdminEmail !== '') {
+        if (!$errors) {
             $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', $dbHost, $dbPort, $dbName, $dbCharset);
             try {
                 $pdo = new PDO($dsn, $dbUser, $dbPass, [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 ]);
-                $adminEmail = $localAdminEmail;
-                $adminName = $localAdminName !== '' ? $localAdminName : $adminEmail;
-                $adminUsername = $localAdminUsername !== '' ? $localAdminUsername : null;
+                $adminNameValue = $adminName !== '' ? $adminName : $adminEmail;
+                $adminUsernameValue = $adminUsername !== '' ? $adminUsername : null;
                 $adminUserId = sprintf('%u', crc32($adminEmail));
+                $passwordHash = password_hash($adminPassword, PASSWORD_DEFAULT);
 
                 $stmt = $pdo->prepare("
-                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, created_at)
-                    VALUES (:user_id, :name, :email, :username, 1, 1, NOW())
+                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, created_at)
+                    VALUES (:user_id, :name, :email, :username, 1, 1, :password_hash, NOW())
                     ON DUPLICATE KEY UPDATE
                         name = VALUES(name),
                         username = VALUES(username),
                         is_admin = 1,
-                        is_staff = 1
+                        is_staff = 1,
+                        password_hash = VALUES(password_hash)
                 ");
                 $stmt->execute([
                     ':user_id' => $adminUserId,
-                    ':name' => $adminName,
+                    ':name' => $adminNameValue,
                     ':email' => $adminEmail,
-                    ':username' => $adminUsername,
+                    ':username' => $adminUsernameValue,
+                    ':password_hash' => $passwordHash,
                 ]);
 
                 $messages[] = 'Local admin account created in the users table.';
@@ -538,61 +508,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
 $pref = static function (array $path, $fallback = '') use ($prefillConfig) {
     return installer_value($prefillConfig, $path, $fallback);
 };
-$adminPref = $pref(['auth', 'admin_group_cn'], []);
-if (!is_array($adminPref)) {
-    $adminPref = [];
-}
-$adminText = implode("\n", $adminPref);
-$checkoutPref = $pref(['auth', 'checkout_group_cn'], []);
-if (!is_array($checkoutPref)) {
-    $checkoutPref = [];
-}
-$checkoutText = implode("\n", $checkoutPref);
-$googleAdminPref = $pref(['auth', 'google_admin_emails'], []);
-if (!is_array($googleAdminPref)) {
-    $googleAdminPref = [];
-}
-$googleAdminText = implode("\n", $googleAdminPref);
-$googleCheckoutPref = $pref(['auth', 'google_checkout_emails'], []);
-if (!is_array($googleCheckoutPref)) {
-    $googleCheckoutPref = [];
-}
-$googleCheckoutText = implode("\n", $googleCheckoutPref);
-$msAdminPref = $pref(['auth', 'microsoft_admin_emails'], []);
-if (!is_array($msAdminPref)) {
-    $msAdminPref = [];
-}
-$msAdminText = implode("\n", $msAdminPref);
-$msCheckoutPref = $pref(['auth', 'microsoft_checkout_emails'], []);
-if (!is_array($msCheckoutPref)) {
-    $msCheckoutPref = [];
-}
-$msCheckoutText = implode("\n", $msCheckoutPref);
-$localAdminEnabledPref = !empty($_POST['local_admin_enabled']);
-$localAdminEmailPref = $_POST['local_admin_email'] ?? '';
-$localAdminNamePref = $_POST['local_admin_name'] ?? '';
-$localAdminUsernamePref = $_POST['local_admin_username'] ?? '';
-$googleDomainsPref = $pref(['google_oauth', 'allowed_domains'], []);
-if (!is_array($googleDomainsPref)) {
-    $googleDomainsPref = [];
-}
-$googleDomainsText = implode("\n", $googleDomainsPref);
-$msDomainsPref = $pref(['microsoft_oauth', 'allowed_domains'], []);
-if (!is_array($msDomainsPref)) {
-    $msDomainsPref = [];
-}
-$msDomainsText = implode("\n", $msDomainsPref);
-
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host   = $_SERVER['HTTP_HOST'] ?? '';
-$dir    = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
-$dir    = ($dir === '' || $dir === '.') ? '' : $dir;
-$googleRedirectDefault = $host
-    ? $scheme . '://' . $host . $dir . '/login_process.php?provider=google'
-    : 'https://your-app-domain/login_process.php?provider=google';
-$msRedirectDefault = $host
-    ? $scheme . '://' . $host . $dir . '/login_process.php?provider=microsoft'
-    : 'https://your-app-domain/login_process.php?provider=microsoft';
+$adminEmailPref = $_POST['admin_email'] ?? '';
+$adminNamePref = $_POST['admin_name'] ?? '';
+$adminUsernamePref = $_POST['admin_username'] ?? '';
 
 ?>
 <!DOCTYPE html>
@@ -749,182 +667,25 @@ $msRedirectDefault = $host
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">Authentication</h5>
-                        <p class="text-muted small mb-3">Configure sign-in methods below. Toggle each method on/off and add its settings.</p>
-
-                        <h6 class="mt-2 pb-1 border-bottom text-uppercase fw-bold border-3 border-primary border-start ps-2">LDAP / Active Directory</h6>
+                        <h5 class="card-title mb-1">Admin account</h5>
+                        <p class="text-muted small mb-3">Create the first local administrator account. You can add LDAP/Google/Microsoft sign-in later in Settings.</p>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="auth_ldap_enabled" id="auth_ldap_enabled" <?= $pref(['auth', 'ldap_enabled'], true) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="auth_ldap_enabled">Enable LDAP sign-in</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">LDAP host (e.g. ldaps://host)</label>
-                                <input type="text" name="ldap_host" class="form-control" value="<?= installer_h($pref(['ldap', 'host'], 'ldaps://')) ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Base DN</label>
-                                <input type="text" name="ldap_base_dn" class="form-control" value="<?= installer_h($pref(['ldap', 'base_dn'], '')) ?>" placeholder="dc=company,dc=local">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Bind DN (service account)</label>
-                                <input type="text" name="ldap_bind_dn" class="form-control" value="<?= installer_h($pref(['ldap', 'bind_dn'], '')) ?>" placeholder="CN=binduser,CN=Users,DC=company,DC=local">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Bind password</label>
-                                <input type="password" name="ldap_bind_password" class="form-control">
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="ldap_ignore_cert" id="ldap_ignore_cert" <?= $pref(['ldap', 'ignore_cert'], true) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="ldap_ignore_cert">Ignore SSL certificate errors</label>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">LDAP/AD Administrators Group(s)</label>
-                                <textarea name="admin_group_cn" rows="3" class="form-control" placeholder="ICT Admins&#10;Another Admin Group"><?= installer_h($adminText) ?></textarea>
-                                <div class="form-text">Comma or newline separated group names with full admin access.</div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">LDAP/AD Checkout Staff Group(s)</label>
-                                <textarea name="checkout_group_cn" rows="3" class="form-control" placeholder="Checkout Staff&#10;Equipment Desk"><?= installer_h($checkoutText) ?></textarea>
-                                <div class="form-text">Comma or newline separated group names for staff who can use all features except Admin.</div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="small text-muted" id="ldap-test-result"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_ldap" data-target="ldap-test-result">Test LDAP connection</button>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <h6 class="mt-4 pb-1 border-bottom text-uppercase fw-bold border-3 border-success border-start ps-2">Google OAuth</h6>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="auth_google_enabled" id="auth_google_enabled" <?= $pref(['auth', 'google_oauth_enabled'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="auth_google_enabled">Enable Google OAuth sign-in</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-1">
-                            <div class="col-md-6">
-                                <label class="form-label">Google Client ID</label>
-                                <input type="text" name="google_client_id" class="form-control" value="<?= installer_h($pref(['google_oauth', 'client_id'], '')) ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Google Client Secret</label>
-                                <input type="password" name="google_client_secret" class="form-control">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Redirect URI (optional)</label>
-                                <input type="text" name="google_redirect_uri" class="form-control" value="<?= installer_h($pref(['google_oauth', 'redirect_uri'], '')) ?>" placeholder="<?= installer_h($googleRedirectDefault) ?>">
-                                <div class="form-text">
-                                    Leave blank to auto-detect. Typical authorised redirect URI: <code><?= installer_h($googleRedirectDefault) ?></code>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Allowed Google domains (optional)</label>
-                                <textarea name="google_allowed_domains" rows="3" class="form-control" placeholder="example.com&#10;sub.example.com"><?= installer_h($googleDomainsText) ?></textarea>
-                                <div class="form-text">Comma or newline separated. Leave empty to allow any Google account.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Google administrator emails (optional)</label>
-                                <textarea name="google_admin_emails" rows="3" class="form-control" placeholder="admin1@example.com&#10;admin2@example.com"><?= installer_h($googleAdminText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses with full admin access.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Google checkout staff emails (optional)</label>
-                                <textarea name="google_checkout_emails" rows="3" class="form-control" placeholder="staff1@example.com&#10;staff2@example.com"><?= installer_h($googleCheckoutText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses that can access staff features (excluding Admin).</div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="small text-muted" id="google-test-result"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_google" data-target="google-test-result">Test Google OAuth</button>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <h6 class="mt-2 pb-1 border-bottom text-uppercase fw-bold border-3 border-info border-start ps-2">Microsoft Entra / 365</h6>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="auth_microsoft_enabled" id="auth_microsoft_enabled" <?= $pref(['auth', 'microsoft_oauth_enabled'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="auth_microsoft_enabled">Enable Microsoft sign-in</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-1">
-                            <div class="col-md-6">
-                                <label class="form-label">Client ID (Application ID)</label>
-                                <input type="text" name="microsoft_client_id" class="form-control" value="<?= installer_h($pref(['microsoft_oauth', 'client_id'], '')) ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Client Secret</label>
-                                <input type="password" name="microsoft_client_secret" class="form-control">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Tenant ID (GUID)</label>
-                                <input type="text" name="microsoft_tenant" class="form-control" value="<?= installer_h($pref(['microsoft_oauth', 'tenant'], '')) ?>" placeholder="00000000-0000-0000-0000-000000000000">
-                                <div class="form-text">Required. Use the Directory (tenant) ID from Entra.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Redirect URI (optional)</label>
-                                <input type="text" name="microsoft_redirect_uri" class="form-control" value="<?= installer_h($pref(['microsoft_oauth', 'redirect_uri'], '')) ?>" placeholder="<?= installer_h($msRedirectDefault) ?>">
-                                <div class="form-text">
-                                    Leave blank to auto-detect. Typical authorised redirect URI: <code><?= installer_h($msRedirectDefault) ?></code>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Allowed domains (optional)</label>
-                                <textarea name="microsoft_allowed_domains" rows="3" class="form-control" placeholder="example.com&#10;sub.example.com"><?= installer_h($msDomainsText) ?></textarea>
-                                <div class="form-text">Comma or newline separated. Leave empty to allow any Microsoft account.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Microsoft administrator emails (optional)</label>
-                                <textarea name="microsoft_admin_emails" rows="3" class="form-control" placeholder="admin1@example.com&#10;admin2@example.com"><?= installer_h($msAdminText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses with full admin access.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Microsoft checkout staff emails (optional)</label>
-                                <textarea name="microsoft_checkout_emails" rows="3" class="form-control" placeholder="staff1@example.com&#10;staff2@example.com"><?= installer_h($msCheckoutText) ?></textarea>
-                                <div class="form-text">Comma or newline separated addresses that can access staff features (excluding Admin).</div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="small text-muted" id="ms-test-result"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_microsoft" data-target="ms-test-result">Test Microsoft OAuth</button>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <h6 class="mt-2 pb-1 border-bottom text-uppercase fw-bold border-3 border-dark border-start ps-2">Local admin bootstrap (optional)</h6>
-                        <p class="text-muted small mb-3">Create an admin record in the local users table. The account must still sign in via LDAP/Google/Microsoft using the same email.</p>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="local_admin_enabled" id="local_admin_enabled" <?= $localAdminEnabledPref ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="local_admin_enabled">Create local admin account</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Admin email</label>
-                                <input type="email" name="local_admin_email" class="form-control" value="<?= installer_h($localAdminEmailPref) ?>" placeholder="admin@example.com">
+                                <input type="email" name="admin_email" class="form-control" value="<?= installer_h($adminEmailPref) ?>" placeholder="admin@example.com" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Display name (optional)</label>
-                                <input type="text" name="local_admin_name" class="form-control" value="<?= installer_h($localAdminNamePref) ?>" placeholder="Admin User">
+                                <input type="text" name="admin_name" class="form-control" value="<?= installer_h($adminNamePref) ?>" placeholder="Admin User">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Username (optional)</label>
-                                <input type="text" name="local_admin_username" class="form-control" value="<?= installer_h($localAdminUsernamePref) ?>" placeholder="admin">
+                                <input type="text" name="admin_username" class="form-control" value="<?= installer_h($adminUsernamePref) ?>" placeholder="admin">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+                                <input type="password" name="admin_password" class="form-control" required>
+                                <div class="form-text">Use a strong password. Complexity is recommended but not enforced.</div>
                             </div>
                         </div>
                     </div>

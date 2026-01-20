@@ -43,7 +43,7 @@ $googleCheckoutEmails = $normalizeEmailList($authCfg['google_checkout_emails'] ?
 $msAdminEmails = $normalizeEmailList($authCfg['microsoft_admin_emails'] ?? []);
 $msCheckoutEmails = $normalizeEmailList($authCfg['microsoft_checkout_emails'] ?? []);
 
-$provider = strtolower($_GET['provider'] ?? $_POST['provider'] ?? 'ldap');
+$provider = strtolower($_GET['provider'] ?? $_POST['provider'] ?? 'local');
 
 $ensureProviderParam = static function (string $uri, string $provider): string {
     $parts = parse_url($uri);
@@ -148,6 +148,69 @@ $loadLocalRoles = static function (PDO $pdo, int $userId): array {
 
     return $roles;
 };
+
+$fetchLocalUser = static function (PDO $pdo, string $identifier): ?array {
+    $identifier = trim($identifier);
+    if ($identifier === '') {
+        return null;
+    }
+    $identifierLower = strtolower($identifier);
+    $stmt = $pdo->prepare("
+        SELECT *
+          FROM users
+         WHERE LOWER(email) = :ident
+            OR LOWER(username) = :ident
+         LIMIT 1
+    ");
+    $stmt->execute([':ident' => $identifierLower]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+};
+
+if ($provider === 'local') {
+    $identifier = $_POST['identifier'] ?? '';
+    $password = $_POST['password'] ?? '';
+
+    if (trim($identifier) === '' || $password === '') {
+        $redirectWithError('Please enter your email/username and password.');
+    }
+
+    try {
+        $user = $fetchLocalUser($pdo, $identifier);
+    } catch (Throwable $e) {
+        $redirectWithError($debugOn ? 'Login system is currently unavailable (database error): ' . $e->getMessage() : 'Login system is currently unavailable.');
+    }
+
+    if (!$user || empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
+        $redirectWithError('Incorrect email/username or password.');
+    }
+
+    $displayName = $user['name'] ?? $user['email'] ?? '';
+    $firstName = $displayName !== '' ? $displayName : ($user['email'] ?? '');
+
+    $isAdmin = !empty($user['is_admin']);
+    $isStaff = !empty($user['is_staff']) || $isAdmin;
+
+    $_SESSION['user'] = [
+        'id'           => (int)$user['id'],
+        'email'        => $user['email'] ?? '',
+        'username'     => $user['username'] ?? '',
+        'first_name'   => $firstName,
+        'last_name'    => '',
+        'display_name' => $displayName,
+        'is_admin'     => $isAdmin,
+        'is_staff'     => $isStaff,
+    ];
+
+    activity_log_event('user_login', 'User logged in', [
+        'metadata' => [
+            'provider' => 'local',
+        ],
+    ]);
+
+    header('Location: index.php');
+    exit;
+}
 
 if ($provider === 'google') {
     if (!$googleEnabled) {
