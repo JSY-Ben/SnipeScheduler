@@ -562,6 +562,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             <li class="nav-item">
                 <a class="nav-link" href="users.php">Users</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="inventory_admin.php">Inventory</a>
+            </li>
         </ul>
 
         <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">

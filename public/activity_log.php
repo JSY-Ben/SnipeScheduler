@@ -252,6 +252,9 @@ try {
             <li class="nav-item">
                 <a class="nav-link" href="users.php">Users</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="inventory_admin.php">Inventory</a>
+            </li>
         </ul>
 
         <div class="card">
