@@ -34,6 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isStaffFlag = isset($_POST['is_staff']) || $isAdminFlag;
 
         if ($email === '') {
+            if ($editId > 0) {
+                try {
+                    $stmt = $pdo->prepare('SELECT email FROM users WHERE id = :id LIMIT 1');
+                    $stmt->execute([':id' => $editId]);
+                    $email = strtolower(trim((string)$stmt->fetchColumn()));
+                } catch (Throwable $e) {
+                    $email = '';
+                }
+            }
+        }
+        if ($email === '') {
             $errors[] = 'User email is required.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'User email is not valid.';
