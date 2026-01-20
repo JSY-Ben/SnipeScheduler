@@ -149,6 +149,30 @@ $sort = in_array($sortRaw, $sortOptions, true) ? $sortRaw : 'expected_asc';
 
 // Handle renew actions (all/overdue tabs)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['checkin_asset_id'])) {
+        $checkinId = (int)$_POST['checkin_asset_id'];
+        if ($checkinId > 0) {
+            try {
+                checkin_asset($checkinId);
+                $labels = load_asset_labels($pdo, [$checkinId]);
+                $label = $labels[$checkinId] ?? ('Asset #' . $checkinId);
+                $messages[] = "Checked in {$label}.";
+                activity_log_event('asset_checked_in', 'Asset checked in', [
+                    'subject_type' => 'asset',
+                    'subject_id' => $checkinId,
+                    'metadata' => [
+                        'assets' => [$label],
+                        'count' => 1,
+                    ],
+                ]);
+            } catch (Throwable $e) {
+                $error = 'Could not check in asset: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'Invalid asset selected for check-in.';
+        }
+    }
+
     // Renew single
     if (isset($_POST['renew_asset_id'])) {
         $renewId = (int)$_POST['renew_asset_id'];
@@ -214,6 +238,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             } catch (Throwable $e) {
                 $error = 'Could not renew selected assets: ' . $e->getMessage();
+            }
+        }
+    }
+
+    // Check in selected items
+    if (isset($_POST['bulk_checkin']) && $_POST['bulk_checkin'] === '1') {
+        $bulkIds = $_POST['bulk_asset_ids'] ?? [];
+        if (empty($bulkIds) || !is_array($bulkIds)) {
+            $error = 'Select at least one asset to check in.';
+        } else {
+            try {
+                $assetIds = array_values(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
+                    return $id > 0;
+                }));
+                if (empty($assetIds)) {
+                    $error = 'Select at least one valid asset to check in.';
+                } else {
+                    foreach ($assetIds as $assetId) {
+                        checkin_asset($assetId);
+                    }
+                    $labels = load_asset_labels($pdo, $assetIds);
+                    $assetLabels = array_values(array_filter(array_map(static function (int $id) use ($labels): string {
+                        return $labels[$id] ?? ('Asset #' . $id);
+                    }, $assetIds)));
+                    $messages[] = 'Checked in ' . count($assetIds) . ' asset(s).';
+                    activity_log_event('asset_checked_in', 'Checked out assets checked in', [
+                        'metadata' => [
+                            'assets' => $assetLabels,
+                            'count' => count($assetIds),
+                        ],
+                    ]);
+                }
+            } catch (Throwable $e) {
+                $error = 'Could not check in selected assets: ' . $e->getMessage();
             }
         }
     }
@@ -495,6 +553,12 @@ function layout_checked_out_url(string $base, array $params): string
                             class="btn btn-outline-primary btn-sm">
                         Renew selected
                     </button>
+                    <button type="submit"
+                            name="bulk_checkin"
+                            value="1"
+                            class="btn btn-outline-success btn-sm">
+                        Check in selected
+                    </button>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="select-all-assets">
@@ -514,7 +578,7 @@ function layout_checked_out_url(string $base, array $params): string
                                 <th>Assigned Since</th>
                                 <th>Expected Check-in</th>
                                 <th>Renew to</th>
-                                <th></th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -559,14 +623,23 @@ function layout_checked_out_url(string $base, array $params): string
                                                name="renew_expected[<?= $aid ?>]"
                                                class="form-control form-control-sm">
                                     </td>
-                                    <td>
-                                        <button type="submit"
-                                                name="renew_asset_id"
-                                                value="<?= $aid ?>"
-                                                class="btn btn-sm btn-outline-primary"
-                                                <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
-                                            Renew
-                                        </button>
+                                    <td class="text-end">
+                                        <div class="d-flex flex-column flex-md-row gap-2 justify-content-end">
+                                            <button type="submit"
+                                                    name="renew_asset_id"
+                                                    value="<?= $aid ?>"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
+                                                Renew
+                                            </button>
+                                            <button type="submit"
+                                                    name="checkin_asset_id"
+                                                    value="<?= $aid ?>"
+                                                    class="btn btn-sm btn-outline-success"
+                                                    <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
+                                                Check in
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

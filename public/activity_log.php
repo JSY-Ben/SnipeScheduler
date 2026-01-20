@@ -35,6 +35,7 @@ $eventLabels = [
     'reservation_checked_out' => 'Reservation Checked Out',
     'quick_checkout' => 'Quick Checkout',
     'quick_checkin' => 'Quick Checkin',
+    'asset_checked_in' => 'Asset Checkin',
     'assets_checked_in' => 'Reservation Checkin',
     'asset_renewed' => 'Asset Renewed',
     'assets_renewed' => 'Assets Renewed',
