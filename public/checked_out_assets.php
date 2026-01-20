@@ -760,6 +760,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const checkinForm = document.getElementById('checked-out-form');
     const noteModalEl = document.getElementById('checkinNoteModal');
+    if (noteModalEl && noteModalEl.parentElement !== document.body) {
+        document.body.appendChild(noteModalEl);
+    }
     if (checkinForm && noteModalEl && window.bootstrap) {
         const modal = new bootstrap.Modal(noteModalEl);
         const noteInput = document.getElementById('checkin-note-input');
