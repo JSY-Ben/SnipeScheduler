@@ -249,6 +249,9 @@ try {
             <li class="nav-item">
                 <a class="nav-link" href="settings.php">Settings</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="users.php">Users</a>
+            </li>
         </ul>
 
         <div class="card">

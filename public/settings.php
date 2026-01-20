@@ -217,80 +217,11 @@ function layout_test_ldap(array $ldap): string
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
-    if ($action === 'create_user') {
-        $email = strtolower(trim($_POST['new_user_email'] ?? ''));
-        $name = trim($_POST['new_user_name'] ?? '');
-        $username = trim($_POST['new_user_username'] ?? '');
-        $password = $_POST['new_user_password'] ?? '';
-        $isAdmin = isset($_POST['new_user_is_admin']);
-        $isStaff = isset($_POST['new_user_is_staff']) || $isAdmin;
+    $post = static function (string $key, $fallback = '') {
+        return trim($_POST[$key] ?? $fallback);
+    };
 
-        if ($email === '') {
-            $errors[] = 'User email is required.';
-        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'User email is not valid.';
-        }
-
-        if (!$errors) {
-            $dbCfg = $config['db_booking'] ?? [];
-            $dsn = sprintf(
-                'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-                $dbCfg['host'] ?? 'localhost',
-                (int)($dbCfg['port'] ?? 3306),
-                $dbCfg['dbname'] ?? '',
-                $dbCfg['charset'] ?? 'utf8mb4'
-            );
-
-            try {
-                $pdo = new PDO($dsn, $dbCfg['username'] ?? '', $dbCfg['password'] ?? '', [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                ]);
-                $userId = sprintf('%u', crc32($email));
-                $checkStmt = $pdo->prepare('SELECT password_hash FROM users WHERE email = :email LIMIT 1');
-                $checkStmt->execute([':email' => $email]);
-                $existing = $checkStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
-                if ($password === '' && !$existing) {
-                    throw new Exception('User password is required for new users.');
-                }
-
-                $passwordHash = $password !== ''
-                    ? password_hash($password, PASSWORD_DEFAULT)
-                    : ($existing['password_hash'] ?? null);
-                $nameValue = $name !== '' ? $name : $email;
-                $usernameValue = $username !== '' ? $username : null;
-
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, created_at)
-                    VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, NOW())
-                    ON DUPLICATE KEY UPDATE
-                        name = VALUES(name),
-                        username = VALUES(username),
-                        is_admin = VALUES(is_admin),
-                        is_staff = VALUES(is_staff),
-                        password_hash = VALUES(password_hash)
-                ");
-                $stmt->execute([
-                    ':user_id' => $userId,
-                    ':name' => $nameValue,
-                    ':email' => $email,
-                    ':username' => $usernameValue,
-                    ':is_admin' => $isAdmin ? 1 : 0,
-                    ':is_staff' => $isStaff ? 1 : 0,
-                    ':password_hash' => $passwordHash,
-                ]);
-
-                $messages[] = 'User saved successfully.';
-            } catch (Throwable $e) {
-                $errors[] = 'User creation failed: ' . $e->getMessage();
-            }
-        }
-    } else {
-        $post = static function (string $key, $fallback = '') {
-            return trim($_POST[$key] ?? $fallback);
-        };
-
-        $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
+    $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
 
         $useRawSecrets = $action !== 'save';
 
@@ -480,15 +411,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($isAjax && $action !== 'save') {
-            header('Content-Type: application/json');
-            echo json_encode([
-                'ok'       => empty($errors),
-                'messages' => $messages,
-                'errors'   => $errors,
-            ]);
-            exit;
-        }
+    if ($isAjax && $action !== 'save') {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok'       => empty($errors),
+            'messages' => $messages,
+            'errors'   => $errors,
+        ]);
+        exit;
     }
 }
 
@@ -628,6 +558,9 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             </li>
             <li class="nav-item">
                 <a class="nav-link active" href="settings.php">Settings</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="users.php">Users</a>
             </li>
         </ul>
 
@@ -824,49 +757,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="ms-test-result"></div>
                             <button type="button" name="action" value="test_microsoft" class="btn btn-outline-primary btn-sm" data-test-action="test_microsoft" data-target="ms-test-result">Test Microsoft OAuth</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12">
-                <div class="card" id="admin-users">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Users</h5>
-                        <p class="text-muted small mb-3">Create or update a local user account. Email is required and must be unique.</p>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="new_user_email" class="form-control" placeholder="user@example.com" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Display name (optional)</label>
-                                <input type="text" name="new_user_name" class="form-control" placeholder="User Name">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Username (optional)</label>
-                                <input type="text" name="new_user_username" class="form-control" placeholder="username">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Password</label>
-                                <input type="password" name="new_user_password" class="form-control" placeholder="Set a password">
-                                <div class="form-text">Leave blank to keep the existing password. Strong passwords are recommended.</div>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="new_user_is_admin" id="new_user_is_admin">
-                                    <label class="form-check-label" for="new_user_is_admin">Admin</label>
-                                </div>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="new_user_is_staff" id="new_user_is_staff">
-                                    <label class="form-check-label" for="new_user_is_staff">Staff</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-end align-items-center mt-3">
-                            <button type="submit" name="action" value="create_user" class="btn btn-outline-primary">Create/Update User</button>
                         </div>
                     </div>
                 </div>
