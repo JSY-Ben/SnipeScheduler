@@ -473,55 +473,6 @@ if ($assetEditId > 0) {
             </div>
         <?php else: ?>
             <?php if ($section === 'models'): ?>
-                <?php if ($editModel): ?>
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <h5 class="card-title mb-1">Edit model</h5>
-                            <form method="post" class="row g-3" enctype="multipart/form-data">
-                                <input type="hidden" name="action" value="save_model">
-                                <input type="hidden" name="model_id" value="<?= (int)($editModel['id'] ?? 0) ?>">
-                                <input type="hidden" name="section" value="models">
-                                <div class="col-md-4">
-                                    <label class="form-label">Model name</label>
-                                    <input type="text" name="model_name" class="form-control" value="<?= h($editModel['name'] ?? '') ?>" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Manufacturer</label>
-                                    <input type="text" name="model_manufacturer" class="form-control" value="<?= h($editModel['manufacturer'] ?? '') ?>">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Category</label>
-                                    <select name="model_category_id" class="form-select">
-                                        <option value="">Unassigned</option>
-                                        <?php foreach ($categories as $category): ?>
-                                            <option value="<?= (int)$category['id'] ?>" <?= (int)($editModel['category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
-                                                <?= h($category['name'] ?? '') ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="col-md-8">
-                                    <label class="form-label">Notes</label>
-                                    <textarea name="model_notes" class="form-control" rows="2"><?= h($editModel['notes'] ?? '') ?></textarea>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Image URL</label>
-                                    <input type="text" name="model_image_url" class="form-control" value="<?= h($editModel['image_url'] ?? '') ?>">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Upload image</label>
-                                    <input type="file" name="model_image_upload" class="form-control">
-                                    <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
-                                </div>
-                                <div class="col-12 d-flex justify-content-end gap-2">
-                                    <a href="inventory_admin.php?section=models" class="btn btn-outline-secondary">Cancel</a>
-                                    <button type="submit" class="btn btn-primary">Update model</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
@@ -557,7 +508,7 @@ if ($assetEditId > 0) {
                                                 <td><?= h($model['manufacturer'] ?? '') ?></td>
                                                 <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
                                                 <td class="text-end">
-                                                    <a class="btn btn-sm btn-outline-secondary" href="inventory_admin.php?section=models&model_edit=<?= (int)$model['id'] ?>">Edit</a>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editModelModal-<?= (int)$model['id'] ?>">Edit</button>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -704,6 +655,63 @@ if ($assetEditId > 0) {
         </div>
     </div>
 </div>
+<?php foreach ($models as $model): ?>
+    <div class="modal fade" id="editModelModal-<?= (int)$model['id'] ?>" tabindex="-1" aria-labelledby="editModelModalLabel-<?= (int)$model['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="save_model">
+                    <input type="hidden" name="model_id" value="<?= (int)$model['id'] ?>">
+                    <input type="hidden" name="section" value="models">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editModelModalLabel-<?= (int)$model['id'] ?>">Edit model</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Model name</label>
+                                <input type="text" name="model_name" class="form-control" value="<?= h($model['name'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Manufacturer</label>
+                                <input type="text" name="model_manufacturer" class="form-control" value="<?= h($model['manufacturer'] ?? '') ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Category</label>
+                                <select name="model_category_id" class="form-select">
+                                    <option value="">Unassigned</option>
+                                    <?php foreach ($categories as $category): ?>
+                                        <option value="<?= (int)$category['id'] ?>" <?= (int)($model['category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
+                                            <?= h($category['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Notes</label>
+                                <textarea name="model_notes" class="form-control" rows="2"><?= h($model['notes'] ?? '') ?></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Image URL</label>
+                                <input type="text" name="model_image_url" class="form-control" value="<?= h($model['image_url'] ?? '') ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Upload image</label>
+                                <input type="file" name="model_image_upload" class="form-control">
+                                <div class="form-text">Upload replaces the stored image unless a URL is provided.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update model</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
 <div class="modal fade" id="createAssetModal" tabindex="-1" aria-labelledby="createAssetModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
