@@ -32,6 +32,105 @@ if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0755, true) && !is_dir($uploadDir
     $errors[] = 'Upload directory could not be created. Check permissions for public/uploads/images.';
 }
 
+$exportType = $_GET['export'] ?? '';
+if (in_array($exportType, ['categories', 'models', 'assets'], true)) {
+    $filenameMap = [
+        'categories' => 'categories.csv',
+        'models' => 'models.csv',
+        'assets' => 'assets.csv',
+    ];
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filenameMap[$exportType] . '"');
+    $out = fopen('php://output', 'w');
+    if ($exportType === 'categories') {
+        fputcsv($out, ['id', 'name', 'description']);
+        $rows = $pdo->query('SELECT id, name, description FROM asset_categories ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int)$row['id'],
+                $row['name'] ?? '',
+                $row['description'] ?? '',
+            ]);
+        }
+    } elseif ($exportType === 'models') {
+        fputcsv($out, ['id', 'name', 'manufacturer', 'category_id', 'category_name', 'notes', 'image_url']);
+        $rows = $pdo->query('
+            SELECT m.id, m.name, m.manufacturer, m.category_id, m.notes, m.image_url, c.name AS category_name
+              FROM asset_models m
+              LEFT JOIN asset_categories c ON c.id = m.category_id
+             ORDER BY m.name ASC
+        ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int)$row['id'],
+                $row['name'] ?? '',
+                $row['manufacturer'] ?? '',
+                (int)($row['category_id'] ?? 0),
+                $row['category_name'] ?? '',
+                $row['notes'] ?? '',
+                $row['image_url'] ?? '',
+            ]);
+        }
+    } elseif ($exportType === 'assets') {
+        fputcsv($out, ['id', 'asset_tag', 'name', 'model_id', 'model_name', 'status']);
+        $rows = $pdo->query('
+            SELECT a.id, a.asset_tag, a.name, a.model_id, a.status, m.name AS model_name
+              FROM assets a
+              JOIN asset_models m ON m.id = a.model_id
+             ORDER BY a.asset_tag ASC
+        ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int)$row['id'],
+                $row['asset_tag'] ?? '',
+                $row['name'] ?? '',
+                (int)($row['model_id'] ?? 0),
+                $row['model_name'] ?? '',
+                $row['status'] ?? '',
+            ]);
+        }
+    }
+    fclose($out);
+    exit;
+}
+
+$readCsvUpload = static function (string $field, array &$errors): array {
+    if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
+        $errors[] = 'CSV upload is required.';
+        return [];
+    }
+    $file = $_FILES[$field];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        $errors[] = 'CSV upload failed.';
+        return [];
+    }
+    $handle = fopen($file['tmp_name'], 'r');
+    if (!$handle) {
+        $errors[] = 'Could not read uploaded CSV.';
+        return [];
+    }
+    $header = fgetcsv($handle);
+    if (!$header) {
+        fclose($handle);
+        $errors[] = 'CSV header row is missing.';
+        return [];
+    }
+    $header = array_map(static function ($value) {
+        $value = trim((string)$value);
+        return strtolower(preg_replace('/^\xEF\xBB\xBF/', '', $value));
+    }, $header);
+    $rows = [];
+    while (($row = fgetcsv($handle)) !== false) {
+        if ($row === [null] || $row === false) {
+            continue;
+        }
+        $row = array_pad($row, count($header), '');
+        $rows[] = array_combine($header, $row);
+    }
+    fclose($handle);
+    return $rows;
+};
+
 $handleUpload = static function (string $field) use ($uploadDir, $uploadBaseUrl): ?string {
     if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
         return null;
@@ -254,6 +353,202 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Category save failed: ' . $e->getMessage();
             }
         }
+    } elseif ($action === 'import_categories') {
+        $rows = $readCsvUpload('categories_csv', $errors);
+        if ($rows && !$errors) {
+            $imported = 0;
+            $rowErrors = [];
+            foreach ($rows as $idx => $row) {
+                $name = trim($row['name'] ?? '');
+                $description = trim($row['description'] ?? '');
+                if ($name === '') {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': name is required.';
+                    continue;
+                }
+                try {
+                    $stmt = $pdo->prepare('SELECT id FROM asset_categories WHERE name = :name LIMIT 1');
+                    $stmt->execute([':name' => $name]);
+                    $existingId = (int)$stmt->fetchColumn();
+                    if ($existingId > 0) {
+                        $stmt = $pdo->prepare('UPDATE asset_categories SET description = :description WHERE id = :id');
+                        $stmt->execute([
+                            ':description' => $description !== '' ? $description : null,
+                            ':id' => $existingId,
+                        ]);
+                    } else {
+                        $stmt = $pdo->prepare('INSERT INTO asset_categories (name, description, created_at) VALUES (:name, :description, NOW())');
+                        $stmt->execute([
+                            ':name' => $name,
+                            ':description' => $description !== '' ? $description : null,
+                        ]);
+                    }
+                    $imported++;
+                } catch (Throwable $e) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': ' . $e->getMessage();
+                }
+            }
+            if ($rowErrors) {
+                $errors[] = 'Category import completed with errors: ' . implode(' | ', array_slice($rowErrors, 0, 5));
+            }
+            if ($imported > 0) {
+                $messages[] = 'Categories imported: ' . $imported . '.';
+            }
+        }
+    } elseif ($action === 'import_models') {
+        $rows = $readCsvUpload('models_csv', $errors);
+        if ($rows && !$errors) {
+            $imported = 0;
+            $rowErrors = [];
+            foreach ($rows as $idx => $row) {
+                $name = trim($row['name'] ?? '');
+                $manufacturer = trim($row['manufacturer'] ?? '');
+                $notes = trim($row['notes'] ?? '');
+                $imageUrl = trim($row['image_url'] ?? '');
+                $categoryIdRaw = trim($row['category_id'] ?? '');
+                $categoryName = trim($row['category_name'] ?? '');
+                $modelIdRaw = trim($row['id'] ?? '');
+                if ($name === '') {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': name is required.';
+                    continue;
+                }
+                $categoryId = $categoryIdRaw !== '' ? (int)$categoryIdRaw : 0;
+                if ($categoryId <= 0 && $categoryName !== '') {
+                    $stmt = $pdo->prepare('SELECT id FROM asset_categories WHERE name = :name LIMIT 1');
+                    $stmt->execute([':name' => $categoryName]);
+                    $categoryId = (int)$stmt->fetchColumn();
+                    if ($categoryId <= 0) {
+                        $rowErrors[] = 'Row ' . ($idx + 2) . ': category "' . $categoryName . '" not found.';
+                        continue;
+                    }
+                }
+                try {
+                    $modelId = $modelIdRaw !== '' ? (int)$modelIdRaw : 0;
+                    if ($modelId > 0) {
+                        $stmt = $pdo->prepare("
+                            UPDATE asset_models
+                               SET name = :name,
+                                   manufacturer = :manufacturer,
+                                   category_id = :category_id,
+                                   notes = :notes,
+                                   image_url = :image_url
+                             WHERE id = :id
+                        ");
+                        $stmt->execute([
+                            ':name' => $name,
+                            ':manufacturer' => $manufacturer !== '' ? $manufacturer : null,
+                            ':category_id' => $categoryId > 0 ? $categoryId : null,
+                            ':notes' => $notes !== '' ? $notes : null,
+                            ':image_url' => $imageUrl !== '' ? $imageUrl : null,
+                            ':id' => $modelId,
+                        ]);
+                    } else {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO asset_models (name, manufacturer, category_id, notes, image_url, created_at)
+                            VALUES (:name, :manufacturer, :category_id, :notes, :image_url, NOW())
+                        ");
+                        $stmt->execute([
+                            ':name' => $name,
+                            ':manufacturer' => $manufacturer !== '' ? $manufacturer : null,
+                            ':category_id' => $categoryId > 0 ? $categoryId : null,
+                            ':notes' => $notes !== '' ? $notes : null,
+                            ':image_url' => $imageUrl !== '' ? $imageUrl : null,
+                        ]);
+                    }
+                    $imported++;
+                } catch (Throwable $e) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': ' . $e->getMessage();
+                }
+            }
+            if ($rowErrors) {
+                $errors[] = 'Model import completed with errors: ' . implode(' | ', array_slice($rowErrors, 0, 5));
+            }
+            if ($imported > 0) {
+                $messages[] = 'Models imported: ' . $imported . '.';
+            }
+        }
+    } elseif ($action === 'import_assets') {
+        $rows = $readCsvUpload('assets_csv', $errors);
+        if ($rows && !$errors) {
+            $imported = 0;
+            $rowErrors = [];
+            foreach ($rows as $idx => $row) {
+                $assetTag = trim($row['asset_tag'] ?? '');
+                $name = trim($row['name'] ?? '');
+                $status = trim($row['status'] ?? '');
+                if ($status === '') {
+                    $status = 'available';
+                }
+                $modelIdRaw = trim($row['model_id'] ?? '');
+                $modelName = trim($row['model_name'] ?? '');
+                if ($assetTag === '') {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': asset_tag is required.';
+                    continue;
+                }
+                if (!in_array($status, $statusOptions, true)) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': invalid status.';
+                    continue;
+                }
+                $modelId = $modelIdRaw !== '' ? (int)$modelIdRaw : 0;
+                if ($modelId <= 0 && $modelName !== '') {
+                    $stmt = $pdo->prepare('SELECT id FROM asset_models WHERE name = :name LIMIT 1');
+                    $stmt->execute([':name' => $modelName]);
+                    $modelId = (int)$stmt->fetchColumn();
+                }
+                if ($modelId <= 0) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': model not found.';
+                    continue;
+                }
+                try {
+                    $stmt = $pdo->prepare('SELECT id FROM assets WHERE asset_tag = :tag LIMIT 1');
+                    $stmt->execute([':tag' => $assetTag]);
+                    $existingId = (int)$stmt->fetchColumn();
+                    if ($existingId > 0) {
+                        if ($name === '') {
+                            $stmt = $pdo->prepare('SELECT name FROM assets WHERE id = :id LIMIT 1');
+                            $stmt->execute([':id' => $existingId]);
+                            $name = (string)$stmt->fetchColumn();
+                        }
+                        $stmt = $pdo->prepare("
+                            UPDATE assets
+                               SET name = :name,
+                                   model_id = :model_id,
+                                   status = :status
+                             WHERE id = :id
+                        ");
+                        $stmt->execute([
+                            ':name' => $name,
+                            ':model_id' => $modelId,
+                            ':status' => $status,
+                            ':id' => $existingId,
+                        ]);
+                    } else {
+                        if ($name === '') {
+                            $rowErrors[] = 'Row ' . ($idx + 2) . ': name is required for new assets.';
+                            continue;
+                        }
+                        $stmt = $pdo->prepare("
+                            INSERT INTO assets (asset_tag, name, model_id, status, created_at)
+                            VALUES (:asset_tag, :name, :model_id, :status, NOW())
+                        ");
+                        $stmt->execute([
+                            ':asset_tag' => $assetTag,
+                            ':name' => $name,
+                            ':model_id' => $modelId,
+                            ':status' => $status,
+                        ]);
+                    }
+                    $imported++;
+                } catch (Throwable $e) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': ' . $e->getMessage();
+                }
+            }
+            if ($rowErrors) {
+                $errors[] = 'Asset import completed with errors: ' . implode(' | ', array_slice($rowErrors, 0, 5));
+            }
+            if ($imported > 0) {
+                $messages[] = 'Assets imported: ' . $imported . '.';
+            }
+        }
     }
 }
 
@@ -369,7 +664,11 @@ if ($modelEditId > 0) {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                         <h5 class="card-title mb-0">Assets</h5>
-                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=inventory&export=assets">Export CSV</a>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importAssetsModal">Import CSV</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
@@ -449,7 +748,11 @@ if ($modelEditId > 0) {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                         <h5 class="card-title mb-0">Models</h5>
-                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=models&export=models">Export CSV</a>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModelsModal">Import CSV</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
@@ -525,7 +828,11 @@ if ($modelEditId > 0) {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                         <h5 class="card-title mb-0">Categories</h5>
-                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=categories&export=categories">Export CSV</a>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importCategoriesModal">Import CSV</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
@@ -595,6 +902,69 @@ if ($modelEditId > 0) {
     </div>
 </div>
 <?php layout_footer(); ?>
+<div class="modal fade" id="importCategoriesModal" tabindex="-1" aria-labelledby="importCategoriesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_categories">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importCategoriesModalLabel">Import categories CSV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Columns: name, description</p>
+                    <input type="file" name="categories_csv" class="form-control" accept=".csv,text/csv" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import categories</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="importModelsModal" tabindex="-1" aria-labelledby="importModelsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_models">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModelsModalLabel">Import models CSV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Columns: id (optional), name, manufacturer, category_id or category_name, notes, image_url</p>
+                    <input type="file" name="models_csv" class="form-control" accept=".csv,text/csv" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import models</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="importAssetsModal" tabindex="-1" aria-labelledby="importAssetsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_assets">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importAssetsModalLabel">Import assets CSV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Columns: asset_tag, name, model_id or model_name, status</p>
+                    <input type="file" name="assets_csv" class="form-control" accept=".csv,text/csv" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import assets</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -1017,6 +1387,9 @@ if ($modelEditId > 0) {
         var modelSelect = document.getElementById('assets-model-filter');
         if (modelSelect) {
             modelSelect.value = assetModelQuery;
+        }
+        if (assetsControls.input) {
+            assetsControls.input.value = '';
         }
         assetsControls.render();
     }

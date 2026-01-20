@@ -19,6 +19,70 @@ $errors   = [];
 
 $editRoleOnly = false;
 
+$exportType = $_GET['export'] ?? '';
+if ($exportType === 'users') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="users.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['id', 'name', 'email', 'username', 'is_admin', 'is_staff', 'auth_source', 'created_at']);
+    $rows = $pdo->query('
+        SELECT id, name, email, username, is_admin, is_staff, auth_source, created_at
+          FROM users
+         ORDER BY name ASC, email ASC
+    ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as $row) {
+        fputcsv($out, [
+            (int)$row['id'],
+            $row['name'] ?? '',
+            $row['email'] ?? '',
+            $row['username'] ?? '',
+            !empty($row['is_admin']) ? 1 : 0,
+            !empty($row['is_staff']) ? 1 : 0,
+            $row['auth_source'] ?? 'local',
+            $row['created_at'] ?? '',
+        ]);
+    }
+    fclose($out);
+    exit;
+}
+
+$readCsvUpload = static function (string $field, array &$errors): array {
+    if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
+        $errors[] = 'CSV upload is required.';
+        return [];
+    }
+    $file = $_FILES[$field];
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        $errors[] = 'CSV upload failed.';
+        return [];
+    }
+    $handle = fopen($file['tmp_name'], 'r');
+    if (!$handle) {
+        $errors[] = 'Could not read uploaded CSV.';
+        return [];
+    }
+    $header = fgetcsv($handle);
+    if (!$header) {
+        fclose($handle);
+        $errors[] = 'CSV header row is missing.';
+        return [];
+    }
+    $header = array_map(static function ($value) {
+        $value = trim((string)$value);
+        return strtolower(preg_replace('/^\xEF\xBB\xBF/', '', $value));
+    }, $header);
+    $rows = [];
+    while (($row = fgetcsv($handle)) !== false) {
+        if ($row === [null] || $row === false) {
+            continue;
+        }
+        $row = array_pad($row, count($header), '');
+        $rows[] = array_combine($header, $row);
+    }
+    fclose($handle);
+    return $rows;
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save_user';
 
@@ -140,6 +204,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = $e->getMessage();
             }
         }
+    } elseif ($action === 'import_users') {
+        $rows = $readCsvUpload('users_csv', $errors);
+        if ($rows && !$errors) {
+            $imported = 0;
+            $rowErrors = [];
+            foreach ($rows as $idx => $row) {
+                $email = strtolower(trim($row['email'] ?? ''));
+                $name = trim($row['name'] ?? '');
+                $username = trim($row['username'] ?? '');
+                $password = $row['password'] ?? '';
+                $isAdminFlag = !empty($row['is_admin']) && (int)$row['is_admin'] === 1;
+                $isStaffFlag = (!empty($row['is_staff']) && (int)$row['is_staff'] === 1) || $isAdminFlag;
+                if ($email === '') {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': email is required.';
+                    continue;
+                }
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': invalid email.';
+                    continue;
+                }
+                try {
+                    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
+                    $stmt->execute([':email' => $email]);
+                    $existing = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                    $nameValue = $name !== '' ? $name : $email;
+                    $usernameValue = $username !== '' ? $username : null;
+                    if ($existing) {
+                        $isExternal = !empty($existing['auth_source']) && $existing['auth_source'] !== 'local';
+                        if ($isExternal) {
+                            $stmt = $pdo->prepare('UPDATE users SET is_admin = :is_admin, is_staff = :is_staff WHERE id = :id');
+                            $stmt->execute([
+                                ':is_admin' => $isAdminFlag ? 1 : 0,
+                                ':is_staff' => $isStaffFlag ? 1 : 0,
+                                ':id' => (int)$existing['id'],
+                            ]);
+                        } else {
+                            $passwordHash = $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : ($existing['password_hash'] ?? null);
+                            $userId = sprintf('%u', crc32($email));
+                            $stmt = $pdo->prepare("
+                                UPDATE users
+                                   SET user_id = :user_id,
+                                       name = :name,
+                                       email = :email,
+                                       username = :username,
+                                       is_admin = :is_admin,
+                                       is_staff = :is_staff,
+                                       password_hash = :password_hash,
+                                       auth_source = 'local'
+                                 WHERE id = :id
+                            ");
+                            $stmt->execute([
+                                ':user_id' => $userId,
+                                ':name' => $nameValue,
+                                ':email' => $email,
+                                ':username' => $usernameValue,
+                                ':is_admin' => $isAdminFlag ? 1 : 0,
+                                ':is_staff' => $isStaffFlag ? 1 : 0,
+                                ':password_hash' => $passwordHash,
+                                ':id' => (int)$existing['id'],
+                            ]);
+                        }
+                    } else {
+                        if ($password === '') {
+                            $rowErrors[] = 'Row ' . ($idx + 2) . ': password is required for new users.';
+                            continue;
+                        }
+                        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                        $userId = sprintf('%u', crc32($email));
+                        $stmt = $pdo->prepare("
+                            INSERT INTO users (user_id, name, email, username, is_admin, is_staff, password_hash, auth_source, created_at)
+                            VALUES (:user_id, :name, :email, :username, :is_admin, :is_staff, :password_hash, 'local', NOW())
+                        ");
+                        $stmt->execute([
+                            ':user_id' => $userId,
+                            ':name' => $nameValue,
+                            ':email' => $email,
+                            ':username' => $usernameValue,
+                            ':is_admin' => $isAdminFlag ? 1 : 0,
+                            ':is_staff' => $isStaffFlag ? 1 : 0,
+                            ':password_hash' => $passwordHash,
+                        ]);
+                    }
+                    $imported++;
+                } catch (Throwable $e) {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': ' . $e->getMessage();
+                }
+            }
+            if ($rowErrors) {
+                $errors[] = 'User import completed with errors: ' . implode(' | ', array_slice($rowErrors, 0, 5));
+            }
+            if ($imported > 0) {
+                $messages[] = 'Users imported: ' . $imported . '.';
+            }
+        }
     }
 }
 
@@ -221,7 +379,11 @@ try {
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                     <h5 class="card-title mb-0">All users</h5>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">Create User</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a class="btn btn-outline-secondary" href="users.php?export=users">Export CSV</a>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importUsersModal">Import CSV</button>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">Create User</button>
+                    </div>
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-4">
@@ -358,6 +520,27 @@ try {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create user</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="importUsersModal" tabindex="-1" aria-labelledby="importUsersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_users">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importUsersModalLabel">Import users CSV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Columns: email, name, username, password (required for new users), is_admin, is_staff</p>
+                    <input type="file" name="users_csv" class="form-control" accept=".csv,text/csv" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import users</button>
                 </div>
             </form>
         </div>
