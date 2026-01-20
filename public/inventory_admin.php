@@ -434,7 +434,7 @@ if ($assetEditId > 0) {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                         <h5 class="card-title mb-0">Assets</h5>
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
                     </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
@@ -526,7 +526,7 @@ if ($assetEditId > 0) {
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                             <h5 class="card-title mb-0">Models</h5>
-                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
                         </div>
                         <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
                         <?php if (empty($models)): ?>
@@ -568,17 +568,12 @@ if ($assetEditId > 0) {
                     </div>
                 </div>
             <?php else: ?>
-            <div class="card mb-3">
+            <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
                         <h5 class="card-title mb-0">Categories</h5>
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
                     </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-body">
                     <p class="text-muted small mb-3"><?= count($categories) ?> total.</p>
                     <?php if (empty($categories)): ?>
                         <div class="text-muted small">No categories found yet.</div>
