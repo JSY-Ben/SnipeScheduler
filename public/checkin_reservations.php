@@ -699,5 +699,21 @@ document.addEventListener('DOMContentLoaded', function () {
             userForm.submit();
         });
     }
+
+    const checkinForm = document.querySelector('form[action="<?= h($pageBase) ?>"]');
+    if (checkinForm) {
+        checkinForm.addEventListener('submit', (event) => {
+            const submitter = event.submitter;
+            if (!submitter || submitter.value !== 'checkin') {
+                return;
+            }
+            const boxes = checkinForm.querySelectorAll('input[name="asset_ids[]"]');
+            const anyChecked = Array.from(boxes).some((box) => box.checked);
+            if (!anyChecked) {
+                event.preventDefault();
+                alert('Select at least one checked-out item to check in.');
+            }
+        });
+    }
 });
 </script>
