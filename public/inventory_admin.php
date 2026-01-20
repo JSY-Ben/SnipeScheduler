@@ -424,7 +424,7 @@ if ($assetEditId > 0) {
         <div class="card mb-3">
             <div class="card-body">
                 <h5 class="card-title mb-1"><?= $editModel ? 'Edit model' : 'Create model' ?></h5>
-                <form method="post" class="row g-3">
+                <form method="post" class="row g-3" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="save_model">
                     <input type="hidden" name="model_id" value="<?= (int)($editModel['id'] ?? 0) ?>">
                     <div class="col-md-4">
