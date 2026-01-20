@@ -508,6 +508,7 @@ if ($assetEditId > 0) {
                                                 <td><?= h($model['manufacturer'] ?? '') ?></td>
                                                 <td><?= h($model['category_name'] ?? 'Unassigned') ?></td>
                                                 <td class="text-end">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewModelAssetsModal-<?= (int)$model['id'] ?>">View Assets</button>
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editModelModal-<?= (int)$model['id'] ?>">Edit</button>
                                                 </td>
                                             </tr>
@@ -708,6 +709,54 @@ if ($assetEditId > 0) {
                         <button type="submit" class="btn btn-primary">Update model</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
+<?php foreach ($models as $model): ?>
+    <?php
+    $modelAssets = array_values(array_filter($assets, function ($asset) use ($model) {
+        return (int)($asset['model_id'] ?? 0) === (int)($model['id'] ?? 0);
+    }));
+    ?>
+    <div class="modal fade" id="viewModelAssetsModal-<?= (int)$model['id'] ?>" tabindex="-1" aria-labelledby="viewModelAssetsModalLabel-<?= (int)$model['id'] ?>" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewModelAssetsModalLabel-<?= (int)$model['id'] ?>">Assets for <?= h($model['name'] ?? '') ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <?php if (empty($modelAssets)): ?>
+                        <div class="text-muted small">No assets found for this model.</div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Tag</th>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>Requestable</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($modelAssets as $asset): ?>
+                                        <tr>
+                                            <td><?= h($asset['asset_tag'] ?? '') ?></td>
+                                            <td><?= h($asset['name'] ?? '') ?></td>
+                                            <td><?= h(ucwords(str_replace('_', ' ', $asset['status'] ?? 'available'))) ?></td>
+                                            <td><?= !empty($asset['requestable']) ? 'Yes' : 'No' ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
