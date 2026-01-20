@@ -685,7 +685,6 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Assets</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=inventory&export=assets">Export CSV</a>
-                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=inventory&template=assets">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importAssetsModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
                         </div>
@@ -770,7 +769,6 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Models</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=models&export=models">Export CSV</a>
-                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=models&template=models">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModelsModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
                         </div>
@@ -851,7 +849,6 @@ if ($modelEditId > 0) {
                         <h5 class="card-title mb-0">Categories</h5>
                         <div class="d-flex gap-2 flex-wrap">
                             <a class="btn btn-outline-secondary" href="inventory_admin.php?section=categories&export=categories">Export CSV</a>
-                            <a class="btn btn-outline-secondary" href="inventory_admin.php?section=categories&template=categories">Download Template</a>
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importCategoriesModal">Import CSV</button>
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
                         </div>
@@ -935,6 +932,9 @@ if ($modelEditId > 0) {
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">Columns: name, description</p>
+                    <div class="mb-3">
+                        <a class="btn btn-outline-secondary btn-sm" href="inventory_admin.php?section=categories&template=categories">Download template CSV</a>
+                    </div>
                     <input type="file" name="categories_csv" class="form-control" accept=".csv,text/csv" required>
                 </div>
                 <div class="modal-footer">
@@ -956,6 +956,9 @@ if ($modelEditId > 0) {
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">Columns: id (optional), name, manufacturer, category_id or category_name, notes, image_url</p>
+                    <div class="mb-3">
+                        <a class="btn btn-outline-secondary btn-sm" href="inventory_admin.php?section=models&template=models">Download template CSV</a>
+                    </div>
                     <input type="file" name="models_csv" class="form-control" accept=".csv,text/csv" required>
                 </div>
                 <div class="modal-footer">
@@ -977,6 +980,9 @@ if ($modelEditId > 0) {
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">Columns: asset_tag, name, model_id or model_name, status</p>
+                    <div class="mb-3">
+                        <a class="btn btn-outline-secondary btn-sm" href="inventory_admin.php?section=inventory&template=assets">Download template CSV</a>
+                    </div>
                     <input type="file" name="assets_csv" class="form-control" accept=".csv,text/csv" required>
                 </div>
                 <div class="modal-footer">

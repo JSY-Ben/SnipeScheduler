@@ -395,7 +395,6 @@ try {
                     <h5 class="card-title mb-0">All users</h5>
                     <div class="d-flex gap-2 flex-wrap">
                         <a class="btn btn-outline-secondary" href="users.php?export=users">Export CSV</a>
-                        <a class="btn btn-outline-secondary" href="users.php?template=users">Download Template</a>
                         <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importUsersModal">Import CSV</button>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">Create User</button>
                     </div>
@@ -551,6 +550,9 @@ try {
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">Columns: email, name, username, password (required for new users), is_admin, is_staff</p>
+                    <div class="mb-3">
+                        <a class="btn btn-outline-secondary btn-sm" href="users.php?template=users">Download template CSV</a>
+                    </div>
                     <input type="file" name="users_csv" class="form-control" accept=".csv,text/csv" required>
                 </div>
                 <div class="modal-footer">
