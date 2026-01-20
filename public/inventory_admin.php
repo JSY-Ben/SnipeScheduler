@@ -436,6 +436,11 @@ if ($assetEditId > 0) {
                         <h5 class="card-title mb-0">Assets</h5>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssetModal">Create Asset</button>
                     </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="assets-filter" placeholder="Filter assets...">
+                        </div>
+                    </div>
                     <p class="text-muted small mb-3"><?= count($assets) ?> total.</p>
                     <?php if (empty($assets)): ?>
                         <div class="text-muted small">No assets found yet.</div>
@@ -452,7 +457,7 @@ if ($assetEditId > 0) {
                                         <th></th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="assets-table">
                                     <?php foreach ($assets as $asset): ?>
                                         <tr>
                                             <td><?= h($asset['asset_tag'] ?? '') ?></td>
@@ -474,17 +479,22 @@ if ($assetEditId > 0) {
         <?php else: ?>
             <?php if ($section === 'models'): ?>
                 <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
-                            <h5 class="card-title mb-0">Models</h5>
-                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+                        <h5 class="card-title mb-0">Models</h5>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createModelModal">Create Model</button>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="models-filter" placeholder="Filter models...">
                         </div>
-                        <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
-                        <?php if (empty($models)): ?>
-                            <div class="text-muted small">No models found yet.</div>
-                        <?php else: ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-striped align-middle">
+                    </div>
+                    <p class="text-muted small mb-3"><?= count($models) ?> total.</p>
+                    <?php if (empty($models)): ?>
+                        <div class="text-muted small">No models found yet.</div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped align-middle">
                                     <thead>
                                         <tr>
                                             <th>Image</th>
@@ -494,7 +504,7 @@ if ($assetEditId > 0) {
                                             <th></th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody id="models-table">
                                         <?php foreach ($models as $model): ?>
                                             <tr>
                                                 <td>
@@ -526,6 +536,11 @@ if ($assetEditId > 0) {
                         <h5 class="card-title mb-0">Categories</h5>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">Create Category</button>
                     </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="categories-filter" placeholder="Filter categories...">
+                        </div>
+                    </div>
                     <p class="text-muted small mb-3"><?= count($categories) ?> total.</p>
                     <?php if (empty($categories)): ?>
                         <div class="text-muted small">No categories found yet.</div>
@@ -537,13 +552,13 @@ if ($assetEditId > 0) {
                                         <th>Name</th>
                                         <th>Description</th>
                                         <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($categories as $category): ?>
-                                        <tr>
-                                            <td>
-                                                <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="categories-table">
+                                        <?php foreach ($categories as $category): ?>
+                                            <tr>
+                                                <td>
+                                                    <input type="text" name="category_name" class="form-control form-control-sm" value="<?= h($category['name'] ?? '') ?>" required form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
                                             </td>
                                             <td>
                                                 <input type="text" name="category_description" class="form-control form-control-sm" value="<?= h($category['description'] ?? '') ?>" form="category-form-<?= (int)($category['id'] ?? 0) ?>" disabled>
@@ -820,6 +835,25 @@ if ($assetEditId > 0) {
     </div>
 </div>
 <script>
+    function wireTableFilter(inputId, tableId) {
+        var input = document.getElementById(inputId);
+        var table = document.getElementById(tableId);
+        if (!input || !table) {
+            return;
+        }
+        input.addEventListener('input', function () {
+            var query = input.value.trim().toLowerCase();
+            table.querySelectorAll('tr').forEach(function (row) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.indexOf(query) !== -1 ? '' : 'none';
+            });
+        });
+    }
+
+    wireTableFilter('assets-filter', 'assets-table');
+    wireTableFilter('models-filter', 'models-table');
+    wireTableFilter('categories-filter', 'categories-table');
+
     document.querySelectorAll('.js-category-edit').forEach(function (button) {
         button.addEventListener('click', function () {
             var form = button.closest('form');
