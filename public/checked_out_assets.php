@@ -624,7 +624,7 @@ function layout_checked_out_url(string $base, array $params): string
                                                class="form-control form-control-sm">
                                     </td>
                                     <td class="text-end">
-                                        <div class="d-flex flex-column flex-md-row gap-2 justify-content-end">
+                                        <div class="d-flex flex-column gap-2 align-items-end">
                                             <button type="submit"
                                                     name="renew_asset_id"
                                                     value="<?= $aid ?>"
