@@ -318,6 +318,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $msAllowedDomains = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
         $msAdminEmails    = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msAdminRaw))));
         $msCheckoutEmails = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msCheckoutRaw))));
+        $localAdminEnabled = isset($_POST['local_admin_enabled']);
+        $localAdminEmail = strtolower(trim($_POST['local_admin_email'] ?? ''));
+        $localAdminName = trim($_POST['local_admin_name'] ?? '');
+        $localAdminUsername = trim($_POST['local_admin_username'] ?? '');
+
+        if ($action === 'save' && $localAdminEnabled) {
+            if ($localAdminEmail === '') {
+                $errors[] = 'Local admin email is required when creating a local admin account.';
+            } elseif (!filter_var($localAdminEmail, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Local admin email is not a valid email address.';
+            }
+        }
 
         // Defaults for omitted settings
         $adminCns   = [];
@@ -475,6 +487,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             }
         }
 
+        if (!$errors && $localAdminEnabled && $localAdminEmail !== '') {
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s', $dbHost, $dbPort, $dbName, $dbCharset);
+            try {
+                $pdo = new PDO($dsn, $dbUser, $dbPass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                ]);
+                $adminEmail = $localAdminEmail;
+                $adminName = $localAdminName !== '' ? $localAdminName : $adminEmail;
+                $adminUsername = $localAdminUsername !== '' ? $localAdminUsername : null;
+                $adminUserId = sprintf('%u', crc32($adminEmail));
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO users (user_id, name, email, username, is_admin, is_staff, created_at)
+                    VALUES (:user_id, :name, :email, :username, 1, 1, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        username = VALUES(username),
+                        is_admin = 1,
+                        is_staff = 1
+                ");
+                $stmt->execute([
+                    ':user_id' => $adminUserId,
+                    ':name' => $adminName,
+                    ':email' => $adminEmail,
+                    ':username' => $adminUsername,
+                ]);
+
+                $messages[] = 'Local admin account created in the users table.';
+            } catch (Throwable $e) {
+                $errors[] = 'Local admin creation failed: ' . installer_h($e->getMessage());
+            }
+        }
+
         // Mark installation complete if everything succeeded.
         if (!$errors) {
             @file_put_contents($installedFlag, "Installed on " . date(DATE_ATOM) . "\n");
@@ -523,6 +568,10 @@ if (!is_array($msCheckoutPref)) {
     $msCheckoutPref = [];
 }
 $msCheckoutText = implode("\n", $msCheckoutPref);
+$localAdminEnabledPref = !empty($_POST['local_admin_enabled']);
+$localAdminEmailPref = $_POST['local_admin_email'] ?? '';
+$localAdminNamePref = $_POST['local_admin_name'] ?? '';
+$localAdminUsernamePref = $_POST['local_admin_username'] ?? '';
 $googleDomainsPref = $pref(['google_oauth', 'allowed_domains'], []);
 if (!is_array($googleDomainsPref)) {
     $googleDomainsPref = [];
@@ -850,6 +899,33 @@ $msRedirectDefault = $host
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="ms-test-result"></div>
                             <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_microsoft" data-target="ms-test-result">Test Microsoft OAuth</button>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="mt-2 pb-1 border-bottom text-uppercase fw-bold border-3 border-dark border-start ps-2">Local admin bootstrap (optional)</h6>
+                        <p class="text-muted small mb-3">Create an admin record in the local users table. The account must still sign in via LDAP/Google/Microsoft using the same email.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="local_admin_enabled" id="local_admin_enabled" <?= $localAdminEnabledPref ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="local_admin_enabled">Create local admin account</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label">Admin email</label>
+                                <input type="email" name="local_admin_email" class="form-control" value="<?= installer_h($localAdminEmailPref) ?>" placeholder="admin@example.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Display name (optional)</label>
+                                <input type="text" name="local_admin_name" class="form-control" value="<?= installer_h($localAdminNamePref) ?>" placeholder="Admin User">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Username (optional)</label>
+                                <input type="text" name="local_admin_username" class="form-control" value="<?= installer_h($localAdminUsernamePref) ?>" placeholder="admin">
+                            </div>
                         </div>
                     </div>
                 </div>

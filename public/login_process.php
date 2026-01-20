@@ -128,6 +128,27 @@ $upsertUser = static function (PDO $pdo, string $email, string $fullName, string
     return (int)$pdo->lastInsertId();
 };
 
+$loadLocalRoles = static function (PDO $pdo, int $userId): array {
+    $roles = [
+        'is_admin' => false,
+        'is_staff' => false,
+    ];
+
+    try {
+        $stmt = $pdo->prepare('SELECT is_admin, is_staff FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $roles['is_admin'] = !empty($row['is_admin']);
+            $roles['is_staff'] = !empty($row['is_staff']);
+        }
+    } catch (Throwable $e) {
+        // Ignore missing columns on older installs.
+    }
+
+    return $roles;
+};
+
 if ($provider === 'google') {
     if (!$googleEnabled) {
         $redirectWithError('Google sign-in is not available.');
@@ -266,6 +287,17 @@ if ($provider === 'google') {
     $isAdmin = in_array($email, $googleAdminEmails, true);
     $isCheckout = in_array($email, $googleCheckoutEmails, true);
     $isStaff = $isAdmin || $isCheckout;
+
+    $localRoles = $loadLocalRoles($pdo, $userId);
+    if ($localRoles['is_admin']) {
+        $isAdmin = true;
+    }
+    if ($localRoles['is_staff']) {
+        $isStaff = true;
+    }
+    if ($isAdmin) {
+        $isStaff = true;
+    }
 
     $_SESSION['user'] = [
         'id'           => $userId,
@@ -470,6 +502,17 @@ if ($provider === 'microsoft') {
     $isCheckout = in_array($email, $msCheckoutEmails, true);
     $isStaff = $isAdmin || $isCheckout;
 
+    $localRoles = $loadLocalRoles($pdo, $userId);
+    if ($localRoles['is_admin']) {
+        $isAdmin = true;
+    }
+    if ($localRoles['is_staff']) {
+        $isStaff = true;
+    }
+    if ($isAdmin) {
+        $isStaff = true;
+    }
+
     $_SESSION['user'] = [
         'id'           => $userId,
         'email'        => $email,
@@ -673,6 +716,20 @@ try {
     $redirectWithError($debugOn
         ? 'Login system is currently unavailable (database error): ' . $e->getMessage()
         : 'Login system is currently unavailable (database error).');
+}
+
+// ------------------------------------------------------------------
+// Local role override (if stored in users table)
+// ------------------------------------------------------------------
+$localRoles = $loadLocalRoles($pdo, $userId);
+if ($localRoles['is_admin']) {
+    $isAdmin = true;
+}
+if ($localRoles['is_staff']) {
+    $isStaff = true;
+}
+if ($isAdmin) {
+    $isStaff = true;
 }
 
 // ------------------------------------------------------------------
