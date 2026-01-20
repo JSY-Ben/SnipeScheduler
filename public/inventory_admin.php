@@ -280,6 +280,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!in_array($status, $statusOptions, true)) {
             $errors[] = 'Asset status is invalid.';
         }
+        $existingStatus = null;
+        if ($assetEditId > 0) {
+            $stmt = $pdo->prepare('SELECT status FROM assets WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $assetEditId]);
+            $existingStatus = $stmt->fetchColumn();
+            if ($existingStatus === false) {
+                $errors[] = 'Asset not found.';
+            }
+        }
+        if ($status === 'checked_out') {
+            if ($assetEditId <= 0 || $existingStatus !== 'checked_out') {
+                $errors[] = 'Checked out status cannot be set manually.';
+            }
+        }
 
         if (!$errors) {
             try {
@@ -505,6 +519,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if (!in_array($status, $statusOptions, true)) {
                     $rowErrors[] = 'Row ' . ($idx + 2) . ': invalid status.';
+                    continue;
+                }
+                if ($status === 'checked_out') {
+                    $rowErrors[] = 'Row ' . ($idx + 2) . ': checked_out status cannot be set manually.';
                     continue;
                 }
                 $modelId = $modelIdRaw !== '' ? (int)$modelIdRaw : 0;
@@ -1172,6 +1190,7 @@ if ($modelEditId > 0) {
                                 <label class="form-label">Status</label>
                                 <select name="asset_status" class="form-select">
                                     <?php foreach ($statusOptions as $opt): ?>
+                                        <?php if ($opt === 'checked_out') { continue; } ?>
                                         <option value="<?= h($opt) ?>">
                                             <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
                                         </option>
@@ -1223,13 +1242,14 @@ if ($modelEditId > 0) {
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Status</label>
-                            <select name="asset_status" class="form-select">
-                                <?php foreach ($statusOptions as $opt): ?>
-                                    <option value="<?= h($opt) ?>">
-                                        <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                                <select name="asset_status" class="form-select">
+                                    <?php foreach ($statusOptions as $opt): ?>
+                                        <?php if ($opt === 'checked_out') { continue; } ?>
+                                        <option value="<?= h($opt) ?>">
+                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                         </div>
                     </div>
                 </div>
@@ -1276,13 +1296,23 @@ if ($modelEditId > 0) {
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Status</label>
-                                <select name="asset_status" class="form-select">
-                                    <?php foreach ($statusOptions as $opt): ?>
-                                        <option value="<?= h($opt) ?>" <?= ($asset['status'] ?? 'available') === $opt ? 'selected' : '' ?>>
-                                            <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <?php $currentStatus = $asset['status'] ?? 'available'; ?>
+                                <?php if ($currentStatus === 'checked_out'): ?>
+                                    <input type="text"
+                                           class="form-control"
+                                           value="Checked out (set by reservation)"
+                                           disabled>
+                                    <input type="hidden" name="asset_status" value="checked_out">
+                                <?php else: ?>
+                                    <select name="asset_status" class="form-select">
+                                        <?php foreach ($statusOptions as $opt): ?>
+                                            <?php if ($opt === 'checked_out') { continue; } ?>
+                                            <option value="<?= h($opt) ?>" <?= $currentStatus === $opt ? 'selected' : '' ?>>
+                                                <?= h(ucwords(str_replace('_', ' ', $opt))) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
