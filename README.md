@@ -1,3 +1,6 @@
+
+<img width="250" height="181" alt="SnipeScheduler-Logo" src="https://github.com/user-attachments/assets/794c9bcc-2846-4c16-8071-ba072b742a02" />
+
 # SnipeScheduler - An Asset Reservation/Checkout System for Snipe-IT
 
 [![Donate with PayPal to help me continue developing these apps!](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate/?business=5TRANVZF49AN6&no_recurring=0&item_name=Thank+you+for+any+donations%21+It+will+help+me+put+money+into+the+tools+I+use+to+develop+my+apps+and+services.&currency_code=GBP)
