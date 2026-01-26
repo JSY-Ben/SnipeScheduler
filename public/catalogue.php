@@ -785,38 +785,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                 <div class="filter-panel__title">SEARCH</div>
             </div>
 
-            <div class="availability-box mb-4">
-                <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
-                    <div class="availability-pill">Select reservation window</div>
-                    <div class="text-muted small">Set dates to update availability automatically.</div>
-                </div>
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold">Start date &amp; time</label>
-                        <input type="datetime-local"
-                               name="start_datetime"
-                               id="catalogue_start_datetime"
-                               class="form-control form-control-lg"
-                               value="<?= h($windowStartRaw) ?>">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold">End date &amp; time</label>
-                        <input type="datetime-local"
-                               name="end_datetime"
-                               id="catalogue_end_datetime"
-                               class="form-control form-control-lg"
-                               value="<?= h($windowEndRaw) ?>">
-                    </div>
-                    <div class="col-md-4 d-grid">
-                        <button class="btn btn-outline-primary mt-3 mt-md-0" type="submit">
-                            Update availability
-                        </button>
-                    </div>
-                </div>
-                <?php if ($windowError !== ''): ?>
-                    <div class="text-danger small mt-2"><?= h($windowError) ?></div>
-                <?php endif; ?>
-            </div>
+            <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+            <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
 
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5">
@@ -870,6 +840,42 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
                 </div>
             </div>
+        </form>
+
+        <form class="availability-box mb-4" method="get" action="catalogue.php" id="catalogue-window-form">
+            <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                <div class="availability-pill">Select reservation window</div>
+                <div class="text-muted small">Set dates to update availability automatically.</div>
+            </div>
+            <input type="hidden" name="q" value="<?= h($searchRaw) ?>">
+            <input type="hidden" name="category" value="<?= h($categoryRaw) ?>">
+            <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Start date &amp; time</label>
+                    <input type="datetime-local"
+                           name="start_datetime"
+                           id="catalogue_start_datetime"
+                           class="form-control form-control-lg"
+                           value="<?= h($windowStartRaw) ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">End date &amp; time</label>
+                    <input type="datetime-local"
+                           name="end_datetime"
+                           id="catalogue_end_datetime"
+                           class="form-control form-control-lg"
+                           value="<?= h($windowEndRaw) ?>">
+                </div>
+                <div class="col-md-4 d-grid">
+                    <button class="btn btn-outline-primary mt-3 mt-md-0" type="submit">
+                        Update availability
+                    </button>
+                </div>
+            </div>
+            <?php if ($windowError !== ''): ?>
+                <div class="text-danger small mt-2"><?= h($windowError) ?></div>
+            <?php endif; ?>
         </form>
 
         <?php if (empty($models) && !$modelErr): ?>
@@ -1092,17 +1098,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookingEmail = document.getElementById('booking_user_email');
     const bookingName  = document.getElementById('booking_user_name');
     const basketToast  = document.getElementById('basket-toast');
-    const filterForm = document.querySelector('.filter-panel');
+    const filterForm = document.getElementById('catalogue-filter-form');
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
     const sortSelect = filterForm ? filterForm.querySelector('select[name="sort"]') : null;
     const windowStartInput = document.getElementById('catalogue_start_datetime');
     const windowEndInput = document.getElementById('catalogue_end_datetime');
+    const windowForm = document.getElementById('catalogue-window-form');
     let bookingTimer   = null;
     let bookingQuery   = '';
     let basketToastTimer = null;
 
     function maybeSubmitWindow() {
-        if (!filterForm || !windowStartInput || !windowEndInput) return;
+        if (!windowForm || !windowStartInput || !windowEndInput) return;
         const startVal = windowStartInput.value.trim();
         const endVal = windowEndInput.value.trim();
         if (startVal === '' && endVal === '') return;
@@ -1110,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const startMs = Date.parse(startVal);
         const endMs = Date.parse(endVal);
         if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return;
-        filterForm.submit();
+        windowForm.submit();
     }
 
     function applyOverdueBlock(items) {
