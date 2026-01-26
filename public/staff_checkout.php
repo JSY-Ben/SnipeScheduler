@@ -451,6 +451,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $selectedReservationId = null;
                 }
 
+                if ($selectedReservationId) {
+                    $_SESSION['selected_reservation_fresh'] = 1;
+                }
+
                 header('Location: ' . $selfUrl);
                 exit;
             } catch (Throwable $e) {
