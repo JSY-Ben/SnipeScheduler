@@ -11,6 +11,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $modelId      = isset($_POST['model_id']) ? (int)$_POST['model_id'] : 0;
 $qtyRequested = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
+$startRaw     = trim($_POST['start_datetime'] ?? '');
+$endRaw       = trim($_POST['end_datetime'] ?? '');
+
+if ($startRaw !== '' && $endRaw !== '') {
+    $startTs = strtotime($startRaw);
+    $endTs   = strtotime($endRaw);
+    if ($startTs !== false && $endTs !== false && $endTs > $startTs) {
+        $_SESSION['reservation_window_start'] = $startRaw;
+        $_SESSION['reservation_window_end']   = $endRaw;
+    }
+}
 
 if ($modelId <= 0 || $qtyRequested <= 0) {
     // Bad input; just go back to catalogue

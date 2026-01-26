@@ -532,11 +532,38 @@ $searchRaw    = trim($_GET['q'] ?? '');
 $categoryRaw  = trim($_GET['category'] ?? '');
 $sortRaw      = trim($_GET['sort'] ?? '');
 $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$windowStartRaw = trim($_GET['start_datetime'] ?? '');
+$windowEndRaw   = trim($_GET['end_datetime'] ?? '');
 
 // Normalise filters
 $search   = $searchRaw !== '' ? $searchRaw : null;
 $category = ctype_digit($categoryRaw) ? (int)$categoryRaw : null;
 $sort     = $sortRaw !== '' ? $sortRaw : null;
+
+if ($windowStartRaw === '' && $windowEndRaw === '') {
+    $sessionStart = trim((string)($_SESSION['reservation_window_start'] ?? ''));
+    $sessionEnd   = trim((string)($_SESSION['reservation_window_end'] ?? ''));
+    if ($sessionStart !== '' && $sessionEnd !== '') {
+        $windowStartRaw = $sessionStart;
+        $windowEndRaw   = $sessionEnd;
+    }
+}
+
+$windowStartTs = $windowStartRaw !== '' ? strtotime($windowStartRaw) : false;
+$windowEndTs   = $windowEndRaw !== '' ? strtotime($windowEndRaw) : false;
+$windowActive  = false;
+$windowError   = '';
+if ($windowStartRaw !== '' || $windowEndRaw !== '') {
+    if ($windowStartTs === false || $windowEndTs === false) {
+        $windowError = 'Please enter a valid start and end date/time.';
+    } elseif ($windowEndTs <= $windowStartTs) {
+        $windowError = 'End date/time must be after start date/time.';
+    } else {
+        $windowActive = true;
+        $_SESSION['reservation_window_start'] = $windowStartRaw;
+        $_SESSION['reservation_window_end']   = $windowEndRaw;
+    }
+}
 
 // Pagination limit (from config constants)
 $perPage = defined('CATALOGUE_ITEMS_PER_PAGE')
@@ -577,6 +604,8 @@ $modelErr    = '';
 $totalModels = 0;
 $totalPages  = 1;
 $nowIso      = date('Y-m-d H:i:s');
+$windowStartIso = $windowActive ? date('Y-m-d H:i:s', $windowStartTs) : '';
+$windowEndIso   = $windowActive ? date('Y-m-d H:i:s', $windowEndTs) : '';
 $checkedOutCounts = [];
 
 // If allowlist is set, ignore any pre-selected category that's not allowed
@@ -750,10 +779,43 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </div>
         <?php endif; ?>
 
-        <form class="filter-panel mb-4" method="get" action="catalogue.php">
+        <form class="filter-panel mb-4" method="get" action="catalogue.php" id="catalogue-filter-form">
             <div class="filter-panel__header d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
                 <div class="filter-panel__title">SEARCH</div>
+            </div>
+
+            <div class="availability-box mb-4">
+                <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                    <div class="availability-pill">Select reservation window</div>
+                    <div class="text-muted small">Set dates to update availability automatically.</div>
+                </div>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Start date &amp; time</label>
+                        <input type="datetime-local"
+                               name="start_datetime"
+                               id="catalogue_start_datetime"
+                               class="form-control form-control-lg"
+                               value="<?= h($windowStartRaw) ?>">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">End date &amp; time</label>
+                        <input type="datetime-local"
+                               name="end_datetime"
+                               id="catalogue_end_datetime"
+                               class="form-control form-control-lg"
+                               value="<?= h($windowEndRaw) ?>">
+                    </div>
+                    <div class="col-md-4 d-grid">
+                        <button class="btn btn-outline-primary mt-3 mt-md-0" type="submit">
+                            Update availability
+                        </button>
+                    </div>
+                </div>
+                <?php if ($windowError !== ''): ?>
+                    <div class="text-danger small mt-2"><?= h($windowError) ?></div>
+                <?php endif; ?>
             </div>
 
             <div class="row g-3 align-items-end">
@@ -832,22 +894,40 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     try {
                         $assetCount = count_requestable_assets_by_model($modelId);
 
-                        // Active reservations overlapping "now"
-                        $stmt = $pdo->prepare("
-                            SELECT
-                                COALESCE(SUM(CASE WHEN r.status IN ('pending','confirmed') THEN ri.quantity END), 0) AS pending_qty,
-                                COALESCE(SUM(CASE WHEN r.status = 'completed' THEN ri.quantity END), 0) AS completed_qty
-                            FROM reservation_items ri
-                            JOIN reservations r ON r.id = ri.reservation_id
-                            WHERE ri.model_id = :mid
-                              AND r.status IN ('pending','confirmed','completed')
-                              AND r.start_datetime <= :now
-                              AND r.end_datetime   > :now
-                        ");
-                        $stmt->execute([
-                            ':mid' => $modelId,
-                            ':now' => $nowIso,
-                        ]);
+                        if ($windowActive) {
+                            $stmt = $pdo->prepare("
+                                SELECT
+                                    COALESCE(SUM(CASE WHEN r.status IN ('pending','confirmed') THEN ri.quantity END), 0) AS pending_qty,
+                                    COALESCE(SUM(CASE WHEN r.status = 'completed' THEN ri.quantity END), 0) AS completed_qty
+                                FROM reservation_items ri
+                                JOIN reservations r ON r.id = ri.reservation_id
+                                WHERE ri.model_id = :mid
+                                  AND r.status IN ('pending','confirmed','completed')
+                                  AND (r.start_datetime < :end AND r.end_datetime > :start)
+                            ");
+                            $stmt->execute([
+                                ':mid' => $modelId,
+                                ':start' => $windowStartIso,
+                                ':end' => $windowEndIso,
+                            ]);
+                        } else {
+                            // Active reservations overlapping "now"
+                            $stmt = $pdo->prepare("
+                                SELECT
+                                    COALESCE(SUM(CASE WHEN r.status IN ('pending','confirmed') THEN ri.quantity END), 0) AS pending_qty,
+                                    COALESCE(SUM(CASE WHEN r.status = 'completed' THEN ri.quantity END), 0) AS completed_qty
+                                FROM reservation_items ri
+                                JOIN reservations r ON r.id = ri.reservation_id
+                                WHERE ri.model_id = :mid
+                                  AND r.status IN ('pending','confirmed','completed')
+                                  AND r.start_datetime <= :now
+                                  AND r.end_datetime   > :now
+                            ");
+                            $stmt->execute([
+                                ':mid' => $modelId,
+                                ':now' => $nowIso,
+                            ]);
+                        }
                         $row = $stmt->fetch(PDO::FETCH_ASSOC);
                         $pendingQty   = $row ? (int)$row['pending_qty'] : 0;
 
@@ -908,7 +988,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <?php if ($assetCount !== null): ?>
                                         <span><strong>Requestable units:</strong> <?= $assetCount ?></span><br>
                                     <?php endif; ?>
-                                    <span><strong>Available now:</strong> <?= $freeNow ?></span>
+                                    <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= $freeNow ?></span>
                                     <?php if (!empty($notes)): ?>
                                         <div class="mt-2 text-muted clamp-3">
                                             <?= label_safe($notes) ?>
@@ -920,6 +1000,10 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                       action="basket_add.php"
                                       class="mt-auto add-to-basket-form">
                                     <input type="hidden" name="model_id" value="<?= $modelId ?>">
+                                    <?php if ($windowActive): ?>
+                                        <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                        <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                    <?php endif; ?>
 
                                     <?php if ($isRequestable && $freeNow > 0): ?>
                                         <div class="row g-2 align-items-center mb-2">
@@ -943,7 +1027,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                             <?php if (!$isRequestable): ?>
                                                 No requestable units available.
                                             <?php else: ?>
-                                                No units available right now.
+                                                <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
                                             <?php endif; ?>
                                         </div>
                                         <button type="button"
@@ -968,6 +1052,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                             'q'        => $searchRaw,
                             'category' => $categoryRaw,
                             'sort'     => $sortRaw,
+                            'start_datetime' => $windowStartRaw,
+                            'end_datetime' => $windowEndRaw,
                         ];
                         ?>
                         <?php for ($p = 1; $p <= $totalPages; $p++): ?>
@@ -1009,9 +1095,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterForm = document.querySelector('.filter-panel');
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
     const sortSelect = filterForm ? filterForm.querySelector('select[name="sort"]') : null;
+    const windowStartInput = document.getElementById('catalogue_start_datetime');
+    const windowEndInput = document.getElementById('catalogue_end_datetime');
     let bookingTimer   = null;
     let bookingQuery   = '';
     let basketToastTimer = null;
+
+    function maybeSubmitWindow() {
+        if (!filterForm || !windowStartInput || !windowEndInput) return;
+        const startVal = windowStartInput.value.trim();
+        const endVal = windowEndInput.value.trim();
+        if (startVal === '' && endVal === '') return;
+        if (startVal === '' || endVal === '') return;
+        const startMs = Date.parse(startVal);
+        const endMs = Date.parse(endVal);
+        if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return;
+        filterForm.submit();
+    }
 
     function applyOverdueBlock(items) {
         if (catalogueContent) {
@@ -1052,6 +1152,13 @@ document.addEventListener('DOMContentLoaded', function () {
             basketToast.classList.remove('show');
             basketToast.setAttribute('aria-hidden', 'true');
         }, 2200);
+    }
+
+    if (windowStartInput && windowEndInput) {
+        windowStartInput.addEventListener('change', maybeSubmitWindow);
+        windowEndInput.addEventListener('change', maybeSubmitWindow);
+        windowStartInput.addEventListener('blur', maybeSubmitWindow);
+        windowEndInput.addEventListener('blur', maybeSubmitWindow);
     }
 
     const overdueEnabled = document.body.dataset.catalogueOverdue === '1';

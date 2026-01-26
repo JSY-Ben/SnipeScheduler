@@ -19,6 +19,14 @@ $defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
 
 $previewStartRaw = $_GET['start_datetime'] ?? '';
 $previewEndRaw   = $_GET['end_datetime'] ?? '';
+if ($previewStartRaw === '' && $previewEndRaw === '') {
+    $sessionStart = trim((string)($_SESSION['reservation_window_start'] ?? ''));
+    $sessionEnd   = trim((string)($_SESSION['reservation_window_end'] ?? ''));
+    if ($sessionStart !== '' && $sessionEnd !== '') {
+        $previewStartRaw = $sessionStart;
+        $previewEndRaw   = $sessionEnd;
+    }
+}
 
 if (trim($previewStartRaw) === '') {
     $previewStartRaw = $defaultStart;
