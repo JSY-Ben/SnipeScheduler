@@ -565,6 +565,10 @@ if ($windowStartRaw !== '' || $windowEndRaw !== '') {
     }
 }
 
+$windowStartDisplay = $windowStartRaw !== '' ? app_format_datetime($windowStartRaw) : '';
+$windowEndDisplay   = $windowEndRaw !== '' ? app_format_datetime($windowEndRaw) : '';
+$windowPlaceholder  = app_format_datetime('2026-12-31 09:00:00');
+
 // Pagination limit (from config constants)
 $perPage = defined('CATALOGUE_ITEMS_PER_PAGE')
     ? (int)CATALOGUE_ITEMS_PER_PAGE
@@ -675,7 +679,10 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4" data-catalogue-overdue="<?= $blockCatalogueOverdue ? '1' : '0' ?>">
+<body class="p-4"
+      data-catalogue-overdue="<?= $blockCatalogueOverdue ? '1' : '0' ?>"
+      data-date-format="<?= h(app_get_date_format()) ?>"
+      data-time-format="<?= h(app_get_time_format()) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -842,7 +849,11 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </div>
         </form>
 
-        <form class="filter-panel filter-panel--compact mb-4" method="get" action="catalogue.php" id="catalogue-window-form">
+        <form class="filter-panel filter-panel--compact mb-4"
+              method="get"
+              action="catalogue.php"
+              id="catalogue-window-form"
+              data-reservation-window="1">
             <div class="filter-panel__header d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
                 <div class="filter-panel__title">RESERVATION WINDOW</div>
@@ -853,18 +864,28 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <div class="row g-3 align-items-end">
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Start date &amp; time</label>
-                    <input type="datetime-local"
-                           name="start_datetime"
+                    <input type="text"
                            id="catalogue_start_datetime"
                            class="form-control form-control-lg"
+                           data-role="start-display"
+                           placeholder="<?= h($windowPlaceholder) ?>"
+                           value="<?= h($windowStartDisplay) ?>">
+                    <input type="hidden"
+                           name="start_datetime"
+                           data-role="start-iso"
                            value="<?= h($windowStartRaw) ?>">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">End date &amp; time</label>
-                    <input type="datetime-local"
-                           name="end_datetime"
+                    <input type="text"
                            id="catalogue_end_datetime"
                            class="form-control form-control-lg"
+                           data-role="end-display"
+                           placeholder="<?= h($windowPlaceholder) ?>"
+                           value="<?= h($windowEndDisplay) ?>">
+                    <input type="hidden"
+                           name="end_datetime"
+                           data-role="end-iso"
                            value="<?= h($windowEndRaw) ?>">
                 </div>
                 <div class="col-md-4 d-grid d-md-flex gap-2">
@@ -1087,6 +1108,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
      aria-live="polite"
      aria-hidden="true"></div>
 
+<script src="assets/datetime_picker.js"></script>
 <!-- AJAX add-to-basket + update basket count text -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -1104,61 +1126,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterForm = document.getElementById('catalogue-filter-form');
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
     const sortSelect = filterForm ? filterForm.querySelector('select[name="sort"]') : null;
-    const windowStartInput = document.getElementById('catalogue_start_datetime');
-    const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
+    const windowCtx = (windowForm && window.SnipeSchedulerDateTime)
+        ? window.SnipeSchedulerDateTime.initReservationWindow(windowForm)
+        : null;
+    const windowStartInput = windowCtx ? windowCtx.startDisplay : null;
+    const windowEndInput = windowCtx ? windowCtx.endDisplay : null;
     const todayBtn = document.getElementById('catalogue-today-btn');
     let bookingTimer   = null;
     let bookingQuery   = '';
     let basketToastTimer = null;
 
     function maybeSubmitWindow() {
-        if (!windowForm || !windowStartInput || !windowEndInput) return;
-        const startVal = windowStartInput.value.trim();
-        const endVal = windowEndInput.value.trim();
+        if (!windowForm || !windowCtx || !windowCtx.startIso || !windowCtx.endIso) return;
+        const startVal = windowCtx.startIso.value.trim();
+        const endVal = windowCtx.endIso.value.trim();
         if (startVal === '' && endVal === '') return;
         if (startVal === '' || endVal === '') return;
-        const startMs = Date.parse(startVal);
-        const endMs = Date.parse(endVal);
-        if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return;
+        const startDate = window.SnipeSchedulerDateTime.parseISOToLocal(startVal);
+        const endDate = window.SnipeSchedulerDateTime.parseISOToLocal(endVal);
+        if (!startDate || !endDate || endDate.getTime() <= startDate.getTime()) return;
         windowForm.submit();
-    }
-
-    function toLocalDatetimeValue(date) {
-        const pad = function (n) { return String(n).padStart(2, '0'); };
-        return date.getFullYear()
-            + '-' + pad(date.getMonth() + 1)
-            + '-' + pad(date.getDate())
-            + 'T' + pad(date.getHours())
-            + ':' + pad(date.getMinutes());
-    }
-
-    function setTodayWindow() {
-        if (!windowStartInput || !windowEndInput) return;
-        const now = new Date();
-        const tomorrow = new Date(now);
-        tomorrow.setDate(now.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0);
-        windowStartInput.value = toLocalDatetimeValue(now);
-        windowEndInput.value = toLocalDatetimeValue(tomorrow);
-        maybeSubmitWindow();
-    }
-
-    function normalizeWindowEnd() {
-        if (!windowStartInput || !windowEndInput) return;
-        const startVal = windowStartInput.value.trim();
-        const endVal = windowEndInput.value.trim();
-        if (startVal === '' || endVal === '') return;
-        const startMs = Date.parse(startVal);
-        const endMs = Date.parse(endVal);
-        if (Number.isNaN(startMs) || Number.isNaN(endMs)) return;
-        if (endMs <= startMs) {
-            const startDate = new Date(startMs);
-            const nextDay = new Date(startDate);
-            nextDay.setDate(startDate.getDate() + 1);
-            nextDay.setHours(9, 0, 0, 0);
-            windowEndInput.value = toLocalDatetimeValue(nextDay);
-        }
     }
 
     function applyOverdueBlock(items) {
@@ -1203,15 +1191,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (windowStartInput && windowEndInput) {
-        windowStartInput.addEventListener('change', normalizeWindowEnd);
-        windowEndInput.addEventListener('change', normalizeWindowEnd);
         windowStartInput.addEventListener('change', maybeSubmitWindow);
         windowEndInput.addEventListener('change', maybeSubmitWindow);
         windowStartInput.addEventListener('blur', maybeSubmitWindow);
         windowEndInput.addEventListener('blur', maybeSubmitWindow);
     }
     if (todayBtn) {
-        todayBtn.addEventListener('click', setTodayWindow);
+        todayBtn.addEventListener('click', function () {
+            if (!windowCtx) return;
+            windowCtx.setTodayWindow();
+            maybeSubmitWindow();
+        });
     }
 
     const overdueEnabled = document.body.dataset.catalogueOverdue === '1';

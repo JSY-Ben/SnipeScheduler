@@ -36,6 +36,10 @@ if (trim($previewEndRaw) === '') {
     $previewEndRaw = $defaultEnd;
 }
 
+$previewStartDisplay = $previewStartRaw !== '' ? app_format_datetime($previewStartRaw) : '';
+$previewEndDisplay   = $previewEndRaw !== '' ? app_format_datetime($previewEndRaw) : '';
+$previewPlaceholder  = app_format_datetime('2026-12-31 09:00:00');
+
 $previewStart = null;
 $previewEnd   = null;
 $previewError = '';
@@ -158,7 +162,9 @@ if (!empty($basket)) {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4">
+<body class="p-4"
+      data-date-format="<?= h(app_get_date_format()) ?>"
+      data-time-format="<?= h(app_get_time_format()) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -283,19 +289,31 @@ if (!empty($basket)) {
                     <div class="availability-pill">Select reservation window</div>
                     <div class="text-muted small">Start defaults to now, end to tomorrow at 09:00</div>
                 </div>
-                <form method="get" action="basket.php">
+                <form method="get" action="basket.php" data-reservation-window="1">
                     <div class="row g-3 align-items-end">
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Start date &amp; time</label>
-                            <input type="datetime-local" name="start_datetime"
+                            <input type="text"
                                    class="form-control form-control-lg"
-                                   value="<?= htmlspecialchars($previewStartRaw) ?>">
+                                   data-role="start-display"
+                                   placeholder="<?= h($previewPlaceholder) ?>"
+                                   value="<?= h($previewStartDisplay) ?>">
+                            <input type="hidden"
+                                   name="start_datetime"
+                                   data-role="start-iso"
+                                   value="<?= h($previewStartRaw) ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">End date &amp; time</label>
-                            <input type="datetime-local" name="end_datetime"
+                            <input type="text"
                                    class="form-control form-control-lg"
-                                   value="<?= htmlspecialchars($previewEndRaw) ?>">
+                                   data-role="end-display"
+                                   placeholder="<?= h($previewPlaceholder) ?>"
+                                   value="<?= h($previewEndDisplay) ?>">
+                            <input type="hidden"
+                                   name="end_datetime"
+                                   data-role="end-iso"
+                                   value="<?= h($previewEndRaw) ?>">
                         </div>
                         <div class="col-md-4 d-grid">
                             <button class="btn btn-outline-primary mt-3 mt-md-0" type="submit">
@@ -332,46 +350,7 @@ if (!empty($basket)) {
         <?php endif; ?>
     </div>
 </div>
+<script src="assets/datetime_picker.js"></script>
 <?php layout_footer(); ?>
 </body>
 </html>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const startInput = document.querySelector('input[name="start_datetime"]');
-    const endInput = document.querySelector('input[name="end_datetime"]');
-
-    function toLocalDatetimeValue(date) {
-        const pad = function (n) { return String(n).padStart(2, '0'); };
-        return date.getFullYear()
-            + '-' + pad(date.getMonth() + 1)
-            + '-' + pad(date.getDate())
-            + 'T' + pad(date.getHours())
-            + ':' + pad(date.getMinutes());
-    }
-
-    function normalizeWindowEnd() {
-        if (!startInput || !endInput) return;
-        const startVal = startInput.value.trim();
-        const endVal = endInput.value.trim();
-        if (startVal === '' || endVal === '') return;
-        const startMs = Date.parse(startVal);
-        const endMs = Date.parse(endVal);
-        if (Number.isNaN(startMs) || Number.isNaN(endMs)) return;
-        if (endMs <= startMs) {
-            const startDate = new Date(startMs);
-            const nextDay = new Date(startDate);
-            nextDay.setDate(startDate.getDate() + 1);
-            nextDay.setHours(9, 0, 0, 0);
-            endInput.value = toLocalDatetimeValue(nextDay);
-        }
-    }
-
-    if (startInput && endInput) {
-        startInput.addEventListener('change', normalizeWindowEnd);
-        endInput.addEventListener('change', normalizeWindowEnd);
-        startInput.addEventListener('blur', normalizeWindowEnd);
-        endInput.addEventListener('blur', normalizeWindowEnd);
-    }
-});
-</script>
