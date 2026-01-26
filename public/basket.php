@@ -158,7 +158,9 @@ if (!empty($basket)) {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4">
+<body class="p-4"
+      data-date-format="<?= h(app_get_date_format()) ?>"
+      data-time-format="<?= h(app_get_time_format()) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>

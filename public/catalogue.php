@@ -675,7 +675,16 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4" data-catalogue-overdue="<?= $blockCatalogueOverdue ? '1' : '0' ?>">
+<body class="p-4"
+      data-catalogue-overdue="<?= $blockCatalogueOverdue ? '1' : '0' ?>"
+      data-date-format="<?= h(app_get_date_format()) ?>"
+      data-time-format="<?= h(app_get_time_format()) ?>">
+<div id="catalogue-loading" class="loading-overlay" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <div class="loading-text">Fetching assets...</div>
+    </div>
+</div>
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -1090,6 +1099,11 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
 <!-- AJAX add-to-basket + update basket count text -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const loadingOverlay = document.getElementById('catalogue-loading');
+    if (loadingOverlay) {
+        loadingOverlay.classList.add('is-hidden');
+        loadingOverlay.setAttribute('aria-busy', 'false');
+    }
     const overdueAlert = document.getElementById('overdue-alert');
     const overdueList = document.getElementById('overdue-list');
     const overdueWarning = document.getElementById('overdue-warning');

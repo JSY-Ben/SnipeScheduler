@@ -693,6 +693,55 @@ form .form-select {
     white-space: nowrap;
 }
 
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.loading-overlay.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+}
+
+.loading-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.2rem;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #1f2937;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.loading-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(15, 23, 42, 0.2);
+    border-top-color: rgba(15, 23, 42, 0.7);
+    animation: spin 900ms linear infinite;
+}
+
+.loading-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .filter-panel::after {
     content: "";
     position: absolute;
