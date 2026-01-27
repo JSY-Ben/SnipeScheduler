@@ -587,7 +587,7 @@ if (($entries['count'] ?? 0) !== 1) {
 }
 
 $user   = $entries[0];
-$userDn = $user['distinguishedname'][0] ?? null;
+$userDn = $user['distinguishedname'][0] ?? $user["dn"] ?? null;
 
 if (empty($userDn)) {
     $redirectWithError($debugOn
