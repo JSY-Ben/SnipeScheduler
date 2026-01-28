@@ -24,7 +24,7 @@ $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     : true;
 $overdueCacheTtl = 0;
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch']) && !isset($_GET['ajax'])) {
     $query = $_GET;
     $query['prefetch'] = 1;
     $fullUrl = 'catalogue.php' . (empty($query) ? '' : '?' . http_build_query($query));
