@@ -307,25 +307,50 @@ function entra_directory_search(string $q, array $config): array
         return [];
     }
 
-    $qEsc = str_replace("'", "''", $q);
-    $filter = "contains(displayName,'{$qEsc}')"
-        . " or contains(mail,'{$qEsc}')"
-        . " or contains(userPrincipalName,'{$qEsc}')"
-        . " or startswith(givenName,'{$qEsc}')"
-        . " or startswith(surname,'{$qEsc}')";
-    $url = 'https://graph.microsoft.com/v1.0/users?'
-        . http_build_query([
-            '$select' => 'displayName,mail,userPrincipalName',
-            '$top'    => 20,
-            '$count'  => 'true',
-            '$filter' => $filter,
-        ]);
+    $data = null;
+    try {
+        $qSearch = str_replace('"', '\"', $q);
+        $search = '"displayName:' . $qSearch . '"'
+            . ' OR "mail:' . $qSearch . '"'
+            . ' OR "userPrincipalName:' . $qSearch . '"'
+            . ' OR "givenName:' . $qSearch . '"'
+            . ' OR "surname:' . $qSearch . '"';
+        $url = 'https://graph.microsoft.com/v1.0/users?'
+            . http_build_query([
+                '$select' => 'displayName,mail,userPrincipalName',
+                '$top'    => 20,
+                '$count'  => 'true',
+                '$search' => $search,
+            ]);
 
-    $data = http_get_json($url, [
-        'Authorization: Bearer ' . $accessToken,
-        'ConsistencyLevel: eventual',
-        'Accept: application/json',
-    ]);
+        $data = http_get_json($url, [
+            'Authorization: Bearer ' . $accessToken,
+            'ConsistencyLevel: eventual',
+            'Accept: application/json',
+        ]);
+    } catch (Throwable $e) {
+        $data = null;
+    }
+
+    if (!is_array($data)) {
+        $qEsc = str_replace("'", "''", $q);
+        $filter = "startswith(displayName,'{$qEsc}')"
+            . " or startswith(mail,'{$qEsc}')"
+            . " or startswith(userPrincipalName,'{$qEsc}')"
+            . " or startswith(givenName,'{$qEsc}')"
+            . " or startswith(surname,'{$qEsc}')";
+        $url = 'https://graph.microsoft.com/v1.0/users?'
+            . http_build_query([
+                '$select' => 'displayName,mail,userPrincipalName',
+                '$top'    => 20,
+                '$filter' => $filter,
+            ]);
+
+        $data = http_get_json($url, [
+            'Authorization: Bearer ' . $accessToken,
+            'Accept: application/json',
+        ]);
+    }
 
     $results = [];
     $users = $data['value'] ?? [];
