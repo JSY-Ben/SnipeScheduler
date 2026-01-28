@@ -997,6 +997,35 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </div>
         </div>
 
+        <?php if ($isStaff): ?>
+            <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between booking-for-alert">
+                <div class="mb-2 mb-md-0">
+                    <strong>Booking for:</strong>
+                    <?= h($activeUser['email'] ?? '') ?>
+                    <?php if (!empty($activeUser['first_name'])): ?>
+                        (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
+                    <?php endif; ?>
+                </div>
+                <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
+                    <input type="hidden" name="mode" value="set_booking_user">
+                    <input type="hidden" name="booking_user_email" id="booking_user_email">
+                    <input type="hidden" name="booking_user_name" id="booking_user_name">
+                    <div class="position-relative">
+                        <input type="text"
+                               id="booking_user_input"
+                               class="form-control form-control-sm"
+                               placeholder="Start typing email or name"
+                               autocomplete="off">
+                        <div class="list-group position-absolute w-100"
+                             id="booking_user_suggestions"
+                             style="z-index: 9999; max-height: 260px; overflow-y: auto; display: none; box-shadow: 0 12px 24px rgba(0,0,0,0.18);"></div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" type="submit">Use</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1">Revert to logged in user</button>
+                </form>
+            </div>
+        <?php endif; ?>
+
         <?php if ($blockCatalogueOverdue): ?>
             <div id="overdue-alert" class="alert alert-danger<?= $catalogueBlocked ? '' : ' d-none' ?>">
                 <div class="fw-semibold mb-2">Catalogue unavailable</div>
@@ -1034,34 +1063,6 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <?php endif; ?>
 
         <!-- Filters -->
-        <?php if ($isStaff): ?>
-            <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between booking-for-alert">
-                <div class="mb-2 mb-md-0">
-                    <strong>Booking for:</strong>
-                    <?= h($activeUser['email'] ?? '') ?>
-                    <?php if (!empty($activeUser['first_name'])): ?>
-                        (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
-                    <?php endif; ?>
-                </div>
-                <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
-                    <input type="hidden" name="mode" value="set_booking_user">
-                    <input type="hidden" name="booking_user_email" id="booking_user_email">
-                    <input type="hidden" name="booking_user_name" id="booking_user_name">
-                    <div class="position-relative">
-                        <input type="text"
-                               id="booking_user_input"
-                               class="form-control form-control-sm"
-                               placeholder="Start typing email or name"
-                               autocomplete="off">
-                        <div class="list-group position-absolute w-100"
-                             id="booking_user_suggestions"
-                             style="z-index: 9999; max-height: 260px; overflow-y: auto; display: none; box-shadow: 0 12px 24px rgba(0,0,0,0.18);"></div>
-                    </div>
-                    <button class="btn btn-sm btn-primary" type="submit">Use</button>
-                    <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1">Revert to logged in user</button>
-                </form>
-            </div>
-        <?php endif; ?>
 
         <form class="filter-panel mb-4" method="get" action="catalogue.php" id="catalogue-filter-form">
             <div class="filter-panel__header d-flex align-items-center gap-3">
