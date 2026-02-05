@@ -3,6 +3,8 @@
 
 # SnipeScheduler - An Asset Reservation/Checkout System for Snipe-IT
 
+- There is also a standalone version of this app that has its own inventory database and doesn't require Snipe-IT. It is called KitGrab, and is available [here](https://github.com/JSY-Ben/KitGrab)
+
 ## Donations
 
 While i will always provide my software for free, donations are extremely helpful for allowing me to continue making these apps, so any donation would be appreciated:
