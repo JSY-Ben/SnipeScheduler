@@ -249,7 +249,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Reservation History – Admin</title>
+    <title>All Reservations – Admin</title>
 
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -262,7 +262,7 @@ try {
         <?= layout_logo_tag() ?>
 <?php endif; ?>
         <div class="page-header">
-        <h1>Reservation History</h1>
+        <h1>All Reservations</h1>
             <div class="page-subtitle">
                 View, filter, and delete any past, present or future reservation.
             </div>
