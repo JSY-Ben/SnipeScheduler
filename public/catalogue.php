@@ -723,6 +723,208 @@ function row_assigned_to_matches_user(array $row, array $keys, int $userId): boo
     return false;
 }
 
+function normalize_model_notes_text($notes): string
+{
+    if (is_array($notes)) {
+        $notes = $notes['text'] ?? '';
+    }
+
+    $text = trim((string)$notes);
+    if ($text === '') {
+        return '';
+    }
+
+    $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $decoded = preg_replace('/<br\\s*\\/?\\s*>/i', "\n", $decoded);
+    $decoded = preg_replace('/<\\/p\\s*>/i', "\n\n", $decoded);
+    $plain = strip_tags($decoded);
+    $plain = preg_replace('/\\R{3,}/', "\n\n", $plain);
+    return trim($plain);
+}
+
+function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds): array
+{
+    $allowedStatuses = ['pending', 'confirmed', 'completed', 'missed'];
+    $bookingsById = [];
+
+    $modelSql = "
+        SELECT
+            r.id,
+            r.status,
+            r.start_datetime,
+            r.end_datetime,
+            COALESCE(SUM(ri.quantity), 0) AS model_qty
+        FROM reservations r
+        JOIN reservation_items ri
+          ON ri.reservation_id = r.id
+        WHERE ri.model_id = :model_id
+          AND r.status IN ('pending','confirmed','completed','missed')
+        GROUP BY r.id, r.status, r.start_datetime, r.end_datetime
+    ";
+    $modelStmt = $pdo->prepare($modelSql);
+    $modelStmt->execute([':model_id' => $modelId]);
+    $modelRows = $modelStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($modelRows as $row) {
+        $reservationId = (int)($row['id'] ?? 0);
+        if ($reservationId <= 0) {
+            continue;
+        }
+        $bookingsById[$reservationId] = [
+            'id' => $reservationId,
+            'status' => (string)($row['status'] ?? ''),
+            'start_datetime' => (string)($row['start_datetime'] ?? ''),
+            'end_datetime' => (string)($row['end_datetime'] ?? ''),
+            'quantity' => max(1, (int)($row['model_qty'] ?? 0)),
+            'via_model' => true,
+            'via_asset' => false,
+        ];
+    }
+
+    $assetIds = array_values(array_filter(array_unique(array_map('intval', $assetIds)), static function (int $assetId): bool {
+        return $assetId > 0;
+    }));
+
+    if (!empty($assetIds)) {
+        $assetChunks = array_chunk($assetIds, 250);
+        foreach ($assetChunks as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            $assetSql = "
+                SELECT id, status, start_datetime, end_datetime
+                  FROM reservations
+                 WHERE status IN ('pending','confirmed','completed','missed')
+                   AND asset_id IN ({$placeholders})
+            ";
+            $assetStmt = $pdo->prepare($assetSql);
+            $assetStmt->execute($chunk);
+            $assetRows = $assetStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($assetRows as $row) {
+                $reservationId = (int)($row['id'] ?? 0);
+                if ($reservationId <= 0) {
+                    continue;
+                }
+
+                if (isset($bookingsById[$reservationId])) {
+                    $bookingsById[$reservationId]['via_asset'] = true;
+                    continue;
+                }
+
+                $bookingsById[$reservationId] = [
+                    'id' => $reservationId,
+                    'status' => (string)($row['status'] ?? ''),
+                    'start_datetime' => (string)($row['start_datetime'] ?? ''),
+                    'end_datetime' => (string)($row['end_datetime'] ?? ''),
+                    'quantity' => 1,
+                    'via_model' => false,
+                    'via_asset' => true,
+                ];
+            }
+        }
+    }
+
+    $result = [];
+    foreach ($bookingsById as $booking) {
+        $status = strtolower(trim((string)($booking['status'] ?? '')));
+        if (!in_array($status, $allowedStatuses, true)) {
+            continue;
+        }
+
+        if (!empty($booking['via_model']) && !empty($booking['via_asset'])) {
+            $source = 'model_and_asset';
+        } elseif (!empty($booking['via_asset'])) {
+            $source = 'asset';
+        } else {
+            $source = 'model';
+        }
+
+        $startRaw = (string)($booking['start_datetime'] ?? '');
+        $endRaw = (string)($booking['end_datetime'] ?? '');
+
+        $result[] = [
+            'id' => (int)($booking['id'] ?? 0),
+            'status' => $status,
+            'start_datetime' => $startRaw,
+            'end_datetime' => $endRaw,
+            'start_display' => app_format_datetime($startRaw),
+            'end_display' => app_format_datetime($endRaw),
+            'quantity' => max(1, (int)($booking['quantity'] ?? 1)),
+            'source' => $source,
+        ];
+    }
+
+    usort($result, static function (array $a, array $b): int {
+        $startCmp = strcmp((string)($a['start_datetime'] ?? ''), (string)($b['start_datetime'] ?? ''));
+        if ($startCmp !== 0) {
+            return $startCmp;
+        }
+        return ((int)($a['id'] ?? 0)) <=> ((int)($b['id'] ?? 0));
+    });
+
+    return $result;
+}
+
+if (($_GET['ajax'] ?? '') === 'model_details') {
+    header('Content-Type: application/json');
+
+    $modelId = isset($_GET['model_id']) ? (int)$_GET['model_id'] : 0;
+    if ($modelId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid model ID.']);
+        exit;
+    }
+
+    try {
+        $model = get_model($modelId);
+        if (empty($model['id'])) {
+            throw new RuntimeException('Model not found.');
+        }
+
+        $notes = normalize_model_notes_text($model['notes'] ?? '');
+        $assetIds = [];
+        $warnings = [];
+
+        try {
+            $assetsCount = isset($model['assets_count']) && is_numeric($model['assets_count'])
+                ? (int)$model['assets_count']
+                : 0;
+            $assetLookupLimit = min(5000, max(500, $assetsCount + 25));
+            $assets = list_assets_by_model($modelId, $assetLookupLimit);
+            foreach ($assets as $asset) {
+                $assetId = (int)($asset['id'] ?? 0);
+                if ($assetId > 0) {
+                    $assetIds[] = $assetId;
+                }
+            }
+        } catch (Throwable $e) {
+            $warnings[] = $debugOn
+                ? 'Could not load model assets: ' . $e->getMessage()
+                : 'Could not load all model assets.';
+        }
+
+        $bookings = fetch_catalogue_model_bookings($pdo, $modelId, $assetIds);
+
+        echo json_encode([
+            'model' => [
+                'id' => (int)$modelId,
+                'name' => (string)($model['name'] ?? ('Model #' . $modelId)),
+            ],
+            'notes' => $notes,
+            'bookings' => $bookings,
+            'asset_count' => count($assetIds),
+            'warnings' => $warnings,
+        ]);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode([
+            'error' => $debugOn
+                ? $e->getMessage()
+                : 'Unable to load model details right now.',
+        ]);
+    }
+    exit;
+}
+
 // ---------------------------------------------------------------------
 // Current basket count (for "View basket (X)")
 // ---------------------------------------------------------------------
@@ -1292,6 +1494,13 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <?php endif; ?>
                                 </p>
 
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary w-100 mb-2 model-details-btn"
+                                        data-model-id="<?= $modelId ?>"
+                                        data-model-name="<?= h($name) ?>">
+                                    View notes &amp; bookings
+                                </button>
+
                                 <form method="post"
                                       action="basket_add.php"
                                       class="mt-auto add-to-basket-form">
@@ -1375,6 +1584,70 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
      aria-live="polite"
      aria-hidden="true"></div>
 
+<div id="model-details-modal"
+     class="catalogue-modal"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-labelledby="model-details-title"
+     hidden>
+    <div class="catalogue-modal__backdrop" data-model-modal-close></div>
+    <div class="catalogue-modal__dialog" role="document">
+        <div class="catalogue-modal__header">
+            <h2 id="model-details-title" class="catalogue-modal__title">Model details</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-model-modal-close>
+                Close
+            </button>
+        </div>
+        <div class="catalogue-modal__body">
+            <div id="model-details-feedback" class="d-none"></div>
+
+            <section class="model-details-section">
+                <h3 class="model-details-section__title">Full notes</h3>
+                <div id="model-details-notes" class="model-details-notes">
+                    Select a model to load notes.
+                </div>
+            </section>
+
+            <section class="model-details-section">
+                <div class="model-calendar-toolbar">
+                    <h3 class="model-details-section__title mb-0">Bookings calendar</h3>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="model-calendar-prev">Previous</button>
+                        <div id="model-calendar-month" class="model-calendar-month"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="model-calendar-next">Next</button>
+                    </div>
+                </div>
+                <div id="model-calendar-grid" class="model-calendar-grid" aria-live="polite"></div>
+            </section>
+
+            <section class="model-details-section">
+                <h3 class="model-details-section__title">All bookings</h3>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle model-bookings-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Reservation</th>
+                                <th>Status</th>
+                                <th>Source</th>
+                                <th>Qty</th>
+                                <th>Start</th>
+                                <th>End</th>
+                            </tr>
+                        </thead>
+                        <tbody id="model-bookings-body"></tbody>
+                    </table>
+                </div>
+                <div id="model-bookings-empty" class="small text-muted mt-2 d-none">
+                    No bookings found for this model.
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
 <!-- AJAX add-to-basket + update basket count text -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -1401,9 +1674,25 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
     const todayBtn = document.getElementById('catalogue-today-btn');
+    const modelDetailButtons = document.querySelectorAll('.model-details-btn');
+    const modelDetailsModal = document.getElementById('model-details-modal');
+    const modelDetailsTitle = document.getElementById('model-details-title');
+    const modelDetailsFeedback = document.getElementById('model-details-feedback');
+    const modelDetailsNotes = document.getElementById('model-details-notes');
+    const modelCalendarGrid = document.getElementById('model-calendar-grid');
+    const modelCalendarMonth = document.getElementById('model-calendar-month');
+    const modelCalendarPrev = document.getElementById('model-calendar-prev');
+    const modelCalendarNext = document.getElementById('model-calendar-next');
+    const modelBookingsBody = document.getElementById('model-bookings-body');
+    const modelBookingsEmpty = document.getElementById('model-bookings-empty');
     let bookingTimer   = null;
     let bookingQuery   = '';
     let basketToastTimer = null;
+    let modelCalendarMonthCursor = new Date();
+    let modelBookings = [];
+    let modelDetailsRequestId = 0;
+    let modelModalOpen = false;
+    let modalLastFocusedElement = null;
 
     function showLoadingOverlay() {
         if (!loadingOverlay) return;
@@ -1501,6 +1790,356 @@ document.addEventListener('DOMContentLoaded', function () {
             basketToast.classList.remove('show');
             basketToast.setAttribute('aria-hidden', 'true');
         }, 2200);
+    }
+
+    function setModelFeedback(message, tone) {
+        if (!modelDetailsFeedback) return;
+
+        const text = (message || '').trim();
+        if (text === '') {
+            modelDetailsFeedback.className = 'd-none';
+            modelDetailsFeedback.textContent = '';
+            return;
+        }
+
+        let classes = 'alert alert-info small mb-3';
+        if (tone === 'danger') {
+            classes = 'alert alert-danger small mb-3';
+        } else if (tone === 'warning') {
+            classes = 'alert alert-warning small mb-3';
+        }
+
+        modelDetailsFeedback.className = classes;
+        modelDetailsFeedback.textContent = text;
+    }
+
+    function parseSqlDatetime(value) {
+        const raw = String(value || '').trim();
+        if (raw === '') {
+            return null;
+        }
+
+        const normalized = raw.replace(' ', 'T');
+        const date = new Date(normalized);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        return date;
+    }
+
+    function bookingStatusLabel(status) {
+        const normalized = String(status || '').toLowerCase();
+        switch (normalized) {
+            case 'pending':
+                return 'Pending';
+            case 'confirmed':
+                return 'Confirmed';
+            case 'completed':
+                return 'Completed';
+            case 'missed':
+                return 'Missed';
+            case 'cancelled':
+                return 'Cancelled';
+            default:
+                return normalized === '' ? 'Unknown' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        }
+    }
+
+    function bookingStatusClass(status) {
+        const normalized = String(status || '').toLowerCase();
+        if (normalized === 'pending') return 'status-pending';
+        if (normalized === 'confirmed') return 'status-confirmed';
+        if (normalized === 'completed') return 'status-completed';
+        if (normalized === 'missed') return 'status-missed';
+        if (normalized === 'cancelled') return 'status-cancelled';
+        return 'status-default';
+    }
+
+    function bookingSourceLabel(source) {
+        const normalized = String(source || '').toLowerCase();
+        if (normalized === 'asset') return 'Asset';
+        if (normalized === 'model_and_asset') return 'Model + Asset';
+        return 'Model';
+    }
+
+    function normalizeModelBooking(raw) {
+        if (!raw || typeof raw !== 'object') {
+            return null;
+        }
+
+        const start = parseSqlDatetime(raw.start_datetime || '');
+        const end = parseSqlDatetime(raw.end_datetime || '');
+        if (!start || !end) {
+            return null;
+        }
+
+        return {
+            id: parseInt(raw.id, 10) || 0,
+            status: String(raw.status || '').toLowerCase(),
+            source: String(raw.source || 'model').toLowerCase(),
+            quantity: Math.max(1, parseInt(raw.quantity, 10) || 1),
+            start: start,
+            end: end,
+            startDisplay: String(raw.start_display || ''),
+            endDisplay: String(raw.end_display || '')
+        };
+    }
+
+    function renderModelBookingsTable() {
+        if (!modelBookingsBody || !modelBookingsEmpty) return;
+
+        modelBookingsBody.innerHTML = '';
+        if (!modelBookings.length) {
+            modelBookingsEmpty.classList.remove('d-none');
+            return;
+        }
+        modelBookingsEmpty.classList.add('d-none');
+
+        const sorted = modelBookings.slice().sort(function (a, b) {
+            const timeDiff = a.start.getTime() - b.start.getTime();
+            if (timeDiff !== 0) {
+                return timeDiff;
+            }
+            return a.id - b.id;
+        });
+
+        sorted.forEach(function (booking) {
+            const tr = document.createElement('tr');
+
+            const idCell = document.createElement('td');
+            idCell.textContent = booking.id > 0 ? '#' + booking.id : 'N/A';
+
+            const statusCell = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = 'model-booking-status ' + bookingStatusClass(booking.status);
+            statusBadge.textContent = bookingStatusLabel(booking.status);
+            statusCell.appendChild(statusBadge);
+
+            const sourceCell = document.createElement('td');
+            sourceCell.textContent = bookingSourceLabel(booking.source);
+
+            const qtyCell = document.createElement('td');
+            qtyCell.textContent = String(booking.quantity);
+
+            const startCell = document.createElement('td');
+            startCell.textContent = booking.startDisplay !== ''
+                ? booking.startDisplay
+                : booking.start.toLocaleString();
+
+            const endCell = document.createElement('td');
+            endCell.textContent = booking.endDisplay !== ''
+                ? booking.endDisplay
+                : booking.end.toLocaleString();
+
+            tr.appendChild(idCell);
+            tr.appendChild(statusCell);
+            tr.appendChild(sourceCell);
+            tr.appendChild(qtyCell);
+            tr.appendChild(startCell);
+            tr.appendChild(endCell);
+
+            modelBookingsBody.appendChild(tr);
+        });
+    }
+
+    function bookingOverlapsDay(booking, dayStart, dayEnd) {
+        return booking.start < dayEnd && booking.end > dayStart;
+    }
+
+    function renderModelCalendar() {
+        if (!modelCalendarGrid || !modelCalendarMonth) return;
+
+        const cursor = new Date(modelCalendarMonthCursor.getFullYear(), modelCalendarMonthCursor.getMonth(), 1);
+        const year = cursor.getFullYear();
+        const month = cursor.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const leadingBlanks = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+        const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        modelCalendarMonth.textContent = cursor.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+        modelCalendarGrid.innerHTML = '';
+
+        weekdayLabels.forEach(function (label) {
+            const cell = document.createElement('div');
+            cell.className = 'model-calendar-weekday';
+            cell.textContent = label;
+            modelCalendarGrid.appendChild(cell);
+        });
+
+        for (let i = 0; i < leadingBlanks; i += 1) {
+            const blank = document.createElement('div');
+            blank.className = 'model-calendar-day model-calendar-day--blank';
+            modelCalendarGrid.appendChild(blank);
+        }
+
+        for (let day = 1; day <= daysInMonth; day += 1) {
+            const dayCell = document.createElement('div');
+            dayCell.className = 'model-calendar-day';
+
+            const dayNumber = document.createElement('div');
+            dayNumber.className = 'model-calendar-day-number';
+            dayNumber.textContent = String(day);
+            dayCell.appendChild(dayNumber);
+
+            const dayStart = new Date(year, month, day, 0, 0, 0, 0);
+            const dayEnd = new Date(year, month, day + 1, 0, 0, 0, 0);
+            const dayBookings = modelBookings
+                .filter(function (booking) {
+                    return bookingOverlapsDay(booking, dayStart, dayEnd);
+                })
+                .sort(function (a, b) {
+                    return a.start.getTime() - b.start.getTime();
+                });
+
+            if (dayBookings.length > 0) {
+                const countLabel = document.createElement('div');
+                countLabel.className = 'model-calendar-count';
+                countLabel.textContent = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
+                dayCell.appendChild(countLabel);
+
+                const eventsList = document.createElement('div');
+                eventsList.className = 'model-calendar-events';
+                dayBookings.slice(0, 3).forEach(function (booking) {
+                    const eventPill = document.createElement('span');
+                    eventPill.className = 'model-calendar-event ' + bookingStatusClass(booking.status);
+                    eventPill.textContent = '#' + booking.id;
+                    eventsList.appendChild(eventPill);
+                });
+
+                if (dayBookings.length > 3) {
+                    const more = document.createElement('span');
+                    more.className = 'model-calendar-event status-default';
+                    more.textContent = '+' + (dayBookings.length - 3) + ' more';
+                    eventsList.appendChild(more);
+                }
+
+                dayCell.appendChild(eventsList);
+            }
+
+            modelCalendarGrid.appendChild(dayCell);
+        }
+    }
+
+    function closeModelDetailsModal() {
+        if (!modelDetailsModal || !modelModalOpen) return;
+
+        modelModalOpen = false;
+        modelDetailsRequestId += 1;
+        modelDetailsModal.hidden = true;
+        modelDetailsModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('catalogue-modal-open');
+        setModelFeedback('', 'info');
+
+        if (modalLastFocusedElement && typeof modalLastFocusedElement.focus === 'function') {
+            modalLastFocusedElement.focus();
+        }
+        modalLastFocusedElement = null;
+    }
+
+    function openModelDetailsModal(modelId, modelName) {
+        if (!modelDetailsModal || modelId <= 0) return;
+
+        modalLastFocusedElement = document.activeElement;
+        modelModalOpen = true;
+        modelDetailsModal.hidden = false;
+        modelDetailsModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('catalogue-modal-open');
+
+        if (modelDetailsTitle) {
+            modelDetailsTitle.textContent = (modelName || 'Model') + ' details';
+        }
+        if (modelDetailsNotes) {
+            modelDetailsNotes.textContent = 'Loading full notes...';
+        }
+
+        modelBookings = [];
+        modelCalendarMonthCursor = new Date();
+        modelCalendarMonthCursor.setDate(1);
+        renderModelBookingsTable();
+        renderModelCalendar();
+        setModelFeedback('Loading bookings...', 'info');
+
+        const requestId = ++modelDetailsRequestId;
+        fetch('catalogue.php?ajax=model_details&model_id=' + encodeURIComponent(String(modelId)), {
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+            .then(function (response) {
+                if (response.ok) {
+                    return response.json();
+                }
+                return response.json()
+                    .catch(function () { return null; })
+                    .then(function (payload) {
+                        const message = payload && payload.error
+                            ? payload.error
+                            : 'Unable to load model details.';
+                        throw new Error(message);
+                    });
+            })
+            .then(function (data) {
+                if (requestId !== modelDetailsRequestId || !modelModalOpen) {
+                    return;
+                }
+
+                const notes = data && typeof data.notes === 'string'
+                    ? data.notes.trim()
+                    : '';
+                if (modelDetailsNotes) {
+                    modelDetailsNotes.textContent = notes !== '' ? notes : 'No notes available for this model.';
+                }
+
+                const warnings = data && Array.isArray(data.warnings)
+                    ? data.warnings.filter(function (warning) {
+                        return String(warning || '').trim() !== '';
+                    })
+                    : [];
+
+                const rawBookings = data && Array.isArray(data.bookings) ? data.bookings : [];
+                modelBookings = rawBookings
+                    .map(normalizeModelBooking)
+                    .filter(function (booking) { return booking !== null; });
+
+                if (modelBookings.length > 0) {
+                    const now = new Date();
+                    let anchor = modelBookings.find(function (booking) {
+                        return booking.end >= now;
+                    });
+                    if (!anchor) {
+                        anchor = modelBookings[0];
+                    }
+                    modelCalendarMonthCursor = new Date(anchor.start.getFullYear(), anchor.start.getMonth(), 1);
+                }
+
+                renderModelBookingsTable();
+                renderModelCalendar();
+
+                if (warnings.length > 0) {
+                    setModelFeedback(warnings.join(' '), 'warning');
+                } else if (modelBookings.length === 0) {
+                    setModelFeedback('No bookings found for this model.', 'info');
+                } else {
+                    setModelFeedback('', 'info');
+                }
+            })
+            .catch(function (error) {
+                if (requestId !== modelDetailsRequestId || !modelModalOpen) {
+                    return;
+                }
+
+                if (modelDetailsNotes) {
+                    modelDetailsNotes.textContent = 'Unable to load notes for this model.';
+                }
+                modelBookings = [];
+                renderModelBookingsTable();
+                renderModelCalendar();
+                setModelFeedback(error && error.message ? error.message : 'Unable to load model details.', 'danger');
+            });
     }
 
     if (filterForm) {
@@ -1611,6 +2250,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Fallback: if AJAX fails for any reason, do normal form submit
                 form.submit();
             });
+        });
     });
 
     function hideBookingSuggestions() {
@@ -1674,17 +2314,51 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    if (filterForm && categorySelect) {
-        categorySelect.addEventListener('change', function () {
-            filterForm.submit();
+    if (modelCalendarPrev) {
+        modelCalendarPrev.addEventListener('click', function () {
+            modelCalendarMonthCursor = new Date(
+                modelCalendarMonthCursor.getFullYear(),
+                modelCalendarMonthCursor.getMonth() - 1,
+                1
+            );
+            renderModelCalendar();
         });
     }
 
-    if (filterForm && sortSelect) {
-        sortSelect.addEventListener('change', function () {
-            filterForm.submit();
+    if (modelCalendarNext) {
+        modelCalendarNext.addEventListener('click', function () {
+            modelCalendarMonthCursor = new Date(
+                modelCalendarMonthCursor.getFullYear(),
+                modelCalendarMonthCursor.getMonth() + 1,
+                1
+            );
+            renderModelCalendar();
         });
     }
+
+    if (modelDetailsModal) {
+        modelDetailsModal.addEventListener('click', function (event) {
+            const target = event.target;
+            if (target && target.closest && target.closest('[data-model-modal-close]')) {
+                closeModelDetailsModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modelModalOpen) {
+            event.preventDefault();
+            closeModelDetailsModal();
+        }
+    });
+
+    modelDetailButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            const modelId = parseInt(button.dataset.modelId || '0', 10);
+            const modelName = button.dataset.modelName || 'Model';
+            openModelDetailsModal(modelId, modelName);
+        });
+    });
 });
 
 function clearBookingUser() {
@@ -1713,7 +2387,6 @@ function revertToLoggedIn(e) {
         form.submit();
     }
 }
-});
 </script>
 <?php layout_footer(); ?>
 </body>
