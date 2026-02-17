@@ -1963,6 +1963,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return booking.start < dayEnd && booking.end > dayStart;
     }
 
+    function isCompactCalendarView() {
+        return window.matchMedia && window.matchMedia('(max-width: 576px)').matches;
+    }
+
     function renderModelCalendar() {
         if (!modelCalendarGrid || !modelCalendarMonth) return;
 
@@ -1974,7 +1978,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const lastDay = new Date(year, month + 1, 0);
         const leadingBlanks = firstDay.getDay();
         const daysInMonth = lastDay.getDate();
-        const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const compact = isCompactCalendarView();
+        const weekdayLabels = compact
+            ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
         modelCalendarMonth.textContent = cursor.toLocaleString(undefined, { month: 'long', year: 'numeric' });
         modelCalendarGrid.innerHTML = '';
@@ -2019,28 +2026,38 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
 
             if (dayBookings.length > 0) {
-                const countLabel = document.createElement('div');
-                countLabel.className = 'model-calendar-count';
-                countLabel.textContent = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
-                dayCell.appendChild(countLabel);
+                dayCell.classList.add('has-bookings');
+                dayCell.title = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
 
-                const eventsList = document.createElement('div');
-                eventsList.className = 'model-calendar-events';
-                dayBookings.slice(0, 3).forEach(function (booking) {
-                    const eventPill = document.createElement('span');
-                    eventPill.className = 'model-calendar-event ' + bookingStatusClass(booking.status);
-                    eventPill.textContent = '#' + booking.id;
-                    eventsList.appendChild(eventPill);
-                });
+                if (compact) {
+                    const countDot = document.createElement('span');
+                    countDot.className = 'model-calendar-compact-count';
+                    countDot.textContent = String(dayBookings.length);
+                    dayCell.appendChild(countDot);
+                } else {
+                    const countLabel = document.createElement('div');
+                    countLabel.className = 'model-calendar-count';
+                    countLabel.textContent = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
+                    dayCell.appendChild(countLabel);
 
-                if (dayBookings.length > 3) {
-                    const more = document.createElement('span');
-                    more.className = 'model-calendar-event status-default';
-                    more.textContent = '+' + (dayBookings.length - 3) + ' more';
-                    eventsList.appendChild(more);
+                    const eventsList = document.createElement('div');
+                    eventsList.className = 'model-calendar-events';
+                    dayBookings.slice(0, 3).forEach(function (booking) {
+                        const eventPill = document.createElement('span');
+                        eventPill.className = 'model-calendar-event ' + bookingStatusClass(booking.status);
+                        eventPill.textContent = '#' + booking.id;
+                        eventsList.appendChild(eventPill);
+                    });
+
+                    if (dayBookings.length > 3) {
+                        const more = document.createElement('span');
+                        more.className = 'model-calendar-event status-default';
+                        more.textContent = '+' + (dayBookings.length - 3) + ' more';
+                        eventsList.appendChild(more);
+                    }
+
+                    dayCell.appendChild(eventsList);
                 }
-
-                dayCell.appendChild(eventsList);
             }
 
             modelCalendarGrid.appendChild(dayCell);
