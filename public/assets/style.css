@@ -584,7 +584,7 @@ input[type="checkbox"] {
 .model-calendar-panel .model-calendar-day.model-calendar-day--today {
     border-color: rgba(var(--primary-rgb), 0.38);
     box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), 0.2), 0 8px 14px rgba(0, 0, 0, 0.08);
-    background: rgba(var(--primary-rgb), 0.2);
+    background-color: rgba(var(--primary-rgb), 0.2) !important;
 }
 
 .model-calendar-panel .model-calendar-day.model-calendar-day--today .model-calendar-day-number {
@@ -654,7 +654,7 @@ input[type="checkbox"] {
 .model-calendar-day--today {
     border-color: rgba(var(--primary-rgb), 0.34);
     box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), 0.18);
-    background: rgba(var(--primary-rgb), 0.2);
+    background-color: rgba(var(--primary-rgb), 0.2) !important;
 }
 
 .model-calendar-day--today .model-calendar-day-number {
