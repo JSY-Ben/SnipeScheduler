@@ -1689,6 +1689,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastSubmittedWindow = (windowStartInput && windowEndInput)
         ? (windowStartInput.value.trim() + '|' + windowEndInput.value.trim())
         : '';
+    let nativeWindowDirty = false;
+    let nativeWindowBlurTimer = null;
     const modelDetailCards = document.querySelectorAll('.model-card--details');
     const modelDetailsModal = document.getElementById('model-details-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
@@ -1732,6 +1734,25 @@ document.addEventListener('DOMContentLoaded', function () {
         windowSubmitInFlight = true;
         showLoadingOverlay();
         windowForm.submit();
+    }
+
+    function isNativeWindowMode() {
+        return !!(windowStartInput && windowEndInput && !windowStartInput._flatpickr && !windowEndInput._flatpickr);
+    }
+
+    function maybeSubmitNativeWindowOnBlur() {
+        if (!isNativeWindowMode() || !nativeWindowDirty) return;
+        if (nativeWindowBlurTimer) {
+            clearTimeout(nativeWindowBlurTimer);
+        }
+        nativeWindowBlurTimer = window.setTimeout(function () {
+            const activeElement = document.activeElement;
+            if (activeElement === windowStartInput || activeElement === windowEndInput) {
+                return;
+            }
+            nativeWindowDirty = false;
+            maybeSubmitWindow();
+        }, 120);
     }
 
     function toLocalDatetimeValue(date) {
@@ -2323,16 +2344,20 @@ document.addEventListener('DOMContentLoaded', function () {
     if (windowStartInput && windowEndInput) {
         windowStartInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            if (!windowStartInput._flatpickr || !windowEndInput._flatpickr) {
-                maybeSubmitWindow();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
             }
         });
         windowEndInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            if (!windowStartInput._flatpickr || !windowEndInput._flatpickr) {
-                maybeSubmitWindow();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
             }
         });
+        windowStartInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
+        windowEndInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
     }
     if (windowForm) {
         windowForm.addEventListener('submit', () => {

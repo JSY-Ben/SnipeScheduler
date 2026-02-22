@@ -402,6 +402,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastSubmittedWindow = (startInput && endInput)
         ? (startInput.value.trim() + '|' + endInput.value.trim())
         : '';
+    let nativeWindowDirty = false;
+    let nativeWindowBlurTimer = null;
 
     function toLocalDatetimeValue(date) {
         const pad = function (n) { return String(n).padStart(2, '0'); };
@@ -498,6 +500,25 @@ document.addEventListener('DOMContentLoaded', function () {
         windowForm.submit();
     }
 
+    function isNativeWindowMode() {
+        return !!(startInput && endInput && !startInput._flatpickr && !endInput._flatpickr);
+    }
+
+    function maybeSubmitNativeWindowOnBlur() {
+        if (!isNativeWindowMode() || !nativeWindowDirty) return;
+        if (nativeWindowBlurTimer) {
+            clearTimeout(nativeWindowBlurTimer);
+        }
+        nativeWindowBlurTimer = window.setTimeout(function () {
+            const activeElement = document.activeElement;
+            if (activeElement === startInput || activeElement === endInput) {
+                return;
+            }
+            nativeWindowDirty = false;
+            maybeSubmitWindow();
+        }, 120);
+    }
+
     function setTodayWindow() {
         if (!startInput || !endInput) return;
         const now = new Date();
@@ -532,16 +553,20 @@ document.addEventListener('DOMContentLoaded', function () {
     if (startInput && endInput) {
         startInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            if (!startInput._flatpickr || !endInput._flatpickr) {
-                maybeSubmitWindow();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
             }
         });
         endInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            if (!startInput._flatpickr || !endInput._flatpickr) {
-                maybeSubmitWindow();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
             }
         });
+        startInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
+        endInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
         bindFlatpickrApplySubmit(startInput);
         bindFlatpickrApplySubmit(endInput);
         bindPickerCentering(startInput);
