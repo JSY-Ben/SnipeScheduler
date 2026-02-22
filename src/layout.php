@@ -316,6 +316,45 @@ if (!function_exists('layout_footer')) {
             return undefined;
         };
 
+        const centerOpenCalendar = (_selectedDates, _dateStr, instance) => {
+            if (!instance || !instance.calendarContainer) return;
+
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            if (viewportHeight <= 0) return;
+
+            const calendar = instance.calendarContainer;
+            const topPadding = 16;
+            const bottomPadding = 16;
+            const availableHeight = Math.max(1, viewportHeight - topPadding - bottomPadding);
+
+            const scrollCalendarIntoView = () => {
+                const rect = calendar.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return;
+
+                let targetTop = topPadding;
+                if (rect.height < availableHeight) {
+                    targetTop = topPadding + ((availableHeight - rect.height) / 2);
+                }
+
+                const desiredY = window.scrollY + (rect.top - targetTop);
+                const maxScrollY = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
+                const nextY = Math.max(0, Math.min(maxScrollY, desiredY));
+                if (Math.abs(nextY - window.scrollY) < 2) return;
+
+                const reduceMotion = window.matchMedia
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({
+                    top: nextY,
+                    behavior: reduceMotion ? 'auto' : 'smooth',
+                });
+            };
+
+            window.requestAnimationFrame(() => {
+                scrollCalendarIntoView();
+                window.setTimeout(scrollCalendarIntoView, 90);
+            });
+        };
+
         const initInput = (input) => {
             if (!(input instanceof HTMLInputElement)) return;
             if (input.dataset.flatpickrBound === '1') return;
@@ -335,6 +374,7 @@ if (!function_exists('layout_footer')) {
                 altInput: true,
                 altInputClass: (input.className ? input.className + ' ' : '') + 'flatpickr-alt-input',
                 parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
+                onOpen: [centerOpenCalendar],
             };
             if ((pickerType === 'time' || pickerType === 'datetime') && typeof window.confirmDatePlugin === 'function') {
                 baseOptions.plugins = [
