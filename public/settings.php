@@ -1419,7 +1419,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
 
                             <div class="col-12">
                                 <div class="border rounded p-3">
-                                    <h6 class="mb-2">Catalogue access with overdue checkouts</h6>
+                                    <h6 class="mb-2">5) Catalogue access with overdue checkouts</h6>
                                     <div class="form-check">
                                         <input class="form-check-input"
                                                type="checkbox"
@@ -1438,7 +1438,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
 
                             <div class="col-12">
                                 <div class="border rounded p-3">
-                                    <h6 class="mb-2">Reservation reminders</h6>
+                                    <h6 class="mb-2">6) Reservation reminders</h6>
                                     <div class="row g-3">
                                         <div class="col-md-4">
                                             <label class="form-label">Missed cutoff minutes</label>
