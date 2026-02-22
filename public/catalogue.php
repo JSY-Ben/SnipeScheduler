@@ -26,14 +26,23 @@ $overdueCacheTtl = 0;
 
 $catalogueAnnouncements = [];
 $allAnnouncements = app_announcements_from_app_config($appCfg, app_get_timezone($config));
-if (!empty($allAnnouncements)) {
+// Only advance session "shown" state on the actual rendered catalogue view,
+// not on the lightweight redirect shell request.
+$isRenderedCatalogueRequest = $_SERVER['REQUEST_METHOD'] === 'GET'
+    && isset($_GET['prefetch'])
+    && !isset($_GET['ajax']);
+if ($isRenderedCatalogueRequest && !empty($allAnnouncements)) {
     $activeAnnouncements = app_announcements_active($allAnnouncements, time());
     if (!empty($activeAnnouncements)) {
         $announcementToken = app_announcements_session_token($activeAnnouncements);
         $shownAnnouncementToken = trim((string)($_SESSION['catalogue_announcement_shown_token'] ?? ''));
-        if ($shownAnnouncementToken !== $announcementToken) {
+        $shownAnnouncementSource = trim((string)($_SESSION['catalogue_announcement_shown_source'] ?? ''));
+        $alreadyShownThisSession = ($shownAnnouncementToken === $announcementToken)
+            && ($shownAnnouncementSource === 'rendered_catalogue');
+        if (!$alreadyShownThisSession) {
             $catalogueAnnouncements = $activeAnnouncements;
             $_SESSION['catalogue_announcement_shown_token'] = $announcementToken;
+            $_SESSION['catalogue_announcement_shown_source'] = 'rendered_catalogue';
         }
     }
 }
