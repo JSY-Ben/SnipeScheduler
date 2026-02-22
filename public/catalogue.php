@@ -1784,17 +1784,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function bindFlatpickrApplySubmit(input) {
-        if (!input || !input._flatpickr || !input._flatpickr.calendarContainer) return;
-        const confirmButton = input._flatpickr.calendarContainer.querySelector('.flatpickr-confirm');
-        if (!confirmButton || confirmButton.dataset.windowApplyBound === '1') return;
-        confirmButton.dataset.windowApplyBound = '1';
-        confirmButton.addEventListener('click', function () {
-            normalizeWindowEnd();
-            maybeSubmitWindow();
-        });
-    }
-
     function applyOverdueBlock(items) {
         if (catalogueContent) {
             catalogueContent.classList.add('d-none');
@@ -2337,8 +2326,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (windowStartInput && windowEndInput) {
         windowStartInput.addEventListener('change', normalizeWindowEnd);
         windowEndInput.addEventListener('change', normalizeWindowEnd);
-        bindFlatpickrApplySubmit(windowStartInput);
-        bindFlatpickrApplySubmit(windowEndInput);
     }
     if (windowForm) {
         windowForm.addEventListener('submit', () => {
@@ -2353,6 +2340,26 @@ document.addEventListener('DOMContentLoaded', function () {
     if (todayBtn) {
         todayBtn.addEventListener('click', setTodayWindow);
     }
+    document.addEventListener('click', function (event) {
+        if (!windowStartInput || !windowEndInput) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        const confirmButton = target.closest('.flatpickr-confirm');
+        if (!confirmButton) return;
+        const calendar = confirmButton.closest('.flatpickr-calendar');
+        if (!calendar) return;
+
+        const startCalendar = windowStartInput._flatpickr
+            ? windowStartInput._flatpickr.calendarContainer
+            : null;
+        const endCalendar = windowEndInput._flatpickr
+            ? windowEndInput._flatpickr.calendarContainer
+            : null;
+        if (calendar !== startCalendar && calendar !== endCalendar) return;
+
+        normalizeWindowEnd();
+        maybeSubmitWindow();
+    });
 
     const overdueEnabled = document.body.dataset.catalogueOverdue === '1';
     if (overdueEnabled) {
