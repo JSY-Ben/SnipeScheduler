@@ -438,6 +438,51 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function centerCalendarInstance(instance) {
+        if (!instance || !instance.calendarContainer) return;
+
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (viewportHeight <= 0) return;
+
+        const calendar = instance.calendarContainer;
+        const topPadding = 16;
+        const bottomPadding = 16;
+        const availableHeight = Math.max(1, viewportHeight - topPadding - bottomPadding);
+
+        const rect = calendar.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        let targetTop = topPadding;
+        if (rect.height < availableHeight) {
+            targetTop = topPadding + ((availableHeight - rect.height) / 2);
+        }
+
+        const desiredY = window.scrollY + (rect.top - targetTop);
+        const maxScrollY = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
+        const nextY = Math.max(0, Math.min(maxScrollY, desiredY));
+        if (Math.abs(nextY - window.scrollY) < 2) return;
+
+        const reduceMotion = window.matchMedia
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({
+            top: nextY,
+            behavior: reduceMotion ? 'auto' : 'smooth',
+        });
+    }
+
+    function bindPickerCentering(input) {
+        if (!input || !input._flatpickr || input._flatpickr.__basketCenterBound) return;
+        input._flatpickr.__basketCenterBound = true;
+        input._flatpickr.config.onOpen.push(function (_selectedDates, _dateStr, instance) {
+            window.requestAnimationFrame(function () {
+                centerCalendarInstance(instance);
+                window.setTimeout(function () {
+                    centerCalendarInstance(instance);
+                }, 90);
+            });
+        });
+    }
+
     function maybeSubmitWindow() {
         if (windowSubmitInFlight || !windowForm || !startInput || !endInput) return;
         const startVal = startInput.value.trim();
@@ -493,6 +538,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         bindFlatpickrApplySubmit(startInput);
         bindFlatpickrApplySubmit(endInput);
+        bindPickerCentering(startInput);
+        bindPickerCentering(endInput);
     }
 
     if (todayBtn) {
