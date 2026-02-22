@@ -683,6 +683,9 @@ if (empty($reservationBlackoutRows)) {
     $reservationBlackoutRows[] = ['start' => '', 'end' => ''];
 }
 
+$settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
+$settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -741,7 +744,29 @@ if (empty($reservationBlackoutRows)) {
         </ul>
 
         <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">
+            <input type="hidden" name="settings_tab" id="settings_tab_input" value="<?= h($settingsTab) ?>">
             <div class="col-12">
+                <ul class="nav nav-tabs reservations-subtabs mb-1" id="settings-group-tabs">
+                    <li class="nav-item">
+                        <button type="button"
+                                class="nav-link <?= $settingsTab === 'frontend' ? 'active' : '' ?>"
+                                data-settings-tab="frontend"
+                                aria-selected="<?= $settingsTab === 'frontend' ? 'true' : 'false' ?>">
+                            Frontend Settings
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button"
+                                class="nav-link <?= $settingsTab === 'backend' ? 'active' : '' ?>"
+                                data-settings-tab="backend"
+                                aria-selected="<?= $settingsTab === 'backend' ? 'true' : 'false' ?>">
+                            Backend Settings
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card" id="admin-settings">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Database</h5>
@@ -780,7 +805,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Snipe-IT API</h5>
@@ -811,7 +836,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card" id="admin-access">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Authentication</h5>
@@ -969,7 +994,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">SMTP (email)</h5>
@@ -1032,7 +1057,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
@@ -1053,7 +1078,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
@@ -1095,7 +1120,7 @@ if (empty($reservationBlackoutRows)) {
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">App preferences</h5>
@@ -1487,6 +1512,36 @@ if (empty($reservationBlackoutRows)) {
 (function () {
     const form = document.getElementById('settings-form');
     if (!form) return;
+    const settingsTabInput = document.getElementById('settings_tab_input');
+    const settingsTabs = Array.from(document.querySelectorAll('#settings-group-tabs [data-settings-tab]'));
+    const settingsSections = Array.from(form.querySelectorAll('[data-settings-group]'));
+    const settingsTabAllowed = new Set(['frontend', 'backend']);
+
+    const applySettingsTab = (tabName) => {
+        const nextTab = settingsTabAllowed.has(tabName) ? tabName : 'frontend';
+        settingsSections.forEach((section) => {
+            const sectionTab = section.getAttribute('data-settings-group') || '';
+            section.classList.toggle('d-none', sectionTab !== nextTab);
+        });
+        settingsTabs.forEach((btn) => {
+            const active = btn.getAttribute('data-settings-tab') === nextTab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        if (settingsTabInput) {
+            settingsTabInput.value = nextTab;
+        }
+    };
+
+    settingsTabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-settings-tab') || 'frontend';
+            applySettingsTab(targetTab);
+        });
+    });
+
+    const initialTab = settingsTabInput ? settingsTabInput.value : 'frontend';
+    applySettingsTab(initialTab);
 
     const clearStatus = (el) => {
         if (!el) return;
