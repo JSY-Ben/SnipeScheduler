@@ -424,11 +424,40 @@ try {
                                     $prevUrl = 'activity_log.php?' . http_build_query($pagerQuery);
                                     $pagerQuery['page'] = $nextPage;
                                     $nextUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+
+                                    $windowSize = 2; // show current page +/- 2
+                                    $rangeStart = max(1, $page - $windowSize);
+                                    $rangeEnd = min($totalPages, $page + $windowSize);
+
+                                    if ($rangeStart <= 3) {
+                                        $rangeStart = 1;
+                                        $rangeEnd = min($totalPages, 1 + ($windowSize * 2));
+                                    }
+                                    if ($rangeEnd >= ($totalPages - 2)) {
+                                        $rangeEnd = $totalPages;
+                                        $rangeStart = max(1, $totalPages - ($windowSize * 2));
+                                    }
                                 ?>
                                 <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
                                     <a class="page-link" href="<?= h($prevUrl) ?>">Previous</a>
                                 </li>
-                                <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+
+                                <?php if ($rangeStart > 1): ?>
+                                    <?php
+                                        $pagerQuery['page'] = 1;
+                                        $firstUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+                                    ?>
+                                    <li class="page-item <?= $page === 1 ? 'active' : '' ?>">
+                                        <a class="page-link" href="<?= h($firstUrl) ?>">1</a>
+                                    </li>
+                                    <?php if ($rangeStart > 2): ?>
+                                        <li class="page-item disabled">
+                                            <span class="page-link">&hellip;</span>
+                                        </li>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+
+                                <?php for ($p = $rangeStart; $p <= $rangeEnd; $p++): ?>
                                     <?php
                                         $pagerQuery['page'] = $p;
                                         $pageUrl = 'activity_log.php?' . http_build_query($pagerQuery);
@@ -437,6 +466,22 @@ try {
                                         <a class="page-link" href="<?= h($pageUrl) ?>"><?= $p ?></a>
                                     </li>
                                 <?php endfor; ?>
+
+                                <?php if ($rangeEnd < $totalPages): ?>
+                                    <?php if ($rangeEnd < ($totalPages - 1)): ?>
+                                        <li class="page-item disabled">
+                                            <span class="page-link">&hellip;</span>
+                                        </li>
+                                    <?php endif; ?>
+                                    <?php
+                                        $pagerQuery['page'] = $totalPages;
+                                        $lastUrl = 'activity_log.php?' . http_build_query($pagerQuery);
+                                    ?>
+                                    <li class="page-item <?= $page === $totalPages ? 'active' : '' ?>">
+                                        <a class="page-link" href="<?= h($lastUrl) ?>"><?= $totalPages ?></a>
+                                    </li>
+                                <?php endif; ?>
+
                                 <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
                                     <a class="page-link" href="<?= h($nextUrl) ?>">Next</a>
                                 </li>
