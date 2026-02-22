@@ -1366,8 +1366,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            class="form-control form-control-lg"
                            value="<?= h($windowEndRaw) ?>">
                 </div>
-                <div class="col-md-2 d-grid">
-                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 mb-2 mb-md-0 reservation-window-btn" type="button" id="catalogue-today-btn">
+                <div class="col-12 col-md-2 d-grid mb-2 mb-md-0">
+                    <button class="btn btn-primary btn-lg" type="button" id="catalogue-today-btn">
                         Today
                     </button>
                 </div>
