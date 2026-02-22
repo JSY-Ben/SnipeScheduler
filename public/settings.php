@@ -1648,7 +1648,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
             rows.forEach((row) => {
                 const removeBtn = row.querySelector('[data-blackout-remove]');
                 if (!removeBtn) return;
-                removeBtn.disabled = rows.length <= 1;
+                removeBtn.disabled = false;
             });
         };
 
@@ -1681,7 +1681,19 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
             if (!removeBtn) return;
 
             const row = removeBtn.closest('[data-blackout-row]');
-            if (row) {
+            if (!row) return;
+
+            const rows = blackoutList.querySelectorAll('[data-blackout-row]');
+            if (rows.length <= 1) {
+                const startInput = row.querySelector('input[name="app_res_blackout_start[]"]');
+                const endInput = row.querySelector('input[name="app_res_blackout_end[]"]');
+                if (startInput) {
+                    startInput.value = '';
+                }
+                if (endInput) {
+                    endInput.value = '';
+                }
+            } else {
                 row.remove();
             }
 
