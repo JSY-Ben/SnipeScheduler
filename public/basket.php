@@ -398,6 +398,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const startInput = document.getElementById('basket_start_datetime');
     const endInput = document.getElementById('basket_end_datetime');
     const todayBtn = document.getElementById('basket-today-btn');
+    const windowScrollRestoreKey = 'snipeScheduler:basketWindowScrollY';
     let windowSubmitInFlight = false;
     let lastSubmittedWindow = (startInput && endInput)
         ? (startInput.value.trim() + '|' + endInput.value.trim())
@@ -439,6 +440,41 @@ document.addEventListener('DOMContentLoaded', function () {
             setDatetimeInputValue(endInput, toLocalDatetimeValue(nextDay));
         }
     }
+
+    function saveWindowScrollPosition() {
+        try {
+            const y = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+            window.sessionStorage.setItem(windowScrollRestoreKey, String(y));
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    function restoreWindowScrollPosition() {
+        try {
+            const raw = window.sessionStorage.getItem(windowScrollRestoreKey);
+            if (raw === null) return;
+            window.sessionStorage.removeItem(windowScrollRestoreKey);
+            const target = parseInt(raw, 10);
+            if (!Number.isFinite(target)) return;
+
+            const scrollToSavedY = function () {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
+                const nextY = Math.max(0, Math.min(maxY, target));
+                window.scrollTo(0, nextY);
+            };
+
+            window.requestAnimationFrame(function () {
+                scrollToSavedY();
+                window.setTimeout(scrollToSavedY, 120);
+            });
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    restoreWindowScrollPosition();
 
     function centerCalendarInstance(instance) {
         if (!instance || !instance.calendarContainer) return;
@@ -497,6 +533,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (windowKey === lastSubmittedWindow) return;
         lastSubmittedWindow = windowKey;
         windowSubmitInFlight = true;
+        saveWindowScrollPosition();
         windowForm.submit();
     }
 
@@ -547,6 +584,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 lastSubmittedWindow = startInput.value.trim() + '|' + endInput.value.trim();
             }
             windowSubmitInFlight = true;
+            saveWindowScrollPosition();
         });
     }
 

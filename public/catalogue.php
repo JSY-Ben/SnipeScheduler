@@ -1685,6 +1685,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
     const todayBtn = document.getElementById('catalogue-today-btn');
+    const windowScrollRestoreKey = 'snipeScheduler:catalogueWindowScrollY';
     let windowSubmitInFlight = false;
     let lastSubmittedWindow = (windowStartInput && windowEndInput)
         ? (windowStartInput.value.trim() + '|' + windowEndInput.value.trim())
@@ -1719,6 +1720,41 @@ document.addEventListener('DOMContentLoaded', function () {
         loadingOverlay.setAttribute('aria-busy', 'true');
     }
 
+    function saveWindowScrollPosition() {
+        try {
+            const y = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+            window.sessionStorage.setItem(windowScrollRestoreKey, String(y));
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    function restoreWindowScrollPosition() {
+        try {
+            const raw = window.sessionStorage.getItem(windowScrollRestoreKey);
+            if (raw === null) return;
+            window.sessionStorage.removeItem(windowScrollRestoreKey);
+            const target = parseInt(raw, 10);
+            if (!Number.isFinite(target)) return;
+
+            const scrollToSavedY = function () {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
+                const nextY = Math.max(0, Math.min(maxY, target));
+                window.scrollTo(0, nextY);
+            };
+
+            window.requestAnimationFrame(function () {
+                scrollToSavedY();
+                window.setTimeout(scrollToSavedY, 120);
+            });
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    restoreWindowScrollPosition();
+
     function maybeSubmitWindow() {
         if (windowSubmitInFlight || !windowForm || !windowStartInput || !windowEndInput) return;
         const startVal = windowStartInput.value.trim();
@@ -1732,6 +1768,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (windowKey === lastSubmittedWindow) return;
         lastSubmittedWindow = windowKey;
         windowSubmitInFlight = true;
+        saveWindowScrollPosition();
         showLoadingOverlay();
         windowForm.submit();
     }
@@ -2366,6 +2403,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 lastSubmittedWindow = windowStartInput.value.trim() + '|' + windowEndInput.value.trim();
             }
             windowSubmitInFlight = true;
+            saveWindowScrollPosition();
             showLoadingOverlay();
         });
     }
