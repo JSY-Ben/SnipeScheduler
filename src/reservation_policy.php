@@ -158,6 +158,7 @@ if (!function_exists('reservation_policy_parse_blackout_slots_text')) {
             $slots[] = [
                 'start' => $startIso,
                 'end' => $endIso,
+                'reason' => '',
             ];
         }
 
@@ -195,7 +196,12 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
                         continue;
                     }
                     $seen[$key] = true;
-                    $slots[] = $slot;
+                    $reason = trim((string)($slot['reason'] ?? ''));
+                    $slots[] = [
+                        'start' => (string)($slot['start'] ?? ''),
+                        'end' => (string)($slot['end'] ?? ''),
+                        'reason' => $reason,
+                    ];
                 }
                 continue;
             }
@@ -206,6 +212,7 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
 
             $startRaw = trim((string)($entry['start'] ?? ($entry['start_datetime'] ?? '')));
             $endRaw = trim((string)($entry['end'] ?? ($entry['end_datetime'] ?? '')));
+            $reason = trim((string)($entry['reason'] ?? ''));
             $startTs = reservation_policy_parse_blackout_datetime_value($startRaw, $cfg);
             $endTs = reservation_policy_parse_blackout_datetime_value($endRaw, $cfg);
             if ($startTs === null || $endTs === null || $endTs <= $startTs) {
@@ -223,6 +230,7 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
             $slots[] = [
                 'start' => $startIso,
                 'end' => $endIso,
+                'reason' => $reason,
             ];
         }
 
@@ -460,11 +468,16 @@ if (!function_exists('reservation_policy_validate_booking')) {
                 }
 
                 if ($slotStartTs < $endTs && $slotEndTs > $startTs) {
-                    $errors[] = 'The selected window overlaps a blackout slot ('
+                    $message = 'The selected window overlaps a blackout slot ('
                         . app_format_datetime(date('Y-m-d H:i:s', $slotStartTs))
                         . ' to '
                         . app_format_datetime(date('Y-m-d H:i:s', $slotEndTs))
                         . ').';
+                    $reason = trim((string)($slot['reason'] ?? ''));
+                    if ($reason !== '') {
+                        $message .= ' Reason: ' . $reason . '.';
+                    }
+                    $errors[] = $message;
                     break;
                 }
             }

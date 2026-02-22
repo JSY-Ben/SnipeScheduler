@@ -141,7 +141,7 @@ return [
         'reservation_concurrent_bypass_checkout_staff' => false, // allow checkout staff concurrent bypass on behalf bookings
         'reservation_concurrent_bypass_admins' => false, // allow admin concurrent bypass on behalf bookings
         'reservation_blackout_slots' => [
-            // ['start' => '2026-03-01 09:00:00', 'end' => '2026-03-01 17:00:00'],
+            // ['start' => '2026-03-01 09:00:00', 'end' => '2026-03-01 17:00:00', 'reason' => 'Scheduled maintenance'],
         ],
         'reservation_blackout_bypass_checkout_staff' => false, // allow checkout staff blackout bypass on behalf bookings
         'reservation_blackout_bypass_admins' => false, // allow admin blackout bypass on behalf bookings

@@ -500,20 +500,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $blackoutStartsRaw = $_POST['app_res_blackout_start'] ?? [];
     $blackoutEndsRaw   = $_POST['app_res_blackout_end'] ?? [];
+    $blackoutReasonsRaw = $_POST['app_res_blackout_reason'] ?? [];
     $blackoutRows = [];
-    if (is_array($blackoutStartsRaw) || is_array($blackoutEndsRaw)) {
+    if (is_array($blackoutStartsRaw) || is_array($blackoutEndsRaw) || is_array($blackoutReasonsRaw)) {
         $starts = is_array($blackoutStartsRaw) ? $blackoutStartsRaw : [];
         $ends   = is_array($blackoutEndsRaw) ? $blackoutEndsRaw : [];
-        $rowCount = max(count($starts), count($ends));
+        $reasons = is_array($blackoutReasonsRaw) ? $blackoutReasonsRaw : [];
+        $rowCount = max(count($starts), count($ends), count($reasons));
         for ($i = 0; $i < $rowCount; $i++) {
             $startValue = trim((string)($starts[$i] ?? ''));
             $endValue   = trim((string)($ends[$i] ?? ''));
-            if ($startValue === '' && $endValue === '') {
+            $reasonValue = trim((string)($reasons[$i] ?? ''));
+            if ($startValue === '' && $endValue === '' && $reasonValue === '') {
                 continue;
             }
             $blackoutRows[] = [
                 'start' => $startValue,
                 'end' => $endValue,
+                'reason' => $reasonValue,
             ];
         }
     }
@@ -752,10 +756,11 @@ foreach (($reservationPolicy['blackout_slots'] ?? []) as $slot) {
     $reservationBlackoutRows[] = [
         'start' => $startDateTime->format('Y-m-d\TH:i'),
         'end' => $endDateTime->format('Y-m-d\TH:i'),
+        'reason' => trim((string)($slot['reason'] ?? '')),
     ];
 }
 if (empty($reservationBlackoutRows)) {
-    $reservationBlackoutRows[] = ['start' => '', 'end' => ''];
+    $reservationBlackoutRows[] = ['start' => '', 'end' => '', 'reason' => ''];
 }
 
 $settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
@@ -1416,21 +1421,29 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <div id="blackout-slots-list" class="d-grid gap-2">
                                         <?php foreach ($reservationBlackoutRows as $row): ?>
                                             <div class="row g-2 align-items-end" data-blackout-row>
-                                                <div class="col-md-5">
+                                                <div class="col-lg-3 col-md-6">
                                                     <label class="form-label">Start</label>
                                                     <input type="datetime-local"
                                                            class="form-control"
                                                            name="app_res_blackout_start[]"
                                                            value="<?= h((string)($row['start'] ?? '')) ?>">
                                                 </div>
-                                                <div class="col-md-5">
+                                                <div class="col-lg-3 col-md-6">
                                                     <label class="form-label">End</label>
                                                     <input type="datetime-local"
                                                            class="form-control"
                                                            name="app_res_blackout_end[]"
                                                            value="<?= h((string)($row['end'] ?? '')) ?>">
                                                 </div>
-                                                <div class="col-md-2 d-grid">
+                                                <div class="col-lg-4 col-md-8">
+                                                    <label class="form-label">Reason (optional)</label>
+                                                    <input type="text"
+                                                           class="form-control"
+                                                           name="app_res_blackout_reason[]"
+                                                           value="<?= h((string)($row['reason'] ?? '')) ?>"
+                                                           placeholder="Shown to users when this blackout blocks a booking">
+                                                </div>
+                                                <div class="col-lg-2 col-md-4 d-grid">
                                                     <button type="button"
                                                             class="btn btn-outline-danger"
                                                             data-blackout-remove>
@@ -1442,21 +1455,29 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     </div>
                                     <template id="blackout-slot-template">
                                         <div class="row g-2 align-items-end" data-blackout-row>
-                                            <div class="col-md-5">
+                                            <div class="col-lg-3 col-md-6">
                                                 <label class="form-label">Start</label>
                                                 <input type="datetime-local"
                                                        class="form-control"
                                                        name="app_res_blackout_start[]"
                                                        value="">
                                             </div>
-                                            <div class="col-md-5">
+                                            <div class="col-lg-3 col-md-6">
                                                 <label class="form-label">End</label>
                                                 <input type="datetime-local"
                                                        class="form-control"
                                                        name="app_res_blackout_end[]"
                                                        value="">
                                             </div>
-                                            <div class="col-md-2 d-grid">
+                                            <div class="col-lg-4 col-md-8">
+                                                <label class="form-label">Reason (optional)</label>
+                                                <input type="text"
+                                                       class="form-control"
+                                                       name="app_res_blackout_reason[]"
+                                                       value=""
+                                                       placeholder="Shown to users when this blackout blocks a booking">
+                                            </div>
+                                            <div class="col-lg-2 col-md-4 d-grid">
                                                 <button type="button"
                                                         class="btn btn-outline-danger"
                                                         data-blackout-remove>
@@ -1471,7 +1492,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         </button>
                                     </div>
                                     <div class="form-text mt-2">
-                                        Use the date/time pickers to add blackout windows.
+                                        Use the date/time pickers to add blackout windows. Reasons are shown to users when a blackout blocks a booking.
                                     </div>
                                     <div class="row g-2 mt-1">
                                         <div class="col-md-6">
@@ -1896,18 +1917,22 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             });
         };
 
-        const addBlackoutRow = (startValue = '', endValue = '') => {
+        const addBlackoutRow = (startValue = '', endValue = '', reasonValue = '') => {
             const fragment = blackoutTemplate.content.cloneNode(true);
             const row = fragment.querySelector('[data-blackout-row]');
             if (!row) return;
 
             const startInput = row.querySelector('input[name="app_res_blackout_start[]"]');
             const endInput = row.querySelector('input[name="app_res_blackout_end[]"]');
+            const reasonInput = row.querySelector('input[name="app_res_blackout_reason[]"]');
             if (startInput) {
                 startInput.value = startValue;
             }
             if (endInput) {
                 endInput.value = endValue;
+            }
+            if (reasonInput) {
+                reasonInput.value = reasonValue;
             }
 
             blackoutList.appendChild(row);
