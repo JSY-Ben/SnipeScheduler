@@ -118,6 +118,58 @@ $requestedModelPage = max(1, (int)($_GET['model_page'] ?? 1));
 $requestedDemandPage = max(1, (int)($_GET['demand_page'] ?? 1));
 $requestedCancellationsPage = max(1, (int)($_GET['cancellations_page'] ?? 1));
 
+$normaliseSortKey = static function (string $raw, array $allowed, string $default): string {
+    return in_array($raw, $allowed, true) ? $raw : $default;
+};
+
+$normaliseSortDir = static function (string $raw, string $default): string {
+    $value = strtolower(trim($raw));
+    return in_array($value, ['asc', 'desc'], true) ? $value : $default;
+};
+
+$categorySort = $normaliseSortKey(
+    (string)($_GET['category_sort'] ?? ''),
+    ['category', 'unit_hours', 'share_pct', 'model_count', 'reservation_count'],
+    'unit_hours'
+);
+$categoryDir = $normaliseSortDir((string)($_GET['category_dir'] ?? ''), 'desc');
+
+$modelSort = $normaliseSortKey(
+    (string)($_GET['model_sort'] ?? ''),
+    ['model_name', 'category', 'unit_hours', 'share_pct', 'reservation_count'],
+    'unit_hours'
+);
+$modelDir = $normaliseSortDir((string)($_GET['model_dir'] ?? ''), 'desc');
+
+$demandSort = $normaliseSortKey(
+    (string)($_GET['demand_sort'] ?? ''),
+    ['hour', 'unit_hours', 'avg_units', 'bar_pct'],
+    'hour'
+);
+$demandDir = $normaliseSortDir((string)($_GET['demand_dir'] ?? ''), 'asc');
+
+$cancellationsSort = $normaliseSortKey(
+    (string)($_GET['cancellations_sort'] ?? ''),
+    ['report_day', 'cancelled_count', 'missed_count'],
+    'report_day'
+);
+$cancellationsDir = $normaliseSortDir((string)($_GET['cancellations_dir'] ?? ''), 'asc');
+
+$sortRows = static function (array &$rows, string $sortKey, string $direction): void {
+    usort($rows, static function (array $a, array $b) use ($sortKey, $direction): int {
+        $av = $a[$sortKey] ?? null;
+        $bv = $b[$sortKey] ?? null;
+
+        if (is_numeric($av) && is_numeric($bv)) {
+            $cmp = ((float)$av <=> (float)$bv);
+        } else {
+            $cmp = strnatcasecmp((string)$av, (string)$bv);
+        }
+
+        return $direction === 'desc' ? -$cmp : $cmp;
+    });
+};
+
 $paginateRows = static function (array $rows, int $requestedPage, int $perPage): array {
     $total = count($rows);
     $safePerPage = max(1, $perPage);
@@ -423,6 +475,11 @@ foreach ($hourlyUnitMinutes as $hour => $minutes) {
     ];
 }
 
+$sortRows($categoryRows, $categorySort, $categoryDir);
+$sortRows($modelRows, $modelSort, $modelDir);
+$sortRows($hourDemandRows, $demandSort, $demandDir);
+$sortRows($dailyCancelledMissedRows, $cancellationsSort, $cancellationsDir);
+
 $categoryPagination = $paginateRows($categoryRows, $requestedCategoryPage, 15);
 $categoryRowsPage = $categoryPagination['rows'];
 
@@ -442,11 +499,34 @@ $paginationBaseParams = [
     'model_page' => $modelPagination['page'],
     'demand_page' => $demandPagination['page'],
     'cancellations_page' => $cancellationsPagination['page'],
+    'category_sort' => $categorySort,
+    'category_dir' => $categoryDir,
+    'model_sort' => $modelSort,
+    'model_dir' => $modelDir,
+    'demand_sort' => $demandSort,
+    'demand_dir' => $demandDir,
+    'cancellations_sort' => $cancellationsSort,
+    'cancellations_dir' => $cancellationsDir,
 ];
 
 $buildPageUrl = static function (string $pageKey, int $targetPage) use ($paginationBaseParams): string {
     $params = $paginationBaseParams;
     $params[$pageKey] = max(1, $targetPage);
+    return 'reports.php?' . http_build_query($params);
+};
+
+$buildSortUrl = static function (
+    string $sortParam,
+    string $dirParam,
+    string $pageParam,
+    string $columnKey,
+    string $currentSort,
+    string $currentDir
+) use ($paginationBaseParams): string {
+    $params = $paginationBaseParams;
+    $params[$sortParam] = $columnKey;
+    $params[$dirParam] = ($currentSort === $columnKey && $currentDir === 'asc') ? 'desc' : 'asc';
+    $params[$pageParam] = 1;
     return 'reports.php?' . http_build_query($params);
 };
 
@@ -488,6 +568,31 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
     $html .= '</ul></nav>';
 
     return $html;
+};
+
+$renderSortableHeader = static function (
+    string $label,
+    string $columnKey,
+    string $currentSort,
+    string $currentDir,
+    string $sortParam,
+    string $dirParam,
+    string $pageParam
+) use ($buildSortUrl): string {
+    $href = h($buildSortUrl($sortParam, $dirParam, $pageParam, $columnKey, $currentSort, $currentDir));
+    $isActive = $currentSort === $columnKey;
+    $indicator = '';
+    if ($isActive) {
+        $indicator = $currentDir === 'asc' ? ' (asc)' : ' (desc)';
+    }
+
+    return '<a class="link-body-emphasis text-decoration-none" href="'
+        . $href
+        . '">'
+        . h($label)
+        . '<span class="text-muted small">'
+        . h($indicator)
+        . '</span></a>';
 };
 ?>
 <!DOCTYPE html>
@@ -614,11 +719,11 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                             <tr>
-                                <th>Category</th>
-                                <th class="text-end">Unit-hours booked</th>
-                                <th class="text-end">Share</th>
-                                <th class="text-end">Models</th>
-                                <th class="text-end">Reservations</th>
+                                <th><?= $renderSortableHeader('Category', 'category', $categorySort, $categoryDir, 'category_sort', 'category_dir', 'category_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Unit-hours booked', 'unit_hours', $categorySort, $categoryDir, 'category_sort', 'category_dir', 'category_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Share', 'share_pct', $categorySort, $categoryDir, 'category_sort', 'category_dir', 'category_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Models', 'model_count', $categorySort, $categoryDir, 'category_sort', 'category_dir', 'category_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Reservations', 'reservation_count', $categorySort, $categoryDir, 'category_sort', 'category_dir', 'category_page') ?></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -664,11 +769,11 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                             <tr>
-                                <th>Model</th>
-                                <th>Category</th>
-                                <th class="text-end">Unit-hours booked</th>
-                                <th class="text-end">Share</th>
-                                <th class="text-end">Reservations</th>
+                                <th><?= $renderSortableHeader('Model', 'model_name', $modelSort, $modelDir, 'model_sort', 'model_dir', 'model_page') ?></th>
+                                <th><?= $renderSortableHeader('Category', 'category', $modelSort, $modelDir, 'model_sort', 'model_dir', 'model_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Unit-hours booked', 'unit_hours', $modelSort, $modelDir, 'model_sort', 'model_dir', 'model_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Share', 'share_pct', $modelSort, $modelDir, 'model_sort', 'model_dir', 'model_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Reservations', 'reservation_count', $modelSort, $modelDir, 'model_sort', 'model_dir', 'model_page') ?></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -719,10 +824,10 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                             <tr>
-                                <th>Hour</th>
-                                <th class="text-end">Unit-hours</th>
-                                <th class="text-end">Avg concurrent units</th>
-                                <th style="width: 42%;">Demand</th>
+                                <th><?= $renderSortableHeader('Hour', 'hour', $demandSort, $demandDir, 'demand_sort', 'demand_dir', 'demand_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Unit-hours', 'unit_hours', $demandSort, $demandDir, 'demand_sort', 'demand_dir', 'demand_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Avg concurrent units', 'avg_units', $demandSort, $demandDir, 'demand_sort', 'demand_dir', 'demand_page') ?></th>
+                                <th style="width: 42%;"><?= $renderSortableHeader('Demand', 'bar_pct', $demandSort, $demandDir, 'demand_sort', 'demand_dir', 'demand_page') ?></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -766,9 +871,9 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
                         <table class="table table-sm align-middle mb-0">
                             <thead>
                             <tr>
-                                <th>Date</th>
-                                <th class="text-end">Cancelled</th>
-                                <th class="text-end">No-shows (missed)</th>
+                                <th><?= $renderSortableHeader('Date', 'report_day', $cancellationsSort, $cancellationsDir, 'cancellations_sort', 'cancellations_dir', 'cancellations_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Cancelled', 'cancelled_count', $cancellationsSort, $cancellationsDir, 'cancellations_sort', 'cancellations_dir', 'cancellations_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('No-shows (missed)', 'missed_count', $cancellationsSort, $cancellationsDir, 'cancellations_sort', 'cancellations_dir', 'cancellations_page') ?></th>
                             </tr>
                             </thead>
                             <tbody>
