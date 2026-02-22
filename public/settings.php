@@ -1417,6 +1417,48 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                 </div>
                             </div>
 
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">Catalogue access with overdue checkouts</h6>
+                                    <div class="form-check">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_block_catalogue_overdue"
+                                               id="app_block_catalogue_overdue"
+                                            <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
+                                            Block catalogue for users with overdue checkouts
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">
+                                        When enabled, users with overdue assets cannot access the catalogue until items are returned.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">Reservation reminders</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Missed cutoff minutes</label>
+                                            <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
+                                            <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
+                                            <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
+                                            <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
+                                            <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
+                                            <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -1460,21 +1502,6 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                 <label class="form-label">Primary colour (hex)</label>
                                 <input type="text" name="app_primary_color" class="form-control" value="<?= h($cfg(['app', 'primary_color'], '#660000')) ?>">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Missed cutoff minutes</label>
-                                <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
-                                <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
-                                <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
-                                <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
-                                <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
-                                <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Logo URL</label>
                                 <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
@@ -1483,21 +1510,6 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-check">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           name="app_block_catalogue_overdue"
-                                           id="app_block_catalogue_overdue"
-                                        <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
-                                    <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
-                                        Block catalogue for users with overdue checkouts
-                                    </label>
-                                </div>
-                                <div class="form-text mt-1">
-                                    When enabled, users with overdue assets cannot access the catalogue until items are returned.
                                 </div>
                             </div>
                         </div>
