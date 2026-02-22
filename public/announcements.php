@@ -39,169 +39,217 @@ $dateInputStep = strpos($timeFormat, 's') !== false ? 1 : 60;
 $appCfg = is_array($config['app'] ?? null) ? $config['app'] : [];
 $storedAnnouncements = app_announcements_from_app_config($appCfg, $tz);
 
-$formatRow = static function (array $announcement) use ($tz, $dateInputFormat): array {
-    return [
-        'start' => app_announcement_format_datetime_for_input((int)$announcement['start_ts'], $tz, $dateInputFormat),
-        'end' => app_announcement_format_datetime_for_input((int)$announcement['end_ts'], $tz, $dateInputFormat),
-        'message' => (string)($announcement['message'] ?? ''),
-    ];
+$editorForm = [
+    'start' => '',
+    'end' => '',
+    'message' => '',
+    'original_token' => '',
+];
+$openEditorOnLoad = false;
+
+$normalizeAnnouncements = static function (array $items) use ($tz): array {
+    $seen = [];
+    $unique = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $normalized = app_announcement_normalize_entry($item, $tz);
+        if (!$normalized) {
+            continue;
+        }
+        $token = (string)($normalized['token'] ?? '');
+        if ($token !== '' && isset($seen[$token])) {
+            continue;
+        }
+        if ($token !== '') {
+            $seen[$token] = true;
+        }
+        $unique[] = $normalized;
+    }
+
+    usort($unique, static function (array $a, array $b): int {
+        if ($a['start_ts'] !== $b['start_ts']) {
+            return $a['start_ts'] <=> $b['start_ts'];
+        }
+        if ($a['end_ts'] !== $b['end_ts']) {
+            return $a['end_ts'] <=> $b['end_ts'];
+        }
+        return strcmp($a['message'], $b['message']);
+    });
+
+    return $unique;
 };
 
-$formRows = array_map($formatRow, $storedAnnouncements);
-if (empty($formRows)) {
-    $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = trim((string)($_POST['action'] ?? 'save'));
-    $starts = $_POST['announcement_start'] ?? [];
-    $ends = $_POST['announcement_end'] ?? [];
-    $messagesRaw = $_POST['announcement_message'] ?? [];
-
-    $starts = is_array($starts) ? $starts : [];
-    $ends = is_array($ends) ? $ends : [];
-    $messagesRaw = is_array($messagesRaw) ? $messagesRaw : [];
-
+$persistAnnouncements = static function (array $normalizedAnnouncements) use (
+    &$config,
+    &$appCfg,
+    &$storedAnnouncements,
+    $configPath,
+    $definedValues,
+    &$errors
+): bool {
     $newConfig = $config;
     $newApp = is_array($newConfig['app'] ?? null) ? $newConfig['app'] : [];
-    $normalizedAnnouncements = [];
-    $formRows = [];
 
-    if ($action === 'clear') {
-        $normalizedAnnouncements = [];
-        $formRows = [['start' => '', 'end' => '', 'message' => '']];
+    $newApp['announcements'] = array_map(static function (array $item): array {
+        return [
+            'message' => (string)$item['message'],
+            'start_ts' => (int)$item['start_ts'],
+            'end_ts' => (int)$item['end_ts'],
+            'start_datetime' => (string)$item['start_datetime'],
+            'end_datetime' => (string)$item['end_datetime'],
+        ];
+    }, $normalizedAnnouncements);
+
+    $firstAnnouncement = $normalizedAnnouncements[0] ?? null;
+    if ($firstAnnouncement) {
+        $newApp['announcement_message'] = (string)$firstAnnouncement['message'];
+        $newApp['announcement_start_ts'] = (int)$firstAnnouncement['start_ts'];
+        $newApp['announcement_end_ts'] = (int)$firstAnnouncement['end_ts'];
+        $newApp['announcement_start_datetime'] = (string)$firstAnnouncement['start_datetime'];
+        $newApp['announcement_end_datetime'] = (string)$firstAnnouncement['end_datetime'];
     } else {
-        $rowCount = max(count($starts), count($ends), count($messagesRaw));
+        $newApp['announcement_message'] = '';
+        $newApp['announcement_start_ts'] = 0;
+        $newApp['announcement_end_ts'] = 0;
+        $newApp['announcement_start_datetime'] = '';
+        $newApp['announcement_end_datetime'] = '';
+    }
 
-        for ($i = 0; $i < $rowCount; $i++) {
-            $startRaw = trim((string)($starts[$i] ?? ''));
-            $endRaw = trim((string)($ends[$i] ?? ''));
-            $messageRaw = trim((string)($messagesRaw[$i] ?? ''));
+    $newConfig['app'] = $newApp;
+    $content = layout_build_config_file($newConfig, $definedValues);
 
-            $formRows[] = [
-                'start' => $startRaw,
-                'end' => $endRaw,
-                'message' => $messageRaw,
-            ];
+    if (!is_dir(CONFIG_PATH)) {
+        @mkdir(CONFIG_PATH, 0755, true);
+    }
 
-            if ($startRaw === '' && $endRaw === '' && $messageRaw === '') {
-                continue;
+    if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
+        $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
+        return false;
+    }
+
+    $config = $newConfig;
+    $appCfg = $newApp;
+    $storedAnnouncements = $normalizedAnnouncements;
+    return true;
+};
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = trim((string)($_POST['action'] ?? ''));
+
+    if ($action === 'delete') {
+        $tokenToDelete = trim((string)($_POST['announcement_token'] ?? ''));
+        if ($tokenToDelete === '') {
+            $errors[] = 'Could not delete announcement: missing identifier.';
+        } else {
+            $remaining = [];
+            $removed = false;
+            foreach ($storedAnnouncements as $item) {
+                $itemToken = (string)($item['token'] ?? '');
+                if (!$removed && $itemToken === $tokenToDelete) {
+                    $removed = true;
+                    continue;
+                }
+                $remaining[] = $item;
             }
 
-            $rowNumber = $i + 1;
-            if ($messageRaw === '') {
-                $errors[] = 'Announcement ' . $rowNumber . ': message is required.';
-                continue;
+            if (!$removed) {
+                $errors[] = 'Announcement not found. Refresh and try again.';
+            } else {
+                $remaining = $normalizeAnnouncements($remaining);
+                if ($persistAnnouncements($remaining)) {
+                    $messages[] = 'Announcement deleted.';
+                }
             }
-            if ($startRaw === '' || $endRaw === '') {
-                $errors[] = 'Announcement ' . $rowNumber . ': start and end date/time are required.';
-                continue;
-            }
+        }
+    } elseif ($action === 'save') {
+        $startRaw = trim((string)($_POST['announcement_start'] ?? ''));
+        $endRaw = trim((string)($_POST['announcement_end'] ?? ''));
+        $messageRaw = trim((string)($_POST['announcement_message'] ?? ''));
+        $originalToken = trim((string)($_POST['announcement_original_token'] ?? ''));
 
-            $startDt = app_announcement_parse_datetime_input($startRaw, $tz);
-            $endDt = app_announcement_parse_datetime_input($endRaw, $tz);
-            if (!$startDt || !$endDt) {
-                $errors[] = 'Announcement ' . $rowNumber . ': please provide valid start and end date/time values.';
-                continue;
-            }
-            if ($endDt->getTimestamp() <= $startDt->getTimestamp()) {
-                $errors[] = 'Announcement ' . $rowNumber . ': end date/time must be after start date/time.';
-                continue;
-            }
+        $editorForm = [
+            'start' => $startRaw,
+            'end' => $endRaw,
+            'message' => $messageRaw,
+            'original_token' => $originalToken,
+        ];
 
-            $normalized = app_announcement_normalize_entry([
+        if ($messageRaw === '') {
+            $errors[] = 'Message is required.';
+        }
+        if ($startRaw === '' || $endRaw === '') {
+            $errors[] = 'Start and end date/time are required.';
+        }
+
+        $startDt = $startRaw !== '' ? app_announcement_parse_datetime_input($startRaw, $tz) : null;
+        $endDt = $endRaw !== '' ? app_announcement_parse_datetime_input($endRaw, $tz) : null;
+        if (($startRaw !== '' && !$startDt) || ($endRaw !== '' && !$endDt)) {
+            $errors[] = 'Please provide valid start and end date/time values.';
+        } elseif ($startDt && $endDt && $endDt->getTimestamp() <= $startDt->getTimestamp()) {
+            $errors[] = 'End date/time must be after start date/time.';
+        }
+
+        $normalizedNew = null;
+        if (empty($errors)) {
+            $normalizedNew = app_announcement_normalize_entry([
                 'message' => $messageRaw,
                 'start_ts' => $startDt->getTimestamp(),
                 'end_ts' => $endDt->getTimestamp(),
             ], $tz);
-            if (!$normalized) {
-                $errors[] = 'Announcement ' . $rowNumber . ': could not normalize this announcement.';
-                continue;
-            }
-            $normalizedAnnouncements[] = $normalized;
-        }
 
-        if (empty($formRows)) {
-            $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
-        }
-    }
-
-    if (empty($errors)) {
-        $seen = [];
-        $uniqueAnnouncements = [];
-        foreach ($normalizedAnnouncements as $item) {
-            $token = (string)($item['token'] ?? '');
-            if ($token !== '' && isset($seen[$token])) {
-                continue;
-            }
-            if ($token !== '') {
-                $seen[$token] = true;
-            }
-            $uniqueAnnouncements[] = $item;
-        }
-
-        usort($uniqueAnnouncements, static function (array $a, array $b): int {
-            if ($a['start_ts'] !== $b['start_ts']) {
-                return $a['start_ts'] <=> $b['start_ts'];
-            }
-            if ($a['end_ts'] !== $b['end_ts']) {
-                return $a['end_ts'] <=> $b['end_ts'];
-            }
-            return strcmp($a['message'], $b['message']);
-        });
-
-        $newApp['announcements'] = array_map(static function (array $item): array {
-            return [
-                'message' => (string)$item['message'],
-                'start_ts' => (int)$item['start_ts'],
-                'end_ts' => (int)$item['end_ts'],
-                'start_datetime' => (string)$item['start_datetime'],
-                'end_datetime' => (string)$item['end_datetime'],
-            ];
-        }, $uniqueAnnouncements);
-
-        $firstAnnouncement = $uniqueAnnouncements[0] ?? null;
-        if ($firstAnnouncement) {
-            $newApp['announcement_message'] = (string)$firstAnnouncement['message'];
-            $newApp['announcement_start_ts'] = (int)$firstAnnouncement['start_ts'];
-            $newApp['announcement_end_ts'] = (int)$firstAnnouncement['end_ts'];
-            $newApp['announcement_start_datetime'] = (string)$firstAnnouncement['start_datetime'];
-            $newApp['announcement_end_datetime'] = (string)$firstAnnouncement['end_datetime'];
-        } else {
-            $newApp['announcement_message'] = '';
-            $newApp['announcement_start_ts'] = 0;
-            $newApp['announcement_end_ts'] = 0;
-            $newApp['announcement_start_datetime'] = '';
-            $newApp['announcement_end_datetime'] = '';
-        }
-
-        $newConfig['app'] = $newApp;
-        $content = layout_build_config_file($newConfig, $definedValues);
-
-        if (!is_dir(CONFIG_PATH)) {
-            @mkdir(CONFIG_PATH, 0755, true);
-        }
-
-        if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
-            $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
-        } else {
-            $savedCount = count($uniqueAnnouncements);
-            if ($savedCount === 0) {
-                $messages[] = 'All announcements cleared.';
-            } elseif ($savedCount === 1) {
-                $messages[] = '1 announcement saved.';
-            } else {
-                $messages[] = $savedCount . ' announcements saved.';
-            }
-
-            $config = $newConfig;
-            $appCfg = $newApp;
-            $storedAnnouncements = app_announcements_from_app_config($appCfg, $tz);
-            $formRows = array_map($formatRow, $storedAnnouncements);
-            if (empty($formRows)) {
-                $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
+            if (!$normalizedNew) {
+                $errors[] = 'Could not normalize the announcement values.';
             }
         }
+
+        if (empty($errors) && $normalizedNew) {
+            $merged = [];
+            $replaced = false;
+
+            foreach ($storedAnnouncements as $item) {
+                $itemToken = (string)($item['token'] ?? '');
+                if (!$replaced && $originalToken !== '' && $itemToken === $originalToken) {
+                    $merged[] = $normalizedNew;
+                    $replaced = true;
+                    continue;
+                }
+                $merged[] = $item;
+            }
+
+            if ($originalToken === '') {
+                $merged[] = $normalizedNew;
+            } elseif (!$replaced) {
+                $errors[] = 'Announcement not found. Refresh and try again.';
+            }
+
+            if (empty($errors)) {
+                $merged = $normalizeAnnouncements($merged);
+                if ($persistAnnouncements($merged)) {
+                    if ($originalToken === '') {
+                        $messages[] = 'Announcement created.';
+                    } else {
+                        $messages[] = 'Announcement updated.';
+                    }
+                    $editorForm = [
+                        'start' => '',
+                        'end' => '',
+                        'message' => '',
+                        'original_token' => '',
+                    ];
+                } else {
+                    $openEditorOnLoad = true;
+                }
+            }
+        }
+
+        if (!empty($errors)) {
+            $openEditorOnLoad = true;
+        }
+    } else {
+        $errors[] = 'Unsupported action.';
     }
 }
 
@@ -220,14 +268,15 @@ foreach ($storedAnnouncements as $item) {
     }
 
     $announcementRows[] = [
+        'token' => (string)($item['token'] ?? ''),
         'start' => app_format_datetime($startTs, $config, $tz),
         'end' => app_format_datetime($endTs, $config, $tz),
         'status' => $status,
         'message' => (string)($item['message'] ?? ''),
+        'start_input' => app_announcement_format_datetime_for_input($startTs, $tz, $dateInputFormat),
+        'end_input' => app_announcement_format_datetime_for_input($endTs, $tz, $dateInputFormat),
     ];
 }
-
-$openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
 ?>
 <!DOCTYPE html>
 <html>
@@ -289,7 +338,7 @@ $openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
         </ul>
 
         <div class="d-flex justify-content-end mb-3">
-            <button type="button" class="btn btn-primary" id="announcement-editor-open">Manage announcements</button>
+            <button type="button" class="btn btn-primary" id="announcement-new-open">New Announcement</button>
         </div>
 
         <div class="card">
@@ -309,6 +358,7 @@ $openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
                                 <th>End</th>
                                 <th>Status</th>
                                 <th>Message</th>
+                                <th class="text-nowrap">Actions</th>
                             </tr>
                             </thead>
                             <tbody>
@@ -319,6 +369,21 @@ $openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
                                     <td class="text-nowrap"><?= h($row['end']) ?></td>
                                     <td class="text-nowrap"><?= h($row['status']) ?></td>
                                     <td style="white-space: pre-wrap;"><?= h($row['message']) ?></td>
+                                    <td class="text-nowrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-announcement-edit>Edit</button>
+                                        <form method="post"
+                                              action="announcements.php"
+                                              class="d-inline-block ms-1"
+                                              onsubmit="return confirm('Delete this announcement?');">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="announcement_token" value="<?= h($row['token']) ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                        </form>
+                                        <input type="hidden" data-announcement-token value="<?= h($row['token']) ?>">
+                                        <input type="hidden" data-announcement-start value="<?= h($row['start_input']) ?>">
+                                        <input type="hidden" data-announcement-end value="<?= h($row['end_input']) ?>">
+                                        <textarea class="d-none" data-announcement-message><?= h($row['message']) ?></textarea>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
@@ -341,7 +406,7 @@ $openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
     <div class="catalogue-modal__backdrop" data-announcement-editor-close></div>
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
-            <h2 id="announcement-editor-title" class="catalogue-modal__title">Manage Announcements</h2>
+            <h2 id="announcement-editor-title" class="catalogue-modal__title">New Announcement</h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-announcement-editor-close>
@@ -349,110 +414,83 @@ $openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
             </button>
         </div>
         <div class="catalogue-modal__body">
-            <form method="post" action="announcements.php" class="row g-3 settings-form" id="announcements-form">
+            <form method="post" action="announcements.php" class="row g-3 settings-form" id="announcement-editor-form">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden"
+                       name="announcement_original_token"
+                       id="announcement-original-token"
+                       value="<?= h((string)$editorForm['original_token']) ?>">
+
                 <div class="col-12">
-                    <h5 class="card-title mb-1">Announcement Entries</h5>
-                    <p class="text-muted small mb-3">
-                        Add one or more announcements. Users will see all active announcements in one modal when opening the catalogue.
+                    <p class="text-muted small mb-1">
+                        Users will see all active announcements together in one modal when opening the catalogue.
                     </p>
+                    <div class="form-text mt-0">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>.</div>
+                </div>
 
-                    <div id="announcement-rows" class="d-grid gap-3">
-                        <?php foreach ($formRows as $idx => $row): ?>
-                            <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index><?= (int)($idx + 1) ?></span></div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
-                                </div>
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Start date/time</label>
-                                        <input type="datetime-local"
-                                               name="announcement_start[]"
-                                               class="form-control"
-                                               step="<?= $dateInputStep ?>"
-                                               value="<?= h((string)$row['start']) ?>">
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">End date/time</label>
-                                        <input type="datetime-local"
-                                               name="announcement_end[]"
-                                               class="form-control"
-                                               step="<?= $dateInputStep ?>"
-                                               value="<?= h((string)$row['end']) ?>">
-                                    </div>
-                                    <div class="col-12">
-                                        <label class="form-label">Message</label>
-                                        <textarea name="announcement_message[]"
-                                                  rows="4"
-                                                  class="form-control"
-                                                  placeholder="Enter the announcement shown on catalogue load."><?= h((string)$row['message']) ?></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <div class="mt-3 d-flex justify-content-start">
-                        <button type="button" id="announcement-add-row" class="btn btn-outline-secondary btn-sm">Add announcement</button>
-                    </div>
-                    <div class="form-text mt-2">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>.</div>
+                <div class="col-md-6">
+                    <label class="form-label" for="announcement-start">Start date/time</label>
+                    <input type="datetime-local"
+                           id="announcement-start"
+                           name="announcement_start"
+                           class="form-control"
+                           step="<?= $dateInputStep ?>"
+                           value="<?= h((string)$editorForm['start']) ?>"
+                           required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="announcement-end">End date/time</label>
+                    <input type="datetime-local"
+                           id="announcement-end"
+                           name="announcement_end"
+                           class="form-control"
+                           step="<?= $dateInputStep ?>"
+                           value="<?= h((string)$editorForm['end']) ?>"
+                           required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="announcement-message">Message</label>
+                    <textarea id="announcement-message"
+                              name="announcement_message"
+                              rows="4"
+                              class="form-control"
+                              placeholder="Enter the announcement shown on catalogue load."
+                              required><?= h((string)$editorForm['message']) ?></textarea>
                 </div>
 
                 <div class="col-12 d-flex justify-content-end gap-2">
-                    <button type="submit" name="action" value="clear" class="btn btn-outline-secondary">Clear all announcements</button>
-                    <button type="submit" name="action" value="save" class="btn btn-primary">Save announcements</button>
+                    <button type="button" class="btn btn-outline-secondary" data-announcement-editor-close>Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="announcement-save-btn">Create announcement</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<template id="announcement-row-template">
-    <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index></span></div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
-        </div>
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Start date/time</label>
-                <input type="datetime-local"
-                       name="announcement_start[]"
-                       class="form-control"
-                       step="<?= $dateInputStep ?>">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">End date/time</label>
-                <input type="datetime-local"
-                       name="announcement_end[]"
-                       class="form-control"
-                       step="<?= $dateInputStep ?>">
-            </div>
-            <div class="col-12">
-                <label class="form-label">Message</label>
-                <textarea name="announcement_message[]"
-                          rows="4"
-                          class="form-control"
-                          placeholder="Enter the announcement shown on catalogue load."></textarea>
-            </div>
-        </div>
-    </div>
-</template>
-
 <?php layout_footer(); ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const editorModal = document.getElementById('announcement-editor-modal');
-    const openEditorBtn = document.getElementById('announcement-editor-open');
-    const rowsContainer = document.getElementById('announcement-rows');
-    const addBtn = document.getElementById('announcement-add-row');
-    const template = document.getElementById('announcement-row-template');
+    const newBtn = document.getElementById('announcement-new-open');
+    const editorForm = document.getElementById('announcement-editor-form');
+    const titleEl = document.getElementById('announcement-editor-title');
+    const saveBtn = document.getElementById('announcement-save-btn');
+    const originalTokenInput = document.getElementById('announcement-original-token');
+    const startInput = document.getElementById('announcement-start');
+    const endInput = document.getElementById('announcement-end');
+    const messageInput = document.getElementById('announcement-message');
     const openOnLoad = editorModal && editorModal.dataset.openOnLoad === '1';
     let editorOpen = false;
 
-    if (!editorModal || !rowsContainer || !addBtn || !template) {
+    if (!editorModal || !newBtn || !editorForm || !titleEl || !saveBtn || !originalTokenInput || !startInput || !endInput || !messageInput) {
         return;
     }
+
+    const applyEditorMode = function () {
+        const isEdit = originalTokenInput.value.trim() !== '';
+        titleEl.textContent = isEdit ? 'Edit Announcement' : 'New Announcement';
+        saveBtn.textContent = isEdit ? 'Save changes' : 'Create announcement';
+    };
 
     const setEditorState = function (open) {
         editorOpen = !!open;
@@ -463,24 +501,65 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     const openEditorModal = function () {
-        if (editorOpen) return;
+        if (editorOpen) {
+            return;
+        }
         setEditorState(true);
     };
 
     const closeEditorModal = function () {
-        if (!editorOpen) return;
+        if (!editorOpen) {
+            return;
+        }
         setEditorState(false);
     };
 
-    if (openEditorBtn) {
-        openEditorBtn.addEventListener('click', function () {
+    const setEditorForNew = function () {
+        originalTokenInput.value = '';
+        startInput.value = '';
+        endInput.value = '';
+        messageInput.value = '';
+        applyEditorMode();
+    };
+
+    const setEditorForRow = function (row) {
+        const tokenEl = row.querySelector('[data-announcement-token]');
+        const startEl = row.querySelector('[data-announcement-start]');
+        const endEl = row.querySelector('[data-announcement-end]');
+        const messageEl = row.querySelector('[data-announcement-message]');
+
+        if (!tokenEl || !startEl || !endEl || !messageEl) {
+            return;
+        }
+
+        originalTokenInput.value = tokenEl.value || '';
+        startInput.value = startEl.value || '';
+        endInput.value = endEl.value || '';
+        messageInput.value = messageEl.value || '';
+        applyEditorMode();
+    };
+
+    newBtn.addEventListener('click', function () {
+        setEditorForNew();
+        openEditorModal();
+    });
+
+    document.querySelectorAll('[data-announcement-edit]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const row = button.closest('tr');
+            if (!row) {
+                return;
+            }
+            setEditorForRow(row);
             openEditorModal();
         });
-    }
+    });
 
     editorModal.addEventListener('click', function (event) {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target) return;
+        if (!target) {
+            return;
+        }
         if (target.closest('[data-announcement-editor-close]')) {
             closeEditorModal();
         }
@@ -494,51 +573,7 @@ document.addEventListener('DOMContentLoaded', function () {
         closeEditorModal();
     });
 
-    const renumberRows = function () {
-        const rows = Array.from(rowsContainer.querySelectorAll('[data-announcement-row]'));
-        rows.forEach(function (row, index) {
-            const label = row.querySelector('[data-announcement-row-index]');
-            if (label) {
-                label.textContent = String(index + 1);
-            }
-        });
-        rows.forEach(function (row) {
-            const removeBtn = row.querySelector('[data-announcement-row-remove]');
-            if (removeBtn) {
-                removeBtn.disabled = rows.length <= 1;
-            }
-        });
-    };
-
-    const addRow = function () {
-        const fragment = template.content.cloneNode(true);
-        rowsContainer.appendChild(fragment);
-        renumberRows();
-    };
-
-    addBtn.addEventListener('click', function () {
-        addRow();
-    });
-
-    rowsContainer.addEventListener('click', function (event) {
-        const target = event.target instanceof Element ? event.target : null;
-        if (!target) return;
-
-        const removeBtn = target.closest('[data-announcement-row-remove]');
-        if (!removeBtn) return;
-
-        const row = removeBtn.closest('[data-announcement-row]');
-        if (!row) return;
-
-        row.remove();
-        if (!rowsContainer.querySelector('[data-announcement-row]')) {
-            addRow();
-        }
-        renumberRows();
-    });
-
-    renumberRows();
-
+    applyEditorMode();
     if (openOnLoad) {
         openEditorModal();
     } else {
