@@ -938,17 +938,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const target = parseInt(raw, 10);
             if (!Number.isFinite(target)) return;
 
-            const scrollToSavedY = function () {
-                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-                const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
-                const nextY = Math.max(0, Math.min(maxY, target));
-                window.scrollTo(0, nextY);
-            };
-
-            window.requestAnimationFrame(function () {
-                scrollToSavedY();
-                window.setTimeout(scrollToSavedY, 120);
-            });
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
+            const nextY = Math.max(0, Math.min(maxY, target));
+            window.scrollTo(0, nextY);
         } catch (e) {
             // Ignore storage errors (private mode / blocked storage).
         }
