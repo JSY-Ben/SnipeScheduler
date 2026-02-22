@@ -516,10 +516,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const setEditorForNew = function () {
         originalTokenInput.value = '';
-        startInput.value = '';
-        endInput.value = '';
+        setDatetimeInputValue(startInput, '');
+        setDatetimeInputValue(endInput, '');
         messageInput.value = '';
         applyEditorMode();
+    };
+
+    const setDatetimeInputValue = function (input, value) {
+        if (!input) {
+            return;
+        }
+
+        const nextValue = String(value || '');
+        if (input._flatpickr) {
+            if (nextValue === '') {
+                input._flatpickr.clear(false);
+            } else {
+                input._flatpickr.setDate(nextValue, false, input._flatpickr.config.dateFormat);
+            }
+            return;
+        }
+
+        input.value = nextValue;
     };
 
     const setEditorForRow = function (row) {
@@ -533,8 +551,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         originalTokenInput.value = tokenEl.value || '';
-        startInput.value = startEl.value || '';
-        endInput.value = endEl.value || '';
+        setDatetimeInputValue(startInput, startEl.value || '');
+        setDatetimeInputValue(endInput, endEl.value || '');
         messageInput.value = messageEl.value || '';
         applyEditorMode();
     };
