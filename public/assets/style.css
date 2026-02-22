@@ -836,6 +836,37 @@ body.catalogue-modal-open {
     background: rgba(var(--primary-rgb), 0.03);
 }
 
+.report-model-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.report-model-cell__text {
+    min-width: 0;
+}
+
+.report-model-thumb {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 0.35rem;
+    border: 1px solid var(--border);
+    object-fit: contain;
+    background: #fff;
+    padding: 2px;
+}
+
+.report-model-thumb--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #888;
+    background: rgba(var(--primary-rgb), 0.08);
+}
+
 /* --------------------------------------------------
    Forms / filter bar tweaks
 -------------------------------------------------- */

@@ -375,11 +375,16 @@ try {
     foreach ($modelStats as $modelId => $modelStat) {
         $modelName = 'Model #' . (int)$modelId;
         $modelCategory = 'Unknown category';
+        $modelImagePath = '';
         try {
             $model = get_model((int)$modelId);
             $name = trim((string)($model['name'] ?? ''));
             if ($name !== '') {
                 $modelName = $name;
+            }
+            $imagePath = trim((string)($model['image'] ?? ''));
+            if ($imagePath !== '') {
+                $modelImagePath = $imagePath;
             }
             $category = $model['category'] ?? null;
             if (is_array($category)) {
@@ -410,6 +415,9 @@ try {
         $modelRows[] = [
             'model_id' => (int)$modelId,
             'model_name' => $modelName,
+            'model_image_url' => $modelImagePath !== ''
+                ? 'image_proxy.php?src=' . urlencode($modelImagePath)
+                : '',
             'category' => $modelCategory,
             'unit_minutes' => $minutes,
             'reservation_count' => count($modelStat['reservation_ids']),
@@ -780,8 +788,21 @@ $renderSortableHeader = static function (
                             <?php foreach ($modelRowsPage as $row): ?>
                                 <tr>
                                     <td>
-                                        <?= h((string)$row['model_name']) ?>
-                                        <span class="text-muted small">(ID <?= (int)$row['model_id'] ?>)</span>
+                                        <div class="report-model-cell">
+                                            <?php $modelImageUrl = trim((string)($row['model_image_url'] ?? '')); ?>
+                                            <?php if ($modelImageUrl !== ''): ?>
+                                                <img src="<?= h($modelImageUrl) ?>"
+                                                     alt="<?= h((string)$row['model_name']) ?>"
+                                                     class="report-model-thumb"
+                                                     loading="lazy">
+                                            <?php else: ?>
+                                                <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">-</div>
+                                            <?php endif; ?>
+                                            <div class="report-model-cell__text">
+                                                <div><?= h((string)$row['model_name']) ?></div>
+                                                <span class="text-muted small">ID <?= (int)$row['model_id'] ?></span>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td><?= h((string)$row['category']) ?></td>
                                     <td class="text-end"><?= number_format((float)$row['unit_hours'], 1) ?></td>
