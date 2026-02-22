@@ -126,6 +126,7 @@ $statusCounts = [
 $dailyCancelledMissedRows = [];
 $hourlyUnitMinutes = array_fill(0, 24, 0.0);
 $categoryRows = [];
+$modelRows = [];
 $categoryLookupFailures = 0;
 $legacyReservationsWithoutItems = 0;
 
@@ -286,10 +287,16 @@ try {
     }
 
     $categoryAggregates = [];
+    $totalModelMinutes = 0.0;
     foreach ($modelStats as $modelId => $modelStat) {
+        $modelName = 'Model #' . (int)$modelId;
         $modelCategory = 'Unknown category';
         try {
             $model = get_model((int)$modelId);
+            $name = trim((string)($model['name'] ?? ''));
+            if ($name !== '') {
+                $modelName = $name;
+            }
             $category = $model['category'] ?? null;
             if (is_array($category)) {
                 $name = trim((string)($category['name'] ?? ($category['category_name'] ?? '')));
@@ -308,11 +315,31 @@ try {
                 'reservation_ids' => [],
             ];
         }
-        $categoryAggregates[$modelCategory]['unit_minutes'] += (float)$modelStat['unit_minutes'];
+        $minutes = (float)$modelStat['unit_minutes'];
+        $categoryAggregates[$modelCategory]['unit_minutes'] += $minutes;
         $categoryAggregates[$modelCategory]['model_ids'][$modelId] = true;
         foreach ($modelStat['reservation_ids'] as $reservationId => $_true) {
             $categoryAggregates[$modelCategory]['reservation_ids'][(int)$reservationId] = true;
         }
+
+        $totalModelMinutes += $minutes;
+        $modelRows[] = [
+            'model_id' => (int)$modelId,
+            'model_name' => $modelName,
+            'category' => $modelCategory,
+            'unit_minutes' => $minutes,
+            'reservation_count' => count($modelStat['reservation_ids']),
+        ];
+    }
+
+    usort($modelRows, static function (array $a, array $b): int {
+        return (float)$b['unit_minutes'] <=> (float)$a['unit_minutes'];
+    });
+
+    foreach ($modelRows as $index => $row) {
+        $minutes = (float)($row['unit_minutes'] ?? 0);
+        $modelRows[$index]['unit_hours'] = $minutes / 60;
+        $modelRows[$index]['share_pct'] = $totalModelMinutes > 0 ? ($minutes / $totalModelMinutes) * 100 : 0;
     }
 
     uasort($categoryAggregates, static function (array $a, array $b): int {
@@ -335,7 +362,7 @@ try {
         ];
     }
 } catch (Throwable $e) {
-    $reportErrors[] = 'Could not load category utilization data.';
+    $reportErrors[] = 'Could not load category utilisation data.';
 }
 
 $totalReservations = array_sum($statusCounts);
@@ -372,7 +399,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
         <div class="page-header">
             <h1>Reports</h1>
             <div class="page-subtitle">
-                Utilization by category, peak demand hours, and cancellation/no-show analytics.
+                Utilisation by category and model, peak demand hours, and cancellation/no-show analytics.
             </div>
         </div>
 
@@ -466,13 +493,13 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
 
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title mb-1">Utilization by Category</h5>
+                <h5 class="card-title mb-1">Utilisation by Category</h5>
                 <p class="text-muted small mb-3">
                     Based on booked unit-hours from reservations overlapping the report window.
                 </p>
 
                 <?php if (empty($categoryRows)): ?>
-                    <div class="text-muted small">No reservation item utilization data found for this range.</div>
+                    <div class="text-muted small">No reservation item utilisation data found for this range.</div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0">
@@ -503,6 +530,47 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             <?= (int)$categoryLookupFailures ?> model<?= $categoryLookupFailures === 1 ? '' : 's' ?> could not be mapped to a Snipe-IT category and were grouped as "Unknown category".
                         </div>
                     <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title mb-1">Utilisation by Model</h5>
+                <p class="text-muted small mb-3">
+                    Model-level booked unit-hours and share of total model utilisation.
+                </p>
+
+                <?php if (empty($modelRows)): ?>
+                    <div class="text-muted small">No model utilisation data found for this range.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Category</th>
+                                <th class="text-end">Unit-hours booked</th>
+                                <th class="text-end">Share</th>
+                                <th class="text-end">Reservations</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($modelRows as $row): ?>
+                                <tr>
+                                    <td>
+                                        <?= h((string)$row['model_name']) ?>
+                                        <span class="text-muted small">(ID <?= (int)$row['model_id'] ?>)</span>
+                                    </td>
+                                    <td><?= h((string)$row['category']) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['unit_hours'], 1) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['share_pct'], 1) ?>%</td>
+                                    <td class="text-end"><?= (int)$row['reservation_count'] ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
