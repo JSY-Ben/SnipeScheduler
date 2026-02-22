@@ -333,29 +333,25 @@ if (!empty($basket)) {
                 </div>
                 <form method="get" action="basket.php" id="basket-window-form">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-5">
                             <label class="form-label fw-semibold">Start date &amp; time</label>
                             <input type="datetime-local" name="start_datetime"
                                    id="basket_start_datetime"
                                    class="form-control form-control-lg"
                                    value="<?= htmlspecialchars($previewStartRaw) ?>">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-5">
                             <label class="form-label fw-semibold">End date &amp; time</label>
                             <input type="datetime-local" name="end_datetime"
                                    id="basket_end_datetime"
                                    class="form-control form-control-lg"
                                    value="<?= htmlspecialchars($previewEndRaw) ?>">
                         </div>
-                        <div class="col-md-4 d-grid d-md-flex gap-2 align-items-end">
+                        <div class="col-md-2 d-grid align-items-end">
                             <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn"
                                     type="button"
                                     id="basket-today-btn">
                                 Today
-                            </button>
-                            <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn"
-                                    type="submit">
-                                Update availability
                             </button>
                         </div>
                     </div>

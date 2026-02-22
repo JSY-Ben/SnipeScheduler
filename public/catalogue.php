@@ -1350,7 +1350,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="form-label fw-semibold">Start date &amp; time</label>
                     <input type="datetime-local"
                            name="start_datetime"
@@ -1358,7 +1358,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            class="form-control form-control-lg"
                            value="<?= h($windowStartRaw) ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="form-label fw-semibold">End date &amp; time</label>
                     <input type="datetime-local"
                            name="end_datetime"
@@ -1366,12 +1366,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            class="form-control form-control-lg"
                            value="<?= h($windowEndRaw) ?>">
                 </div>
-                <div class="col-md-4 d-grid d-md-flex gap-2">
+                <div class="col-md-2 d-grid">
                     <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn" type="button" id="catalogue-today-btn">
                         Today
-                    </button>
-                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn" type="submit">
-                        Update availability
                     </button>
                 </div>
             </div>
