@@ -53,8 +53,75 @@ if (!function_exists('reservation_policy_format_minutes')) {
     }
 }
 
+if (!function_exists('reservation_policy_parse_blackout_datetime_value')) {
+    function reservation_policy_parse_blackout_datetime_value(string $value, ?array $cfg = null): ?int
+    {
+        $text = trim($value);
+        if ($text === '') {
+            return null;
+        }
+
+        $cfg = $cfg ?? load_config();
+        $tz = app_get_timezone($cfg);
+        $dateFormat = app_get_date_format($cfg);
+        $timeFormat = app_get_time_format($cfg);
+
+        $preferredFormats = [];
+        $dateTimeFormat = trim($dateFormat . ' ' . $timeFormat);
+        if ($dateTimeFormat !== '') {
+            $preferredFormats[] = $dateTimeFormat;
+            if (strpos($timeFormat, 's') === false) {
+                $preferredFormats[] = trim($dateFormat . ' ' . $timeFormat . ':s');
+            }
+            if (strpos($timeFormat, 'A') !== false) {
+                $preferredFormats[] = trim($dateFormat . ' ' . str_replace('A', 'a', $timeFormat));
+            }
+            if (strpos($timeFormat, 'a') !== false) {
+                $preferredFormats[] = trim($dateFormat . ' ' . str_replace('a', 'A', $timeFormat));
+            }
+        }
+
+        $fallbackFormats = [
+            'Y-m-d H:i:s',
+            'Y-m-d H:i',
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i',
+            'd/m/Y H:i:s',
+            'd/m/Y H:i',
+            'm/d/Y H:i:s',
+            'm/d/Y H:i',
+        ];
+        $formats = array_values(array_unique(array_filter(array_merge($preferredFormats, $fallbackFormats), 'strlen')));
+
+        foreach ($formats as $format) {
+            $dateTime = $tz
+                ? DateTime::createFromFormat('!' . $format, $text, $tz)
+                : DateTime::createFromFormat('!' . $format, $text);
+            if (!$dateTime) {
+                continue;
+            }
+
+            $errors = DateTime::getLastErrors();
+            if (
+                is_array($errors)
+                && (
+                    (int)($errors['warning_count'] ?? 0) > 0
+                    || (int)($errors['error_count'] ?? 0) > 0
+                )
+            ) {
+                continue;
+            }
+
+            return $dateTime->getTimestamp();
+        }
+
+        $fallbackTs = strtotime($text);
+        return $fallbackTs === false ? null : $fallbackTs;
+    }
+}
+
 if (!function_exists('reservation_policy_parse_blackout_slots_text')) {
-    function reservation_policy_parse_blackout_slots_text(string $text): array
+    function reservation_policy_parse_blackout_slots_text(string $text, ?array $cfg = null): array
     {
         $slots = [];
         $seen = [];
@@ -74,9 +141,9 @@ if (!function_exists('reservation_policy_parse_blackout_slots_text')) {
                 continue;
             }
 
-            $startTs = strtotime(trim((string)$parts[0]));
-            $endTs = strtotime(trim((string)$parts[1]));
-            if ($startTs === false || $endTs === false || $endTs <= $startTs) {
+            $startTs = reservation_policy_parse_blackout_datetime_value((string)$parts[0], $cfg);
+            $endTs = reservation_policy_parse_blackout_datetime_value((string)$parts[1], $cfg);
+            if ($startTs === null || $endTs === null || $endTs <= $startTs) {
                 continue;
             }
 
@@ -107,10 +174,10 @@ if (!function_exists('reservation_policy_parse_blackout_slots_text')) {
 }
 
 if (!function_exists('reservation_policy_normalize_blackout_slots')) {
-    function reservation_policy_normalize_blackout_slots($raw): array
+    function reservation_policy_normalize_blackout_slots($raw, ?array $cfg = null): array
     {
         if (is_string($raw)) {
-            return reservation_policy_parse_blackout_slots_text($raw);
+            return reservation_policy_parse_blackout_slots_text($raw, $cfg);
         }
 
         if (!is_array($raw)) {
@@ -121,7 +188,7 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
         $seen = [];
         foreach ($raw as $entry) {
             if (is_string($entry)) {
-                $parsed = reservation_policy_parse_blackout_slots_text($entry);
+                $parsed = reservation_policy_parse_blackout_slots_text($entry, $cfg);
                 foreach ($parsed as $slot) {
                     $key = (string)($slot['start'] ?? '') . '|' . (string)($slot['end'] ?? '');
                     if ($key === '|' || isset($seen[$key])) {
@@ -139,9 +206,9 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
 
             $startRaw = trim((string)($entry['start'] ?? ($entry['start_datetime'] ?? '')));
             $endRaw = trim((string)($entry['end'] ?? ($entry['end_datetime'] ?? '')));
-            $startTs = strtotime($startRaw);
-            $endTs = strtotime($endRaw);
-            if ($startTs === false || $endTs === false || $endTs <= $startTs) {
+            $startTs = reservation_policy_parse_blackout_datetime_value($startRaw, $cfg);
+            $endTs = reservation_policy_parse_blackout_datetime_value($endRaw, $cfg);
+            if ($startTs === null || $endTs === null || $endTs <= $startTs) {
                 continue;
             }
 
@@ -172,7 +239,7 @@ if (!function_exists('reservation_policy_normalize_blackout_slots')) {
 }
 
 if (!function_exists('reservation_policy_blackout_slots_to_text')) {
-    function reservation_policy_blackout_slots_to_text(array $slots): string
+    function reservation_policy_blackout_slots_to_text(array $slots, ?array $cfg = null): string
     {
         if (empty($slots)) {
             return '';
@@ -180,12 +247,16 @@ if (!function_exists('reservation_policy_blackout_slots_to_text')) {
 
         $lines = [];
         foreach ($slots as $slot) {
-            $startTs = strtotime((string)($slot['start'] ?? ''));
-            $endTs = strtotime((string)($slot['end'] ?? ''));
-            if ($startTs === false || $endTs === false || $endTs <= $startTs) {
+            $startRaw = (string)($slot['start'] ?? '');
+            $endRaw = (string)($slot['end'] ?? '');
+            $startTs = reservation_policy_parse_blackout_datetime_value($startRaw, $cfg);
+            $endTs = reservation_policy_parse_blackout_datetime_value($endRaw, $cfg);
+            if ($startTs === null || $endTs === null || $endTs <= $startTs) {
                 continue;
             }
-            $lines[] = date('Y-m-d H:i', $startTs) . ' -> ' . date('Y-m-d H:i', $endTs);
+            $lines[] = app_format_datetime(date('Y-m-d H:i:s', $startTs), $cfg)
+                . ' -> '
+                . app_format_datetime(date('Y-m-d H:i:s', $endTs), $cfg);
         }
 
         return implode("\n", $lines);
@@ -230,7 +301,7 @@ if (!function_exists('reservation_policy_get')) {
             'min_duration_minutes' => $minDurationMinutes,
             'max_duration_minutes' => $maxDurationMinutes,
             'max_concurrent_reservations' => max(0, (int)($app['reservation_max_concurrent_reservations'] ?? 0)),
-            'blackout_slots' => reservation_policy_normalize_blackout_slots($app['reservation_blackout_slots'] ?? []),
+            'blackout_slots' => reservation_policy_normalize_blackout_slots($app['reservation_blackout_slots'] ?? [], $config),
             'bypass' => [
                 'notice' => [
                     'checkout_staff' => !empty($app['reservation_notice_bypass_checkout_staff']),

@@ -423,9 +423,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_concurrent_bypass_checkout_staff'] = isset($_POST['app_res_concurrent_bypass_staff']);
     $app['reservation_concurrent_bypass_admins'] = isset($_POST['app_res_concurrent_bypass_admin']);
 
-    $existingBlackoutText = reservation_policy_blackout_slots_to_text($existingPolicy['blackout_slots'] ?? []);
+    $existingBlackoutText = reservation_policy_blackout_slots_to_text(
+        $existingPolicy['blackout_slots'] ?? [],
+        ['app' => $app]
+    );
     $blackoutSlotsRaw = trim((string)($_POST['app_res_blackout_slots'] ?? $existingBlackoutText));
-    $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($blackoutSlotsRaw);
+    $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($blackoutSlotsRaw, ['app' => $app]);
     $app['reservation_blackout_bypass_checkout_staff'] = isset($_POST['app_res_blackout_bypass_staff']);
     $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
 
@@ -636,7 +639,20 @@ $reservationPolicy = reservation_policy_get($config);
 $reservationNoticeParts = reservation_policy_minutes_to_parts($reservationPolicy['notice_minutes'] ?? 0);
 $reservationMinDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['min_duration_minutes'] ?? 0);
 $reservationMaxDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['max_duration_minutes'] ?? 0);
-$reservationBlackoutText = reservation_policy_blackout_slots_to_text($reservationPolicy['blackout_slots'] ?? []);
+$reservationBlackoutText = reservation_policy_blackout_slots_to_text($reservationPolicy['blackout_slots'] ?? [], $config);
+$selectedAppDateFormat = app_get_date_format($config);
+$selectedAppTimeFormat = app_get_time_format($config);
+$reservationBlackoutFormat = trim($selectedAppDateFormat . ' ' . $selectedAppTimeFormat);
+$reservationBlackoutDateLabel = $dateFormatOptions[$selectedAppDateFormat] ?? $selectedAppDateFormat;
+$reservationBlackoutTimeLabel = $timeFormatOptions[$selectedAppTimeFormat] ?? $selectedAppTimeFormat;
+$reservationBlackoutTooltip = 'Use the current app date/time format: ' . $reservationBlackoutFormat;
+$reservationBlackoutExampleA = app_format_datetime('2026-03-01 09:00:00', $config)
+    . ' -> '
+    . app_format_datetime('2026-03-01 17:00:00', $config);
+$reservationBlackoutExampleB = app_format_datetime('2026-03-05 12:00:00', $config)
+    . ' -> '
+    . app_format_datetime('2026-03-05 13:30:00', $config);
+$reservationBlackoutPlaceholder = $reservationBlackoutExampleA . "\n" . $reservationBlackoutExampleB;
 
 ?>
 <!DOCTYPE html>
@@ -1322,13 +1338,17 @@ $reservationBlackoutText = reservation_policy_blackout_slots_to_text($reservatio
                             <div class="col-12">
                                 <div class="border rounded p-3">
                                     <h6 class="mb-2">4) Blackout slots</h6>
-                                    <label class="form-label">One blackout window per line</label>
+                                    <label class="form-label" title="<?= h($reservationBlackoutTooltip) ?>">One blackout window per line</label>
                                     <textarea name="app_res_blackout_slots"
                                               class="form-control"
                                               rows="4"
-                                              placeholder="2026-03-01 09:00 -> 2026-03-01 17:00&#10;2026-03-05 12:00 -> 2026-03-05 13:30"><?= h($reservationBlackoutText) ?></textarea>
+                                              placeholder="<?= h($reservationBlackoutPlaceholder) ?>"
+                                              title="<?= h($reservationBlackoutTooltip) ?>"><?= h($reservationBlackoutText) ?></textarea>
                                     <div class="form-text">
-                                        Format each line as <code>start -&gt; end</code>. Accepted separators: <code>-&gt;</code>, <code>to</code>, <code>|</code> or comma.
+                                        Format each line as <code>start -&gt; end</code> using the current app format
+                                        <code><?= h($reservationBlackoutFormat) ?></code>.
+                                        Date: <?= h($reservationBlackoutDateLabel) ?>. Time: <?= h($reservationBlackoutTimeLabel) ?>.
+                                        Accepted separators: <code>-&gt;</code>, <code>to</code>, <code>|</code> or comma.
                                     </div>
                                     <div class="row g-2 mt-1">
                                         <div class="col-md-6">
