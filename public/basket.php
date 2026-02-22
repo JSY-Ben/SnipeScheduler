@@ -4,10 +4,17 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/reservation_policy.php';
 
 $active  = basename($_SERVER['PHP_SELF']);
 $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
+$bookingOverride = $_SESSION['booking_user_override'] ?? null;
+$bookingTargetUser = $bookingOverride ?: $currentUser;
+$overrideEmail = strtolower(trim((string)($bookingOverride['email'] ?? '')));
+$currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
+$isOnBehalfBooking = is_array($bookingOverride) && $overrideEmail !== '' && $overrideEmail !== $currentEmail;
+$reservationPolicy = reservation_policy_get($config);
 
 // Basket: model_id => quantity
 $basket = $_SESSION['basket'] ?? [];
@@ -39,21 +46,36 @@ if (trim($previewEndRaw) === '') {
 $previewStart = null;
 $previewEnd   = null;
 $previewError = '';
+$previewStartTs = false;
+$previewEndTs = false;
+$policyViolations = [];
 
 if ($previewStartRaw && $previewEndRaw) {
-    $startTs = strtotime($previewStartRaw);
-    $endTs   = strtotime($previewEndRaw);
+    $previewStartTs = strtotime($previewStartRaw);
+    $previewEndTs   = strtotime($previewEndRaw);
 
-    if ($startTs === false || $endTs === false) {
+    if ($previewStartTs === false || $previewEndTs === false) {
         $previewError = 'Invalid date/time for availability preview.';
-    } elseif ($endTs <= $startTs) {
+    } elseif ($previewEndTs <= $previewStartTs) {
         $previewError = 'End time must be after start time for availability preview.';
     } else {
-        $previewStart = date('Y-m-d H:i:s', $startTs);
-        $previewEnd   = date('Y-m-d H:i:s', $endTs);
+        $previewStart = date('Y-m-d H:i:s', $previewStartTs);
+        $previewEnd   = date('Y-m-d H:i:s', $previewEndTs);
         $_SESSION['reservation_window_start'] = $previewStartRaw;
         $_SESSION['reservation_window_end']   = $previewEndRaw;
     }
+}
+
+if ($previewStart && $previewEnd) {
+    $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
+        'start_ts' => (int)$previewStartTs,
+        'end_ts' => (int)$previewEndTs,
+        'target_user_id' => (string)($bookingTargetUser['id'] ?? ''),
+        'target_user_email' => (string)($bookingTargetUser['email'] ?? ''),
+        'is_admin' => $isAdmin,
+        'is_staff' => $isStaff,
+        'is_on_behalf' => $isOnBehalfBooking,
+    ]);
 }
 
 $catalogueBackUrl = 'catalogue.php';
@@ -233,6 +255,16 @@ if (!empty($basket)) {
                     Choose a start and end date below to automatically refresh availability.
                 </div>
             <?php endif; ?>
+            <?php if (!empty($policyViolations)): ?>
+                <div class="alert alert-danger">
+                    <div class="fw-semibold mb-2">Reservation window not allowed:</div>
+                    <ul class="mb-0">
+                        <?php foreach ($policyViolations as $violation): ?>
+                            <li><?= h($violation) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
 
             <div class="table-responsive mb-4">
                 <table class="table table-striped table-bookings align-middle">
@@ -329,12 +361,16 @@ if (!empty($basket)) {
 
                 <button class="btn btn-primary btn-lg px-4"
                         type="submit"
-                        <?= (!$previewStart || !$previewEnd) ? 'disabled' : '' ?>>
+                        <?= (!$previewStart || !$previewEnd || !empty($policyViolations)) ? 'disabled' : '' ?>>
                     Confirm booking for all items
                 </button>
                 <?php if (!$previewStart || !$previewEnd): ?>
                     <span class="ms-2 text-danger small">
                         Please choose a valid reservation window.
+                    </span>
+                <?php elseif (!empty($policyViolations)): ?>
+                    <span class="ms-2 text-danger small">
+                        Please resolve the reservation rule violations above.
                     </span>
                 <?php endif; ?>
             </form>

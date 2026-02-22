@@ -3,6 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/config_writer.php';
+require_once SRC_PATH . '/reservation_policy.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';
 
@@ -376,6 +377,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
 
+    $existingPolicy = reservation_policy_get(['app' => $app]);
+    $existingNoticeParts = reservation_policy_minutes_to_parts($existingPolicy['notice_minutes'] ?? 0);
+    $existingMinDurationParts = reservation_policy_minutes_to_parts($existingPolicy['min_duration_minutes'] ?? 0);
+    $existingMaxDurationParts = reservation_policy_minutes_to_parts($existingPolicy['max_duration_minutes'] ?? 0);
+
+    $noticeDays = max(0, (int)$post('app_res_notice_days', $existingNoticeParts['days'] ?? 0));
+    $noticeHours = max(0, (int)$post('app_res_notice_hours', $existingNoticeParts['hours'] ?? 0));
+    $noticeMinutes = max(0, (int)$post('app_res_notice_minutes', $existingNoticeParts['minutes'] ?? 0));
+    $app['reservation_notice_minutes'] = reservation_policy_parts_to_minutes($noticeDays, $noticeHours, $noticeMinutes);
+    $app['reservation_notice_bypass_checkout_staff'] = isset($_POST['app_res_notice_bypass_staff']);
+    $app['reservation_notice_bypass_admins'] = isset($_POST['app_res_notice_bypass_admin']);
+
+    $minDurationDays = max(0, (int)$post('app_res_duration_min_days', $existingMinDurationParts['days'] ?? 0));
+    $minDurationHours = max(0, (int)$post('app_res_duration_min_hours', $existingMinDurationParts['hours'] ?? 0));
+    $minDurationMinutes = max(0, (int)$post('app_res_duration_min_minutes', $existingMinDurationParts['minutes'] ?? 0));
+    $app['reservation_min_duration_minutes'] = reservation_policy_parts_to_minutes(
+        $minDurationDays,
+        $minDurationHours,
+        $minDurationMinutes
+    );
+
+    $maxDurationDays = max(0, (int)$post('app_res_duration_max_days', $existingMaxDurationParts['days'] ?? 0));
+    $maxDurationHours = max(0, (int)$post('app_res_duration_max_hours', $existingMaxDurationParts['hours'] ?? 0));
+    $maxDurationMinutes = max(0, (int)$post('app_res_duration_max_minutes', $existingMaxDurationParts['minutes'] ?? 0));
+    $app['reservation_max_duration_minutes'] = reservation_policy_parts_to_minutes(
+        $maxDurationDays,
+        $maxDurationHours,
+        $maxDurationMinutes
+    );
+    if (
+        $app['reservation_max_duration_minutes'] > 0
+        && $app['reservation_min_duration_minutes'] > 0
+        && $app['reservation_max_duration_minutes'] < $app['reservation_min_duration_minutes']
+    ) {
+        $app['reservation_max_duration_minutes'] = $app['reservation_min_duration_minutes'];
+    }
+    $app['reservation_duration_bypass_checkout_staff'] = isset($_POST['app_res_duration_bypass_staff']);
+    $app['reservation_duration_bypass_admins'] = isset($_POST['app_res_duration_bypass_admin']);
+
+    $app['reservation_max_concurrent_reservations'] = max(
+        0,
+        (int)$post('app_res_max_concurrent', $existingPolicy['max_concurrent_reservations'] ?? 0)
+    );
+    $app['reservation_concurrent_bypass_checkout_staff'] = isset($_POST['app_res_concurrent_bypass_staff']);
+    $app['reservation_concurrent_bypass_admins'] = isset($_POST['app_res_concurrent_bypass_admin']);
+
+    $existingBlackoutText = reservation_policy_blackout_slots_to_text($existingPolicy['blackout_slots'] ?? []);
+    $blackoutSlotsRaw = trim((string)($_POST['app_res_blackout_slots'] ?? $existingBlackoutText));
+    $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($blackoutSlotsRaw);
+    $app['reservation_blackout_bypass_checkout_staff'] = isset($_POST['app_res_blackout_bypass_staff']);
+    $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
+
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
@@ -578,6 +631,12 @@ if (!is_array($allowedCategoryIds)) {
     $allowedCategoryIds = [];
 }
 $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
+
+$reservationPolicy = reservation_policy_get($config);
+$reservationNoticeParts = reservation_policy_minutes_to_parts($reservationPolicy['notice_minutes'] ?? 0);
+$reservationMinDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['min_duration_minutes'] ?? 0);
+$reservationMaxDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['max_duration_minutes'] ?? 0);
+$reservationBlackoutText = reservation_policy_blackout_slots_to_text($reservationPolicy['blackout_slots'] ?? []);
 
 ?>
 <!DOCTYPE html>
@@ -1056,6 +1115,250 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                             </div>
                         </div>
                         <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <hr class="my-1">
+                                <h6 class="mt-3 mb-1">Reservation controls</h6>
+                                <div class="text-muted small mb-2">
+                                    These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">1) Minimum notice for new reservations</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-2">
+                                            <label class="form-label">Days</label>
+                                            <input type="number"
+                                                   name="app_res_notice_days"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['days'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Hours</label>
+                                            <input type="number"
+                                                   name="app_res_notice_hours"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['hours'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Minutes</label>
+                                            <input type="number"
+                                                   name="app_res_notice_minutes"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['minutes'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-text">Set all values to 0 to disable notice requirements.</div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_notice_bypass_staff"
+                                                       id="app_res_notice_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_notice_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_notice_bypass_staff">
+                                                    Checkout staff can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_notice_bypass_admin"
+                                                       id="app_res_notice_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_notice_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_notice_bypass_admin">
+                                                    Admins can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">2) Reservation duration limits</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Minimum duration</label>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_days"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['days'] ?? 0) ?>">
+                                                    <div class="form-text">Days</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_hours"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['hours'] ?? 0) ?>">
+                                                    <div class="form-text">Hours</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_minutes"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['minutes'] ?? 0) ?>">
+                                                    <div class="form-text">Minutes</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Maximum duration</label>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_days"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['days'] ?? 0) ?>">
+                                                    <div class="form-text">Days</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_hours"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['hours'] ?? 0) ?>">
+                                                    <div class="form-text">Hours</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_minutes"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['minutes'] ?? 0) ?>">
+                                                    <div class="form-text">Minutes</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_duration_bypass_staff"
+                                                       id="app_res_duration_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_duration_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_duration_bypass_staff">
+                                                    Checkout staff can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_duration_bypass_admin"
+                                                       id="app_res_duration_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_duration_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_duration_bypass_admin">
+                                                    Admins can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">3) Maximum concurrent reservations per user</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Concurrent reservations</label>
+                                            <input type="number"
+                                                   name="app_res_max_concurrent"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationPolicy['max_concurrent_reservations'] ?? 0) ?>">
+                                            <div class="form-text">Set to 0 for no limit.</div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_concurrent_bypass_staff"
+                                                       id="app_res_concurrent_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_concurrent_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_concurrent_bypass_staff">
+                                                    Checkout staff can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_concurrent_bypass_admin"
+                                                       id="app_res_concurrent_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_concurrent_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_concurrent_bypass_admin">
+                                                    Admins can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">4) Blackout slots</h6>
+                                    <label class="form-label">One blackout window per line</label>
+                                    <textarea name="app_res_blackout_slots"
+                                              class="form-control"
+                                              rows="4"
+                                              placeholder="2026-03-01 09:00 -> 2026-03-01 17:00&#10;2026-03-05 12:00 -> 2026-03-05 13:30"><?= h($reservationBlackoutText) ?></textarea>
+                                    <div class="form-text">
+                                        Format each line as <code>start -&gt; end</code>. Accepted separators: <code>-&gt;</code>, <code>to</code>, <code>|</code> or comma.
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_blackout_bypass_staff"
+                                                       id="app_res_blackout_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_blackout_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_blackout_bypass_staff">
+                                                    Checkout staff can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_blackout_bypass_admin"
+                                                       id="app_res_blackout_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_blackout_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_blackout_bypass_admin">
+                                                    Admins can bypass when booking for a user
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="col-12">
                                 <div class="form-check">
                                     <input class="form-check-input"

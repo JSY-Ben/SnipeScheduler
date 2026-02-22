@@ -9,6 +9,7 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/reservation_policy.php';
 
 $now = new DateTime();
 $defaultStart = $now->format('Y-m-d\TH:i');
@@ -109,6 +110,7 @@ $checkoutToValue = '';
 $noteValue = '';
 $selectedUserId = 0;
 $overrideValue = false;
+$reservationPolicy = reservation_policy_get(load_config());
 
 // Remove single asset
 if (isset($_GET['remove'])) {
@@ -216,62 +218,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception('Matched user has no valid ID.');
                     }
 
-                    // Check for active reservations on these models right now, but only warn when
-                    // reserved qty would exceed available stock after this checkout.
-                    $reservationConflicts = [];
-                    $checkoutModelCounts = [];
-                    foreach ($checkoutAssets as $asset) {
-                        $mid = (int)($asset['model_id'] ?? 0);
-                        if ($mid > 0) {
-                            $checkoutModelCounts[$mid] = ($checkoutModelCounts[$mid] ?? 0) + 1;
+                    $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
+                        'start_ts' => $startTs,
+                        'end_ts' => $endTs,
+                        'target_user_id' => (string)$userId,
+                        'target_user_email' => (string)($user['email'] ?? ''),
+                        'is_admin' => $isAdmin,
+                        'is_staff' => $isStaff,
+                        // Quick checkout is a staff/admin acting for another user.
+                        'is_on_behalf' => true,
+                    ]);
+                    if (!empty($policyViolations)) {
+                        foreach ($policyViolations as $violation) {
+                            $errors[] = $violation;
                         }
                     }
-                    foreach ($checkoutModelCounts as $mid => $checkoutQty) {
-                        $conf = qc_current_reservations_for_model($pdo, (int)$mid);
-                        if (empty($conf)) {
-                            continue;
-                        }
 
-                        $reservedQty = 0;
-                        foreach ($conf as $row) {
-                            $reservedQty += (int)($row['quantity'] ?? 0);
-                        }
-
-                        $availabilityUnknown = false;
-                        try {
-                            $requestableTotal = count_requestable_assets_by_model((int)$mid);
-                            $checkedOut = count_checked_out_assets_by_model((int)$mid);
-                            $available = max(0, $requestableTotal - $checkedOut);
-                        } catch (Throwable $e) {
-                            $availabilityUnknown = true;
-                            $available = 0;
-                        }
-
-                        $shouldWarn = $availabilityUnknown ? true : (($reservedQty + $checkoutQty) > $available);
-                        if (!$shouldWarn) {
-                            continue;
-                        }
-
+                    if (empty($policyViolations)) {
+                        // Check for active reservations on these models right now, but only warn when
+                        // reserved qty would exceed available stock after this checkout.
+                        $reservationConflicts = [];
+                        $checkoutModelCounts = [];
                         foreach ($checkoutAssets as $asset) {
-                            if ((int)($asset['model_id'] ?? 0) === (int)$mid) {
-                                $reservationConflicts[$asset['id']] = $conf;
+                            $mid = (int)($asset['model_id'] ?? 0);
+                            if ($mid > 0) {
+                                $checkoutModelCounts[$mid] = ($checkoutModelCounts[$mid] ?? 0) + 1;
                             }
                         }
-                    }
+                        foreach ($checkoutModelCounts as $mid => $checkoutQty) {
+                            $conf = qc_current_reservations_for_model($pdo, (int)$mid);
+                            if (empty($conf)) {
+                                continue;
+                            }
 
-                    if (!empty($reservationConflicts) && !$overrideAllowed) {
-                        $errors[] = 'Some assets are reserved for this time. Review who reserved them below or tick "Override" to proceed anyway.';
-                    } else {
-                        $expectedCheckinIso = date('Y-m-d H:i:s', $endTs);
+                            $reservedQty = 0;
+                            foreach ($conf as $row) {
+                                $reservedQty += (int)($row['quantity'] ?? 0);
+                            }
 
-                        foreach ($checkoutAssets as $asset) {
-                            $assetId  = (int)$asset['id'];
-                            $assetTag = $asset['asset_tag'] ?? '';
+                            $availabilityUnknown = false;
                             try {
-                                checkout_asset_to_user($assetId, $userId, $note, $expectedCheckinIso);
-                                $messages[] = "Checked out asset {$assetTag} to {$userName}." . (!empty($reservationConflicts[$assetId]) ? ' (Override used)' : '');
+                                $requestableTotal = count_requestable_assets_by_model((int)$mid);
+                                $checkedOut = count_checked_out_assets_by_model((int)$mid);
+                                $available = max(0, $requestableTotal - $checkedOut);
                             } catch (Throwable $e) {
-                                $errors[] = "Failed to check out {$assetTag}: " . $e->getMessage();
+                                $availabilityUnknown = true;
+                                $available = 0;
+                            }
+
+                            $shouldWarn = $availabilityUnknown ? true : (($reservedQty + $checkoutQty) > $available);
+                            if (!$shouldWarn) {
+                                continue;
+                            }
+
+                            foreach ($checkoutAssets as $asset) {
+                                if ((int)($asset['model_id'] ?? 0) === (int)$mid) {
+                                    $reservationConflicts[$asset['id']] = $conf;
+                                }
+                            }
+                        }
+
+                        if (!empty($reservationConflicts) && !$overrideAllowed) {
+                            $errors[] = 'Some assets are reserved for this time. Review who reserved them below or tick "Override" to proceed anyway.';
+                        } else {
+                            $expectedCheckinIso = date('Y-m-d H:i:s', $endTs);
+
+                            foreach ($checkoutAssets as $asset) {
+                                $assetId  = (int)$asset['id'];
+                                $assetTag = $asset['asset_tag'] ?? '';
+                                try {
+                                    checkout_asset_to_user($assetId, $userId, $note, $expectedCheckinIso);
+                                    $messages[] = "Checked out asset {$assetTag} to {$userName}." . (!empty($reservationConflicts[$assetId]) ? ' (Override used)' : '');
+                                } catch (Throwable $e) {
+                                    $errors[] = "Failed to check out {$assetTag}: " . $e->getMessage();
+                                }
                             }
                         }
                     }

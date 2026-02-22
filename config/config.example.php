@@ -130,6 +130,21 @@ return [
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'block_catalogue_overdue' => true, // block catalogue for users with overdue checkouts
+        'reservation_notice_minutes' => 0, // minimum notice before start (0 disables)
+        'reservation_notice_bypass_checkout_staff' => false, // allow checkout staff bypass when booking on behalf
+        'reservation_notice_bypass_admins' => false, // allow admin bypass when booking on behalf
+        'reservation_min_duration_minutes' => 0, // minimum allowed reservation duration (0 disables)
+        'reservation_max_duration_minutes' => 0, // maximum allowed reservation duration (0 disables)
+        'reservation_duration_bypass_checkout_staff' => false, // allow checkout staff duration bypass on behalf bookings
+        'reservation_duration_bypass_admins' => false, // allow admin duration bypass on behalf bookings
+        'reservation_max_concurrent_reservations' => 0, // max overlapping reservations per user (0 disables)
+        'reservation_concurrent_bypass_checkout_staff' => false, // allow checkout staff concurrent bypass on behalf bookings
+        'reservation_concurrent_bypass_admins' => false, // allow admin concurrent bypass on behalf bookings
+        'reservation_blackout_slots' => [
+            // ['start' => '2026-03-01 09:00:00', 'end' => '2026-03-01 17:00:00'],
+        ],
+        'reservation_blackout_bypass_checkout_staff' => false, // allow checkout staff blackout bypass on behalf bookings
+        'reservation_blackout_bypass_admins' => false, // allow admin blackout bypass on behalf bookings
     ],
 
     'catalogue' => [

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/reservation_policy.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -35,10 +36,33 @@ if ($end <= $start) {
     die('End time must be after start time.');
 }
 
+$isAdmin = !empty($currentUser['is_admin']);
+$isStaff = !empty($currentUser['is_staff']) || $isAdmin;
+$overrideEmail = strtolower(trim((string)($userOverride['email'] ?? '')));
+$currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
+$isOnBehalfBooking = is_array($userOverride) && $overrideEmail !== '' && $overrideEmail !== $currentEmail;
+
 // Build user info from Snipe-IT user record
-$userName  = trim($user['first_name'] . ' ' . $user['last_name']);
-$userEmail = $user['email'];
-$userId    = $user['id']; // Snipe-IT user id
+$userName  = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+if ($userName === '') {
+    $userName = (string)($user['email'] ?? 'Unknown user');
+}
+$userEmail = (string)($user['email'] ?? '');
+$userId    = (string)($user['id'] ?? ''); // Snipe-IT user id
+
+$reservationPolicy = reservation_policy_get($config);
+$policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
+    'start_ts' => $startTs,
+    'end_ts' => $endTs,
+    'target_user_id' => $userId,
+    'target_user_email' => $userEmail,
+    'is_admin' => $isAdmin,
+    'is_staff' => $isStaff,
+    'is_on_behalf' => $isOnBehalfBooking,
+]);
+if (!empty($policyViolations)) {
+    die('Could not create booking: ' . htmlspecialchars($policyViolations[0]));
+}
 
 $pdo->beginTransaction();
 
