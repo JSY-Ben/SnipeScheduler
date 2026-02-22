@@ -113,6 +113,38 @@ $rangeStartSql = $rangeStart->format('Y-m-d H:i:s');
 $rangeEndSql = $rangeEnd->format('Y-m-d H:i:s');
 $rangeDays = max(1, (int)$fromDate->diff($toDate)->days + 1);
 
+$requestedCategoryPage = max(1, (int)($_GET['category_page'] ?? 1));
+$requestedModelPage = max(1, (int)($_GET['model_page'] ?? 1));
+$requestedDemandPage = max(1, (int)($_GET['demand_page'] ?? 1));
+$requestedCancellationsPage = max(1, (int)($_GET['cancellations_page'] ?? 1));
+
+$paginateRows = static function (array $rows, int $requestedPage, int $perPage): array {
+    $total = count($rows);
+    $safePerPage = max(1, $perPage);
+    $totalPages = max(1, (int)ceil($total / $safePerPage));
+    $page = min(max(1, $requestedPage), $totalPages);
+    $offset = ($page - 1) * $safePerPage;
+    $slice = array_slice($rows, $offset, $safePerPage);
+
+    if ($total === 0) {
+        $startIndex = 0;
+        $endIndex = 0;
+    } else {
+        $startIndex = $offset + 1;
+        $endIndex = min($total, $offset + count($slice));
+    }
+
+    return [
+        'rows' => $slice,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $safePerPage,
+        'total_pages' => $totalPages,
+        'start_index' => $startIndex,
+        'end_index' => $endIndex,
+    ];
+};
+
 $reportErrors = [];
 
 $statusCounts = [
@@ -380,6 +412,83 @@ foreach ($hourlyUnitMinutes as $hour => $minutes) {
     }
 }
 $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
+
+$hourDemandRows = [];
+foreach ($hourlyUnitMinutes as $hour => $minutes) {
+    $hourDemandRows[] = [
+        'hour' => (int)$hour,
+        'unit_hours' => $minutes / 60,
+        'avg_units' => $rangeDays > 0 ? $minutes / ($rangeDays * 60) : 0,
+        'bar_pct' => $maxHourlyMinutes > 0 ? ($minutes / $maxHourlyMinutes) * 100 : 0,
+    ];
+}
+
+$categoryPagination = $paginateRows($categoryRows, $requestedCategoryPage, 15);
+$categoryRowsPage = $categoryPagination['rows'];
+
+$modelPagination = $paginateRows($modelRows, $requestedModelPage, 20);
+$modelRowsPage = $modelPagination['rows'];
+
+$demandPagination = $paginateRows($hourDemandRows, $requestedDemandPage, 12);
+$hourDemandRowsPage = $demandPagination['rows'];
+
+$cancellationsPagination = $paginateRows($dailyCancelledMissedRows, $requestedCancellationsPage, 31);
+$dailyCancelledMissedRowsPage = $cancellationsPagination['rows'];
+
+$paginationBaseParams = [
+    'from' => $fromValue,
+    'to' => $toValue,
+    'category_page' => $categoryPagination['page'],
+    'model_page' => $modelPagination['page'],
+    'demand_page' => $demandPagination['page'],
+    'cancellations_page' => $cancellationsPagination['page'],
+];
+
+$buildPageUrl = static function (string $pageKey, int $targetPage) use ($paginationBaseParams): string {
+    $params = $paginationBaseParams;
+    $params[$pageKey] = max(1, $targetPage);
+    return 'reports.php?' . http_build_query($params);
+};
+
+$renderPagination = static function (array $pagination, string $pageKey) use ($buildPageUrl): string {
+    $totalPages = (int)($pagination['total_pages'] ?? 1);
+    $currentPage = (int)($pagination['page'] ?? 1);
+    if ($totalPages <= 1) {
+        return '';
+    }
+
+    $window = 2;
+    $startPage = max(1, $currentPage - $window);
+    $endPage = min($totalPages, $currentPage + $window);
+
+    if (($endPage - $startPage + 1) < 5) {
+        if ($startPage === 1) {
+            $endPage = min($totalPages, $startPage + 4);
+        } elseif ($endPage === $totalPages) {
+            $startPage = max(1, $endPage - 4);
+        }
+    }
+
+    $html = '<nav aria-label="Pagination"><ul class="pagination pagination-sm mb-0">';
+
+    $prevDisabled = $currentPage <= 1 ? ' disabled' : '';
+    $prevHref = $currentPage <= 1 ? '#' : h($buildPageUrl($pageKey, $currentPage - 1));
+    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link" href="' . $prevHref . '">Previous</a></li>';
+
+    for ($pageNum = $startPage; $pageNum <= $endPage; $pageNum++) {
+        $isActive = $pageNum === $currentPage;
+        $itemClass = 'page-item' . ($isActive ? ' active' : '');
+        $href = $isActive ? '#' : h($buildPageUrl($pageKey, $pageNum));
+        $html .= '<li class="' . $itemClass . '"><a class="page-link" href="' . $href . '">' . $pageNum . '</a></li>';
+    }
+
+    $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
+    $nextHref = $currentPage >= $totalPages ? '#' : h($buildPageUrl($pageKey, $currentPage + 1));
+    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link" href="' . $nextHref . '">Next</a></li>';
+    $html .= '</ul></nav>';
+
+    return $html;
+};
 ?>
 <!DOCTYPE html>
 <html>
@@ -498,7 +607,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                     Based on booked unit-hours from reservations overlapping the report window.
                 </p>
 
-                <?php if (empty($categoryRows)): ?>
+                <?php if ((int)$categoryPagination['total'] === 0): ?>
                     <div class="text-muted small">No reservation item utilisation data found for this range.</div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -513,7 +622,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($categoryRows as $row): ?>
+                            <?php foreach ($categoryRowsPage as $row): ?>
                                 <tr>
                                     <td><?= h($row['category']) ?></td>
                                     <td class="text-end"><?= number_format((float)$row['unit_hours'], 1) ?></td>
@@ -524,6 +633,13 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$categoryPagination['start_index'] ?>-<?= (int)$categoryPagination['end_index'] ?>
+                            of <?= (int)$categoryPagination['total'] ?> categories.
+                        </div>
+                        <?= $renderPagination($categoryPagination, 'category_page') ?>
                     </div>
                     <?php if ($categoryLookupFailures > 0): ?>
                         <div class="form-text mt-2">
@@ -541,7 +657,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                     Model-level booked unit-hours and share of total model utilisation.
                 </p>
 
-                <?php if (empty($modelRows)): ?>
+                <?php if ((int)$modelPagination['total'] === 0): ?>
                     <div class="text-muted small">No model utilisation data found for this range.</div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -556,7 +672,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($modelRows as $row): ?>
+                            <?php foreach ($modelRowsPage as $row): ?>
                                 <tr>
                                     <td>
                                         <?= h((string)$row['model_name']) ?>
@@ -570,6 +686,13 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$modelPagination['start_index'] ?>-<?= (int)$modelPagination['end_index'] ?>
+                            of <?= (int)$modelPagination['total'] ?> models.
+                        </div>
+                        <?= $renderPagination($modelPagination, 'model_page') ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -603,25 +726,27 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($hourlyUnitMinutes as $hour => $minutes): ?>
-                                <?php
-                                $unitHours = $minutes / 60;
-                                $avgUnits = $rangeDays > 0 ? $minutes / ($rangeDays * 60) : 0;
-                                $barPct = $maxHourlyMinutes > 0 ? ($minutes / $maxHourlyMinutes) * 100 : 0;
-                                ?>
+                            <?php foreach ($hourDemandRowsPage as $row): ?>
                                 <tr>
-                                    <td><?= h($formatHourRange((int)$hour)) ?></td>
-                                    <td class="text-end"><?= number_format($unitHours, 1) ?></td>
-                                    <td class="text-end"><?= number_format($avgUnits, 2) ?></td>
+                                    <td><?= h($formatHourRange((int)$row['hour'])) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['unit_hours'], 1) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['avg_units'], 2) ?></td>
                                     <td>
-                                        <div class="progress" role="progressbar" aria-valuenow="<?= (int)round($barPct) ?>" aria-valuemin="0" aria-valuemax="100" style="height: .85rem;">
-                                            <div class="progress-bar" style="width: <?= max(0, min(100, $barPct)) ?>%;"></div>
+                                        <div class="progress" role="progressbar" aria-valuenow="<?= (int)round((float)$row['bar_pct']) ?>" aria-valuemin="0" aria-valuemax="100" style="height: .85rem;">
+                                            <div class="progress-bar" style="width: <?= max(0, min(100, (float)$row['bar_pct'])) ?>%;"></div>
                                         </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$demandPagination['start_index'] ?>-<?= (int)$demandPagination['end_index'] ?>
+                            of <?= (int)$demandPagination['total'] ?> hourly entries.
+                        </div>
+                        <?= $renderPagination($demandPagination, 'demand_page') ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -634,7 +759,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                     Daily counts by reservation start date.
                 </p>
 
-                <?php if (empty($dailyCancelledMissedRows)): ?>
+                <?php if ((int)$cancellationsPagination['total'] === 0): ?>
                     <div class="text-muted small">No cancellation/no-show events found for this range.</div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -647,7 +772,7 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($dailyCancelledMissedRows as $row): ?>
+                            <?php foreach ($dailyCancelledMissedRowsPage as $row): ?>
                                 <?php
                                 $dayText = trim((string)($row['report_day'] ?? ''));
                                 $displayDay = $dayText !== ''
@@ -662,6 +787,13 @@ $peakAvgUnits = $rangeDays > 0 ? ($maxHourlyMinutes / ($rangeDays * 60)) : 0.0;
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$cancellationsPagination['start_index'] ?>-<?= (int)$cancellationsPagination['end_index'] ?>
+                            of <?= (int)$cancellationsPagination['total'] ?> days.
+                        </div>
+                        <?= $renderPagination($cancellationsPagination, 'cancellations_page') ?>
                     </div>
                 <?php endif; ?>
             </div>
