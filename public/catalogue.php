@@ -24,6 +24,30 @@ $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     : true;
 $overdueCacheTtl = 0;
 
+$catalogueAnnouncement = null;
+$announcementMessage = trim((string)($appCfg['announcement_message'] ?? ''));
+$announcementStartTs = max(0, (int)($appCfg['announcement_start_ts'] ?? 0));
+$announcementEndTs = max(0, (int)($appCfg['announcement_end_ts'] ?? 0));
+if ($announcementStartTs <= 0) {
+    $announcementStartRaw = trim((string)($appCfg['announcement_start_datetime'] ?? ''));
+    $announcementStartTs = $announcementStartRaw !== '' ? (int)strtotime($announcementStartRaw) : 0;
+}
+if ($announcementEndTs <= 0) {
+    $announcementEndRaw = trim((string)($appCfg['announcement_end_datetime'] ?? ''));
+    $announcementEndTs = $announcementEndRaw !== '' ? (int)strtotime($announcementEndRaw) : 0;
+}
+if ($announcementMessage !== '' && $announcementStartTs > 0 && $announcementEndTs > $announcementStartTs) {
+    $nowTs = time();
+    if ($nowTs >= $announcementStartTs && $nowTs <= $announcementEndTs) {
+        $announcementTz = app_get_timezone($config);
+        $catalogueAnnouncement = [
+            'message' => $announcementMessage,
+            'start_display' => app_format_datetime($announcementStartTs, $config, $announcementTz),
+            'end_display' => app_format_datetime($announcementEndTs, $config, $announcementTz),
+        ];
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch']) && !isset($_GET['ajax'])) {
     $query = $_GET;
     $query['prefetch'] = 1;
@@ -1589,6 +1613,34 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
      aria-live="polite"
      aria-hidden="true"></div>
 
+<?php if ($catalogueAnnouncement !== null): ?>
+<div id="catalogue-announcement-modal"
+     class="catalogue-modal catalogue-modal--announcement"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-labelledby="catalogue-announcement-title"
+     hidden>
+    <div class="catalogue-modal__backdrop" data-announcement-close></div>
+    <div class="catalogue-modal__dialog" role="document">
+        <div class="catalogue-modal__header">
+            <h2 id="catalogue-announcement-title" class="catalogue-modal__title">Announcement</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-announcement-close>
+                Dismiss
+            </button>
+        </div>
+        <div class="catalogue-modal__body">
+            <div class="announcement-modal__range">
+                Active from <?= h($catalogueAnnouncement['start_display']) ?> to <?= h($catalogueAnnouncement['end_display']) ?>
+            </div>
+            <div class="announcement-modal__message"><?= nl2br(h($catalogueAnnouncement['message'])) ?></div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div id="model-details-modal"
      class="catalogue-modal"
      role="dialog"
@@ -1693,6 +1745,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let nativeWindowDirty = false;
     let nativeWindowBlurTimer = null;
     const modelDetailCards = document.querySelectorAll('.model-card--details');
+    const announcementModal = document.getElementById('catalogue-announcement-modal');
     const modelDetailsModal = document.getElementById('model-details-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
     const modelDetailsTitle = document.getElementById('model-details-title');
@@ -1711,8 +1764,15 @@ document.addEventListener('DOMContentLoaded', function () {
     let modelBookings = [];
     let modelDetailsRequestId = 0;
     let modelModalOpen = false;
+    let announcementModalOpen = false;
     let modelModalOpenAnimation = null;
+    let announcementModalLastFocused = null;
     let modalLastFocusedElement = null;
+
+    function syncModalBodyState() {
+        const hasOpenModal = modelModalOpen || announcementModalOpen;
+        document.body.classList.toggle('catalogue-modal-open', hasOpenModal);
+    }
 
     function showLoadingOverlay() {
         if (!loadingOverlay) return;
@@ -1754,6 +1814,32 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     restoreWindowScrollPosition();
+
+    function closeAnnouncementModal() {
+        if (!announcementModal || !announcementModalOpen) return;
+        announcementModalOpen = false;
+        announcementModal.classList.remove('is-open');
+        announcementModal.hidden = true;
+        announcementModal.setAttribute('aria-hidden', 'true');
+        syncModalBodyState();
+        if (announcementModalLastFocused && typeof announcementModalLastFocused.focus === 'function') {
+            announcementModalLastFocused.focus();
+        }
+        announcementModalLastFocused = null;
+    }
+
+    function openAnnouncementModal() {
+        if (!announcementModal || announcementModalOpen) return;
+        announcementModalLastFocused = document.activeElement;
+        announcementModalOpen = true;
+        announcementModal.hidden = false;
+        announcementModal.setAttribute('aria-hidden', 'false');
+        syncModalBodyState();
+        window.requestAnimationFrame(function () {
+            if (!announcementModal || !announcementModalOpen) return;
+            announcementModal.classList.add('is-open');
+        });
+    }
 
     function maybeSubmitWindow() {
         if (windowSubmitInFlight || !windowForm || !windowStartInput || !windowEndInput) return;
@@ -2227,7 +2313,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelDetailsModal.classList.remove('is-open');
         modelDetailsModal.hidden = true;
         modelDetailsModal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('catalogue-modal-open');
+        syncModalBodyState();
         setModelFeedback('', 'info');
 
         if (modalLastFocusedElement && typeof modalLastFocusedElement.focus === 'function') {
@@ -2244,7 +2330,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelDetailsModal.classList.remove('is-open');
         modelDetailsModal.hidden = false;
         modelDetailsModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('catalogue-modal-open');
+        syncModalBodyState();
         window.requestAnimationFrame(function () {
             if (!modelModalOpen || !modelDetailsModal) {
                 return;
@@ -2582,6 +2668,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    if (announcementModal) {
+        announcementModal.addEventListener('click', function (event) {
+            const target = event.target;
+            if (target && target.closest && target.closest('[data-announcement-close]')) {
+                closeAnnouncementModal();
+            }
+        });
+        openAnnouncementModal();
+    }
+
     if (modelDetailsModal) {
         modelDetailsModal.addEventListener('click', function (event) {
             const target = event.target;
@@ -2592,9 +2688,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && modelModalOpen) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        if (modelModalOpen) {
             event.preventDefault();
             closeModelDetailsModal();
+            return;
+        }
+        if (announcementModalOpen) {
+            event.preventDefault();
+            closeAnnouncementModal();
         }
     });
 

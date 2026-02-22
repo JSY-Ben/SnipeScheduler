@@ -517,6 +517,30 @@ input[type="checkbox"] {
     overflow-y: auto;
 }
 
+.catalogue-modal--announcement .catalogue-modal__dialog {
+    width: min(680px, 100%);
+}
+
+.announcement-modal__range {
+    display: inline-flex;
+    margin-bottom: 0.75rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(var(--primary-rgb), 0.18);
+    background: rgba(var(--primary-rgb), 0.08);
+    font-size: 0.84rem;
+    color: #495057;
+}
+
+.announcement-modal__message {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: rgba(var(--primary-soft-rgb), 0.08);
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+
 .model-details-section + .model-details-section {
     margin-top: 1rem;
 }
