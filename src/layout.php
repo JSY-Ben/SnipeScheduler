@@ -267,6 +267,10 @@ if (!function_exists('layout_footer')) {
                 altInputClass: (input.className ? input.className + ' ' : '') + 'flatpickr-alt-input',
                 parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
             };
+            const parsedInitialDate = baseOptions.parseDate(input.value);
+            if (parsedInitialDate instanceof Date && !Number.isNaN(parsedInitialDate.getTime())) {
+                baseOptions.defaultDate = parsedInitialDate;
+            }
 
             if (pickerType === 'date') {
                 baseOptions.dateFormat = String(cfg.machine_date_format || 'Y-m-d');

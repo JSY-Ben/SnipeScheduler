@@ -20,9 +20,13 @@ $reservationPolicy = reservation_policy_get($config);
 $basket = $_SESSION['basket'] ?? [];
 
 // Preview availability dates (from GET) with sensible defaults
-$now = new DateTime();
+$windowTz = app_get_timezone($config);
+$now = $windowTz ? new DateTime('now', $windowTz) : new DateTime('now');
 $defaultStart = $now->format('Y-m-d\TH:i');
-$defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
+$defaultEndDt = clone $now;
+$defaultEndDt->modify('+1 day');
+$defaultEndDt->setTime(9, 0, 0);
+$defaultEnd   = $defaultEndDt->format('Y-m-d\TH:i');
 
 $previewStartRaw = $_GET['start_datetime'] ?? '';
 $previewEndRaw   = $_GET['end_datetime'] ?? '';
@@ -329,19 +333,30 @@ if (!empty($basket)) {
                 </div>
                 <form method="get" action="basket.php" id="basket-window-form">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">Start date &amp; time</label>
                             <input type="datetime-local" name="start_datetime"
                                    id="basket_start_datetime"
                                    class="form-control form-control-lg"
                                    value="<?= htmlspecialchars($previewStartRaw) ?>">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label fw-semibold">End date &amp; time</label>
                             <input type="datetime-local" name="end_datetime"
                                    id="basket_end_datetime"
                                    class="form-control form-control-lg"
                                    value="<?= htmlspecialchars($previewEndRaw) ?>">
+                        </div>
+                        <div class="col-md-4 d-grid d-md-flex gap-2 align-items-end">
+                            <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn"
+                                    type="button"
+                                    id="basket-today-btn">
+                                Today
+                            </button>
+                            <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn"
+                                    type="submit">
+                                Update availability
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -386,6 +401,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowForm = document.getElementById('basket-window-form');
     const startInput = document.getElementById('basket_start_datetime');
     const endInput = document.getElementById('basket_end_datetime');
+    const todayBtn = document.getElementById('basket-today-btn');
     let windowSubmitInFlight = false;
     let lastSubmittedWindow = (startInput && endInput)
         ? (startInput.value.trim() + '|' + endInput.value.trim())
@@ -441,6 +457,17 @@ document.addEventListener('DOMContentLoaded', function () {
         windowForm.submit();
     }
 
+    function setTodayWindow() {
+        if (!startInput || !endInput) return;
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+        setDatetimeInputValue(startInput, toLocalDatetimeValue(now));
+        setDatetimeInputValue(endInput, toLocalDatetimeValue(tomorrow));
+        maybeSubmitWindow();
+    }
+
     if (windowForm) {
         windowForm.addEventListener('submit', function () {
             if (startInput && endInput) {
@@ -453,20 +480,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (startInput && endInput) {
         startInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            maybeSubmitWindow();
         });
         endInput.addEventListener('change', function () {
             normalizeWindowEnd();
-            maybeSubmitWindow();
         });
-        startInput.addEventListener('blur', function () {
-            normalizeWindowEnd();
-            maybeSubmitWindow();
-        });
-        endInput.addEventListener('blur', function () {
-            normalizeWindowEnd();
-            maybeSubmitWindow();
-        });
+    }
+
+    if (todayBtn) {
+        todayBtn.addEventListener('click', setTodayWindow);
     }
 });
 </script>

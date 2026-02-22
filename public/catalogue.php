@@ -1021,6 +1021,16 @@ if ($windowStartRaw === '' && $windowEndRaw === '') {
         $windowEndRaw   = $sessionEnd;
     }
 }
+if ($windowStartRaw === '' && $windowEndRaw === '') {
+    $windowTz = app_get_timezone($config);
+    $windowStartDt = $windowTz ? new DateTime('now', $windowTz) : new DateTime('now');
+    $windowEndDt = clone $windowStartDt;
+    $windowEndDt->modify('+1 day');
+    $windowEndDt->setTime(9, 0, 0);
+
+    $windowStartRaw = $windowStartDt->format('Y-m-d\TH:i');
+    $windowEndRaw   = $windowEndDt->format('Y-m-d\TH:i');
+}
 
 $windowStartTs = $windowStartRaw !== '' ? strtotime($windowStartRaw) : false;
 $windowEndTs   = $windowEndRaw !== '' ? strtotime($windowEndRaw) : false;
@@ -2308,10 +2318,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (windowStartInput && windowEndInput) {
         windowStartInput.addEventListener('change', normalizeWindowEnd);
         windowEndInput.addEventListener('change', normalizeWindowEnd);
-        windowStartInput.addEventListener('change', maybeSubmitWindow);
-        windowEndInput.addEventListener('change', maybeSubmitWindow);
-        windowStartInput.addEventListener('blur', maybeSubmitWindow);
-        windowEndInput.addEventListener('blur', maybeSubmitWindow);
+    }
+    if (windowForm) {
+        windowForm.addEventListener('submit', () => {
+            normalizeWindowEnd();
+            showLoadingOverlay();
+        });
     }
     if (todayBtn) {
         todayBtn.addEventListener('click', setTodayWindow);
