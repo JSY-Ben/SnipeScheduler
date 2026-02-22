@@ -423,12 +423,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_concurrent_bypass_checkout_staff'] = isset($_POST['app_res_concurrent_bypass_staff']);
     $app['reservation_concurrent_bypass_admins'] = isset($_POST['app_res_concurrent_bypass_admin']);
 
-    $existingBlackoutText = reservation_policy_blackout_slots_to_text(
-        $existingPolicy['blackout_slots'] ?? [],
-        ['app' => $app]
-    );
-    $blackoutSlotsRaw = trim((string)($_POST['app_res_blackout_slots'] ?? $existingBlackoutText));
-    $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($blackoutSlotsRaw, ['app' => $app]);
+    $blackoutStartsRaw = $_POST['app_res_blackout_start'] ?? [];
+    $blackoutEndsRaw   = $_POST['app_res_blackout_end'] ?? [];
+    $blackoutRows = [];
+    if (is_array($blackoutStartsRaw) || is_array($blackoutEndsRaw)) {
+        $starts = is_array($blackoutStartsRaw) ? $blackoutStartsRaw : [];
+        $ends   = is_array($blackoutEndsRaw) ? $blackoutEndsRaw : [];
+        $rowCount = max(count($starts), count($ends));
+        for ($i = 0; $i < $rowCount; $i++) {
+            $startValue = trim((string)($starts[$i] ?? ''));
+            $endValue   = trim((string)($ends[$i] ?? ''));
+            if ($startValue === '' && $endValue === '') {
+                continue;
+            }
+            $blackoutRows[] = [
+                'start' => $startValue,
+                'end' => $endValue,
+            ];
+        }
+    }
+    $legacyBlackoutRaw = trim((string)($_POST['app_res_blackout_slots'] ?? ''));
+    if (!empty($blackoutRows)) {
+        $app['reservation_blackout_slots'] = reservation_policy_normalize_blackout_slots($blackoutRows, ['app' => $app]);
+    } elseif ($legacyBlackoutRaw !== '') {
+        $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($legacyBlackoutRaw, ['app' => $app]);
+    } else {
+        $app['reservation_blackout_slots'] = [];
+    }
     $app['reservation_blackout_bypass_checkout_staff'] = isset($_POST['app_res_blackout_bypass_staff']);
     $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
 
@@ -639,20 +660,28 @@ $reservationPolicy = reservation_policy_get($config);
 $reservationNoticeParts = reservation_policy_minutes_to_parts($reservationPolicy['notice_minutes'] ?? 0);
 $reservationMinDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['min_duration_minutes'] ?? 0);
 $reservationMaxDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['max_duration_minutes'] ?? 0);
-$reservationBlackoutText = reservation_policy_blackout_slots_to_text($reservationPolicy['blackout_slots'] ?? [], $config);
-$selectedAppDateFormat = app_get_date_format($config);
-$selectedAppTimeFormat = app_get_time_format($config);
-$reservationBlackoutFormat = trim($selectedAppDateFormat . ' ' . $selectedAppTimeFormat);
-$reservationBlackoutDateLabel = $dateFormatOptions[$selectedAppDateFormat] ?? $selectedAppDateFormat;
-$reservationBlackoutTimeLabel = $timeFormatOptions[$selectedAppTimeFormat] ?? $selectedAppTimeFormat;
-$reservationBlackoutTooltip = 'Use the current app date/time format: ' . $reservationBlackoutFormat;
-$reservationBlackoutExampleA = app_format_datetime('2026-03-01 09:00:00', $config)
-    . ' -> '
-    . app_format_datetime('2026-03-01 17:00:00', $config);
-$reservationBlackoutExampleB = app_format_datetime('2026-03-05 12:00:00', $config)
-    . ' -> '
-    . app_format_datetime('2026-03-05 13:30:00', $config);
-$reservationBlackoutPlaceholder = $reservationBlackoutExampleA . "\n" . $reservationBlackoutExampleB;
+$reservationBlackoutRows = [];
+$reservationTz = app_get_timezone($config);
+foreach (($reservationPolicy['blackout_slots'] ?? []) as $slot) {
+    $startValue = (string)($slot['start'] ?? '');
+    $endValue = (string)($slot['end'] ?? '');
+    $startDateTime = app_parse_datetime_value($startValue, $reservationTz);
+    $endDateTime = app_parse_datetime_value($endValue, $reservationTz);
+    if (!$startDateTime || !$endDateTime) {
+        continue;
+    }
+    if ($endDateTime->getTimestamp() <= $startDateTime->getTimestamp()) {
+        continue;
+    }
+
+    $reservationBlackoutRows[] = [
+        'start' => $startDateTime->format('Y-m-d\TH:i'),
+        'end' => $endDateTime->format('Y-m-d\TH:i'),
+    ];
+}
+if (empty($reservationBlackoutRows)) {
+    $reservationBlackoutRows[] = ['start' => '', 'end' => ''];
+}
 
 ?>
 <!DOCTYPE html>
@@ -1338,17 +1367,65 @@ $reservationBlackoutPlaceholder = $reservationBlackoutExampleA . "\n" . $reserva
                             <div class="col-12">
                                 <div class="border rounded p-3">
                                     <h6 class="mb-2">4) Blackout slots</h6>
-                                    <label class="form-label" title="<?= h($reservationBlackoutTooltip) ?>">One blackout window per line</label>
-                                    <textarea name="app_res_blackout_slots"
-                                              class="form-control"
-                                              rows="4"
-                                              placeholder="<?= h($reservationBlackoutPlaceholder) ?>"
-                                              title="<?= h($reservationBlackoutTooltip) ?>"><?= h($reservationBlackoutText) ?></textarea>
-                                    <div class="form-text">
-                                        Format each line as <code>start -&gt; end</code> using the current app format
-                                        <code><?= h($reservationBlackoutFormat) ?></code>.
-                                        Date: <?= h($reservationBlackoutDateLabel) ?>. Time: <?= h($reservationBlackoutTimeLabel) ?>.
-                                        Accepted separators: <code>-&gt;</code>, <code>to</code>, <code>|</code> or comma.
+                                    <div id="blackout-slots-list" class="d-grid gap-2">
+                                        <?php foreach ($reservationBlackoutRows as $row): ?>
+                                            <div class="row g-2 align-items-end" data-blackout-row>
+                                                <div class="col-md-5">
+                                                    <label class="form-label">Start</label>
+                                                    <input type="datetime-local"
+                                                           class="form-control"
+                                                           name="app_res_blackout_start[]"
+                                                           value="<?= h((string)($row['start'] ?? '')) ?>">
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label">End</label>
+                                                    <input type="datetime-local"
+                                                           class="form-control"
+                                                           name="app_res_blackout_end[]"
+                                                           value="<?= h((string)($row['end'] ?? '')) ?>">
+                                                </div>
+                                                <div class="col-md-2 d-grid">
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger"
+                                                            data-blackout-remove>
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <template id="blackout-slot-template">
+                                        <div class="row g-2 align-items-end" data-blackout-row>
+                                            <div class="col-md-5">
+                                                <label class="form-label">Start</label>
+                                                <input type="datetime-local"
+                                                       class="form-control"
+                                                       name="app_res_blackout_start[]"
+                                                       value="">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <label class="form-label">End</label>
+                                                <input type="datetime-local"
+                                                       class="form-control"
+                                                       name="app_res_blackout_end[]"
+                                                       value="">
+                                            </div>
+                                            <div class="col-md-2 d-grid">
+                                                <button type="button"
+                                                        class="btn btn-outline-danger"
+                                                        data-blackout-remove>
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="blackout-add-btn">
+                                            Add blackout slot
+                                        </button>
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        Use the date/time pickers to add blackout windows.
                                     </div>
                                     <div class="row g-2 mt-1">
                                         <div class="col-md-6">
@@ -1489,6 +1566,67 @@ $reservationBlackoutPlaceholder = $reservationBlackoutExampleA . "\n" . $reserva
                 });
         });
     });
+
+    const blackoutList = document.getElementById('blackout-slots-list');
+    const blackoutAddBtn = document.getElementById('blackout-add-btn');
+    const blackoutTemplate = document.getElementById('blackout-slot-template');
+
+    if (blackoutList && blackoutAddBtn && blackoutTemplate) {
+        const updateBlackoutRemoveButtons = () => {
+            const rows = blackoutList.querySelectorAll('[data-blackout-row]');
+            rows.forEach((row) => {
+                const removeBtn = row.querySelector('[data-blackout-remove]');
+                if (!removeBtn) return;
+                removeBtn.disabled = rows.length <= 1;
+            });
+        };
+
+        const addBlackoutRow = (startValue = '', endValue = '') => {
+            const fragment = blackoutTemplate.content.cloneNode(true);
+            const row = fragment.querySelector('[data-blackout-row]');
+            if (!row) return;
+
+            const startInput = row.querySelector('input[name="app_res_blackout_start[]"]');
+            const endInput = row.querySelector('input[name="app_res_blackout_end[]"]');
+            if (startInput) {
+                startInput.value = startValue;
+            }
+            if (endInput) {
+                endInput.value = endValue;
+            }
+
+            blackoutList.appendChild(row);
+            updateBlackoutRemoveButtons();
+        };
+
+        blackoutAddBtn.addEventListener('click', () => {
+            addBlackoutRow();
+        });
+
+        blackoutList.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const removeBtn = target.closest('[data-blackout-remove]');
+            if (!removeBtn) return;
+
+            const row = removeBtn.closest('[data-blackout-row]');
+            if (row) {
+                row.remove();
+            }
+
+            if (!blackoutList.querySelector('[data-blackout-row]')) {
+                addBlackoutRow();
+            } else {
+                updateBlackoutRemoveButtons();
+            }
+        });
+
+        if (!blackoutList.querySelector('[data-blackout-row]')) {
+            addBlackoutRow();
+        } else {
+            updateBlackoutRemoveButtons();
+        }
+    }
 })();
 </script>
 </body>
