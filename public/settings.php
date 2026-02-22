@@ -1420,18 +1420,22 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                             <div class="col-12">
                                 <div class="border rounded p-3">
                                     <h6 class="mb-2">5) Catalogue access with overdue checkouts</h6>
-                                    <div class="form-check">
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               name="app_block_catalogue_overdue"
-                                               id="app_block_catalogue_overdue"
-                                            <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
-                                        <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
-                                            Block catalogue for users with overdue checkouts
-                                        </label>
-                                    </div>
-                                    <div class="form-text mt-1">
-                                        When enabled, users with overdue assets cannot access the catalogue until items are returned.
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-12">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_block_catalogue_overdue"
+                                                       id="app_block_catalogue_overdue"
+                                                    <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
+                                                <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
+                                                    Block catalogue for users with overdue checkouts
+                                                </label>
+                                            </div>
+                                            <div class="form-text mt-1">
+                                                When enabled, users with overdue assets cannot access the catalogue until items are returned.
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
