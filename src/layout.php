@@ -110,7 +110,9 @@ if (!function_exists('layout_theme_styles')) {
         [$rs, $gs, $bs]       = layout_color_to_rgb($primaryStrong);
         [$rl, $gl, $bl]       = layout_color_to_rgb($primarySoft);
 
-        $style = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">' . "\n" . <<<CSS
+        $style = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">' . "\n"
+            . '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">' . "\n"
+            . <<<CSS
 <style>
 :root {
     --primary: {$primary};
@@ -179,6 +181,7 @@ if (!function_exists('layout_footer')) {
 
         echo '<script src="assets/nav.js"></script>';
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
+        echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>';
         echo '<script>window.SnipeSchedulerFlatpickr=' . ($flatpickrCfgJson ?: '{}') . ';</script>';
         echo <<<SCRIPT
 <script>
@@ -267,6 +270,15 @@ if (!function_exists('layout_footer')) {
                 altInputClass: (input.className ? input.className + ' ' : '') + 'flatpickr-alt-input',
                 parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
             };
+            if ((pickerType === 'time' || pickerType === 'datetime') && typeof window.confirmDatePlugin === 'function') {
+                baseOptions.plugins = [
+                    new window.confirmDatePlugin({
+                        confirmText: 'Apply',
+                        showAlways: false,
+                        theme: 'light',
+                    }),
+                ];
+            }
             const parsedInitialDate = baseOptions.parseDate(input.value);
             if (parsedInitialDate instanceof Date && !Number.isNaN(parsedInitialDate.getTime())) {
                 baseOptions.defaultDate = parsedInitialDate;
