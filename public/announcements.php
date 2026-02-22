@@ -226,6 +226,8 @@ foreach ($storedAnnouncements as $item) {
         'message' => (string)($item['message'] ?? ''),
     ];
 }
+
+$openEditorOnLoad = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($errors));
 ?>
 <!DOCTYPE html>
 <html>
@@ -286,66 +288,11 @@ foreach ($storedAnnouncements as $item) {
             </li>
         </ul>
 
-        <form method="post" action="announcements.php" class="row g-3 settings-form" id="announcements-form">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Announcement Entries</h5>
-                        <p class="text-muted small mb-3">
-                            Add one or more announcements. Users will see all active announcements in one modal when opening the catalogue.
-                        </p>
+        <div class="d-flex justify-content-end mb-3">
+            <button type="button" class="btn btn-primary" id="announcement-editor-open">Manage announcements</button>
+        </div>
 
-                        <div id="announcement-rows" class="d-grid gap-3">
-                            <?php foreach ($formRows as $idx => $row): ?>
-                                <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index><?= (int)($idx + 1) ?></span></div>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
-                                    </div>
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label">Start date/time</label>
-                                            <input type="datetime-local"
-                                                   name="announcement_start[]"
-                                                   class="form-control"
-                                                   step="<?= $dateInputStep ?>"
-                                                   value="<?= h((string)$row['start']) ?>">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">End date/time</label>
-                                            <input type="datetime-local"
-                                                   name="announcement_end[]"
-                                                   class="form-control"
-                                                   step="<?= $dateInputStep ?>"
-                                                   value="<?= h((string)$row['end']) ?>">
-                                        </div>
-                                        <div class="col-12">
-                                            <label class="form-label">Message</label>
-                                            <textarea name="announcement_message[]"
-                                                      rows="4"
-                                                      class="form-control"
-                                                      placeholder="Enter the announcement shown on catalogue load."><?= h((string)$row['message']) ?></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <div class="mt-3 d-flex justify-content-start">
-                            <button type="button" id="announcement-add-row" class="btn btn-outline-secondary btn-sm">Add announcement</button>
-                        </div>
-                        <div class="form-text mt-2">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>.</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 d-flex justify-content-end gap-2">
-                <button type="submit" name="action" value="clear" class="btn btn-outline-secondary">Clear all announcements</button>
-                <button type="submit" name="action" value="save" class="btn btn-primary">Save announcements</button>
-            </div>
-        </form>
-
-        <div class="card mt-3">
+        <div class="card">
             <div class="card-body">
                 <h5 class="card-title mb-1">Configured Announcements</h5>
                 <p class="text-muted small mb-3">Current announcement list and status.</p>
@@ -379,6 +326,83 @@ foreach ($storedAnnouncements as $item) {
                     </div>
                 <?php endif; ?>
             </div>
+        </div>
+    </div>
+</div>
+
+<div id="announcement-editor-modal"
+     class="catalogue-modal catalogue-modal--announcement-editor"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-labelledby="announcement-editor-title"
+     data-open-on-load="<?= $openEditorOnLoad ? '1' : '0' ?>"
+     hidden>
+    <div class="catalogue-modal__backdrop" data-announcement-editor-close></div>
+    <div class="catalogue-modal__dialog" role="document">
+        <div class="catalogue-modal__header">
+            <h2 id="announcement-editor-title" class="catalogue-modal__title">Manage Announcements</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-announcement-editor-close>
+                Close
+            </button>
+        </div>
+        <div class="catalogue-modal__body">
+            <form method="post" action="announcements.php" class="row g-3 settings-form" id="announcements-form">
+                <div class="col-12">
+                    <h5 class="card-title mb-1">Announcement Entries</h5>
+                    <p class="text-muted small mb-3">
+                        Add one or more announcements. Users will see all active announcements in one modal when opening the catalogue.
+                    </p>
+
+                    <div id="announcement-rows" class="d-grid gap-3">
+                        <?php foreach ($formRows as $idx => $row): ?>
+                            <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index><?= (int)($idx + 1) ?></span></div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Start date/time</label>
+                                        <input type="datetime-local"
+                                               name="announcement_start[]"
+                                               class="form-control"
+                                               step="<?= $dateInputStep ?>"
+                                               value="<?= h((string)$row['start']) ?>">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">End date/time</label>
+                                        <input type="datetime-local"
+                                               name="announcement_end[]"
+                                               class="form-control"
+                                               step="<?= $dateInputStep ?>"
+                                               value="<?= h((string)$row['end']) ?>">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Message</label>
+                                        <textarea name="announcement_message[]"
+                                                  rows="4"
+                                                  class="form-control"
+                                                  placeholder="Enter the announcement shown on catalogue load."><?= h((string)$row['message']) ?></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="mt-3 d-flex justify-content-start">
+                        <button type="button" id="announcement-add-row" class="btn btn-outline-secondary btn-sm">Add announcement</button>
+                    </div>
+                    <div class="form-text mt-2">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>.</div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="submit" name="action" value="clear" class="btn btn-outline-secondary">Clear all announcements</button>
+                    <button type="submit" name="action" value="save" class="btn btn-primary">Save announcements</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -418,13 +442,57 @@ foreach ($storedAnnouncements as $item) {
 <?php layout_footer(); ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const editorModal = document.getElementById('announcement-editor-modal');
+    const openEditorBtn = document.getElementById('announcement-editor-open');
     const rowsContainer = document.getElementById('announcement-rows');
     const addBtn = document.getElementById('announcement-add-row');
     const template = document.getElementById('announcement-row-template');
+    const openOnLoad = editorModal && editorModal.dataset.openOnLoad === '1';
+    let editorOpen = false;
 
-    if (!rowsContainer || !addBtn || !template) {
+    if (!editorModal || !rowsContainer || !addBtn || !template) {
         return;
     }
+
+    const setEditorState = function (open) {
+        editorOpen = !!open;
+        editorModal.classList.toggle('is-open', editorOpen);
+        editorModal.hidden = !editorOpen;
+        editorModal.setAttribute('aria-hidden', editorOpen ? 'false' : 'true');
+        document.body.classList.toggle('catalogue-modal-open', editorOpen);
+    };
+
+    const openEditorModal = function () {
+        if (editorOpen) return;
+        setEditorState(true);
+    };
+
+    const closeEditorModal = function () {
+        if (!editorOpen) return;
+        setEditorState(false);
+    };
+
+    if (openEditorBtn) {
+        openEditorBtn.addEventListener('click', function () {
+            openEditorModal();
+        });
+    }
+
+    editorModal.addEventListener('click', function (event) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        if (target.closest('[data-announcement-editor-close]')) {
+            closeEditorModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !editorOpen) {
+            return;
+        }
+        event.preventDefault();
+        closeEditorModal();
+    });
 
     const renumberRows = function () {
         const rows = Array.from(rowsContainer.querySelectorAll('[data-announcement-row]'));
@@ -470,6 +538,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     renumberRows();
+
+    if (openOnLoad) {
+        openEditorModal();
+    } else {
+        setEditorState(false);
+    }
 });
 </script>
 </body>

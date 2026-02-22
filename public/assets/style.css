@@ -521,6 +521,10 @@ input[type="checkbox"] {
     width: min(680px, 100%);
 }
 
+.catalogue-modal--announcement-editor .catalogue-modal__dialog {
+    width: min(980px, 100%);
+}
+
 .announcement-modal__message {
     padding: 0.85rem 0.95rem;
     border: 1px solid var(--border);
