@@ -2321,8 +2321,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (windowStartInput && windowEndInput) {
-        windowStartInput.addEventListener('change', normalizeWindowEnd);
-        windowEndInput.addEventListener('change', normalizeWindowEnd);
+        windowStartInput.addEventListener('change', function () {
+            normalizeWindowEnd();
+            if (!windowStartInput._flatpickr || !windowEndInput._flatpickr) {
+                maybeSubmitWindow();
+            }
+        });
+        windowEndInput.addEventListener('change', function () {
+            normalizeWindowEnd();
+            if (!windowStartInput._flatpickr || !windowEndInput._flatpickr) {
+                maybeSubmitWindow();
+            }
+        });
     }
     if (windowForm) {
         windowForm.addEventListener('submit', () => {

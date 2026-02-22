@@ -179,62 +179,6 @@ if (!function_exists('layout_theme_styles')) {
 .flatpickr-calendar .flatpickr-confirm svg {
     fill: currentColor;
 }
-
-.flatpickr-calendar.flatpickr-mobile-friendly {
-    width: min(94vw, 24rem);
-    max-width: min(94vw, 24rem);
-}
-
-@media (max-width: 768px) {
-    input.flatpickr-alt-input {
-        font-size: 16px;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly {
-        border-radius: 0.9rem;
-        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-days {
-        width: 100%;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .dayContainer {
-        width: 100%;
-        min-width: 100%;
-        max-width: 100%;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-day {
-        max-width: none;
-        height: 2.65rem;
-        line-height: 2.65rem;
-        font-size: 0.98rem;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-current-month {
-        font-size: 1.02rem;
-        padding-top: 6px;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-time {
-        height: auto;
-        max-height: none;
-        border-top: 1px solid rgba(var(--primary-rgb), 0.18);
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-time input,
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-am-pm {
-        height: 2.85rem;
-        line-height: 2.85rem;
-        font-size: 1.02rem;
-    }
-
-    .flatpickr-calendar.flatpickr-mobile-friendly .flatpickr-confirm {
-        min-height: 2.85rem;
-        font-size: 1rem;
-    }
-}
 </style>
 CSS;
 
@@ -427,7 +371,14 @@ if (!function_exists('layout_footer')) {
             if (!pickerType) return;
 
             const originalType = String(input.getAttribute('type') || '').toLowerCase().trim();
-            if (originalType === 'date' || originalType === 'time' || originalType === 'datetime-local') {
+            const nativeType = originalType === 'date' || originalType === 'time' || originalType === 'datetime-local';
+            const mobilePickerMode = isMobilePickerMode();
+            if (mobilePickerMode && nativeType) {
+                // Keep native phone picker controls on mobile devices.
+                input.dataset.flatpickrBound = '1';
+                return;
+            }
+            if (nativeType) {
                 input.setAttribute('type', 'text');
             }
 
@@ -439,17 +390,6 @@ if (!function_exists('layout_footer')) {
                 parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
                 onOpen: [centerOpenCalendar],
             };
-            const mobilePickerMode = isMobilePickerMode();
-            if (mobilePickerMode) {
-                baseOptions.allowInput = false;
-                baseOptions.position = 'auto center';
-                baseOptions.monthSelectorType = 'static';
-                baseOptions.onReady = [(_selectedDates, _dateStr, instance) => {
-                    if (instance && instance.calendarContainer) {
-                        instance.calendarContainer.classList.add('flatpickr-mobile-friendly');
-                    }
-                }];
-            }
             if ((pickerType === 'time' || pickerType === 'datetime') && typeof window.confirmDatePlugin === 'function') {
                 baseOptions.plugins = [
                     new window.confirmDatePlugin({

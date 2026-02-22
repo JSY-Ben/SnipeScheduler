@@ -532,9 +532,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (startInput && endInput) {
         startInput.addEventListener('change', function () {
             normalizeWindowEnd();
+            if (!startInput._flatpickr || !endInput._flatpickr) {
+                maybeSubmitWindow();
+            }
         });
         endInput.addEventListener('change', function () {
             normalizeWindowEnd();
+            if (!startInput._flatpickr || !endInput._flatpickr) {
+                maybeSubmitWindow();
+            }
         });
         bindFlatpickrApplySubmit(startInput);
         bindFlatpickrApplySubmit(endInput);
