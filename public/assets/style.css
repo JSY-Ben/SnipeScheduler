@@ -1061,6 +1061,25 @@ form .form-select {
     margin-bottom: 0;
 }
 
+.settings-logo-preview__frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 96px;
+    padding: 0.75rem;
+    border: 1px dashed rgba(var(--primary-rgb), 0.28);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.settings-logo-preview__image {
+    max-height: 80px;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
 .filter-panel {
     position: relative;
     padding: 1.25rem 1.35rem;

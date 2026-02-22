@@ -266,6 +266,68 @@ function layout_test_ldap(array $ldap): string
     return 'LDAP connection and bind succeeded.';
 }
 
+function layout_upload_logo_file(array $file, array &$errors): ?string
+{
+    $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadError === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        $errors[] = 'Logo upload failed. Please try again.';
+        return null;
+    }
+
+    $tmpPath = (string)($file['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+        $errors[] = 'Uploaded logo file is invalid.';
+        return null;
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    $maxBytes = 4 * 1024 * 1024; // 4 MB
+    if ($size <= 0 || $size > $maxBytes) {
+        $errors[] = 'Logo image must be smaller than 4 MB.';
+        return null;
+    }
+
+    $imageInfo = @getimagesize($tmpPath);
+    $mime = strtolower((string)($imageInfo['mime'] ?? ''));
+    $allowedMimes = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($allowedMimes[$mime])) {
+        $errors[] = 'Only JPG, PNG, GIF, and WEBP images are allowed for the logo.';
+        return null;
+    }
+
+    $targetDir = APP_ROOT . '/public/uploads/logos';
+    if (!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+        $errors[] = 'Could not create logo upload directory.';
+        return null;
+    }
+
+    try {
+        $randomPart = bin2hex(random_bytes(5));
+    } catch (Throwable $e) {
+        $randomPart = substr(sha1((string)microtime(true) . mt_rand()), 0, 10);
+    }
+
+    $filename = 'logo-' . date('Ymd-His') . '-' . $randomPart . '.' . $allowedMimes[$mime];
+    $targetPath = $targetDir . '/' . $filename;
+    if (!@move_uploaded_file($tmpPath, $targetPath)) {
+        $errors[] = 'Could not save uploaded logo image.';
+        return null;
+    }
+
+    @chmod($targetPath, 0644);
+
+    return 'uploads/logos/' . $filename;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
@@ -372,6 +434,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['timezone']              = in_array($timezoneRaw, $timezoneOptions, true) ? $timezoneRaw : $currentTimezone;
     $app['debug']                 = isset($_POST['app_debug']);
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
+    if ($action === 'save' && isset($_FILES['app_logo_file']) && is_array($_FILES['app_logo_file'])) {
+        $uploadedLogoPath = layout_upload_logo_file($_FILES['app_logo_file'], $errors);
+        if ($uploadedLogoPath !== null) {
+            $app['logo_url'] = $uploadedLogoPath;
+            $messages[] = 'Logo image uploaded.';
+        }
+    }
     $app['primary_color']         = layout_normalize_hex_color($post('app_primary_color', $app['primary_color'] ?? '#660000'), '#660000');
     $dateFormatRaw = $post('app_date_format', $app['date_format'] ?? 'd/m/Y');
     $app['date_format']           = array_key_exists($dateFormatRaw, $dateFormatOptions) ? $dateFormatRaw : 'd/m/Y';
@@ -696,6 +765,8 @@ if (!in_array($selectedTimezone, $timezoneOptions, true)) {
     $selectedTimezone = 'Europe/Jersey';
 }
 $selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary_color'], '#660000'), '#660000');
+$configuredLogoUrl = trim((string)$cfg(['app', 'logo_url'], ''));
+$effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_default_logo_url();
 
 ?>
 <!DOCTYPE html>
@@ -754,7 +825,7 @@ $selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary
             </li>
         </ul>
 
-        <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">
+        <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form" enctype="multipart/form-data">
             <input type="hidden" name="settings_tab" id="settings_tab_input" value="<?= h($settingsTab) ?>">
             <div class="col-12">
                 <ul class="nav nav-tabs reservations-subtabs mb-1" id="settings-group-tabs">
@@ -1536,11 +1607,36 @@ $selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary
                                 </div>
                                 <div class="form-text">Use the picker or type a hex value like <code>#660000</code>.</div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-8">
                                 <label class="form-label">Logo URL</label>
-                                <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
+                                <input type="text"
+                                       name="app_logo_url"
+                                       id="app_logo_url"
+                                       class="form-control"
+                                       value="<?= h($cfg(['app', 'logo_url'], '')) ?>"
+                                       placeholder="https://example.com/logo.png or uploads/logos/your-logo.png">
+                                <div class="form-text">Use a full URL or an app-relative path.</div>
+
+                                <label class="form-label mt-2">Upload logo image</label>
+                                <input type="file"
+                                       name="app_logo_file"
+                                       id="app_logo_file"
+                                       class="form-control"
+                                       accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
+                                <div class="form-text">Accepted formats: JPG, PNG, GIF, WEBP. Max size 4 MB. Uploaded file sets Logo URL when you save.</div>
+
+                                <div class="settings-logo-preview mt-2">
+                                    <div class="small text-muted mb-1">Logo preview</div>
+                                    <div class="settings-logo-preview__frame">
+                                        <img src="<?= h($effectiveLogoUrl) ?>"
+                                             alt="Current app logo preview"
+                                             id="app_logo_preview"
+                                             class="settings-logo-preview__image"
+                                             data-default-src="<?= h(layout_default_logo_url()) ?>">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
+                            <div class="col-md-4 d-flex align-items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
@@ -1641,6 +1737,68 @@ $selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary
             applyPrimaryColor(primaryColorPicker.value || '#660000');
         }
     }
+
+    const logoUrlInput = document.getElementById('app_logo_url');
+    const logoFileInput = document.getElementById('app_logo_file');
+    const logoPreview = document.getElementById('app_logo_preview');
+    let logoObjectUrl = '';
+
+    const setLogoPreview = (src) => {
+        if (!logoPreview) return;
+        const fallback = String(logoPreview.dataset.defaultSrc || '').trim();
+        const nextSrc = String(src || '').trim();
+        if (nextSrc !== '') {
+            logoPreview.src = nextSrc;
+            return;
+        }
+        if (fallback !== '') {
+            logoPreview.src = fallback;
+        }
+    };
+
+    if (logoPreview) {
+        logoPreview.addEventListener('error', () => {
+            const fallback = String(logoPreview.dataset.defaultSrc || '').trim();
+            if (fallback !== '' && logoPreview.src !== fallback) {
+                logoPreview.src = fallback;
+            }
+        });
+    }
+
+    if (logoUrlInput) {
+        const syncPreviewFromUrl = () => {
+            if (logoObjectUrl !== '') {
+                URL.revokeObjectURL(logoObjectUrl);
+                logoObjectUrl = '';
+            }
+            setLogoPreview(logoUrlInput.value);
+        };
+        logoUrlInput.addEventListener('input', syncPreviewFromUrl);
+        logoUrlInput.addEventListener('blur', syncPreviewFromUrl);
+    }
+
+    if (logoFileInput) {
+        logoFileInput.addEventListener('change', () => {
+            if (logoObjectUrl !== '') {
+                URL.revokeObjectURL(logoObjectUrl);
+                logoObjectUrl = '';
+            }
+            const file = logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+            if (!file) {
+                setLogoPreview(logoUrlInput ? logoUrlInput.value : '');
+                return;
+            }
+            logoObjectUrl = URL.createObjectURL(file);
+            setLogoPreview(logoObjectUrl);
+        });
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (logoObjectUrl !== '') {
+            URL.revokeObjectURL(logoObjectUrl);
+            logoObjectUrl = '';
+        }
+    });
 
     const clearStatus = (el) => {
         if (!el) return;
