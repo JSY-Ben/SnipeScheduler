@@ -1123,75 +1123,11 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">App preferences</h5>
-                        <p class="text-muted small mb-3">UI customisation and behaviour tweaks.</p>
+                        <h5 class="card-title mb-1">Reservation Controls</h5>
+                        <p class="text-muted small mb-3">
+                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
+                        </p>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">Timezone (PHP identifier)</label>
-                                <input type="text" name="app_timezone" class="form-control" value="<?= h($cfg(['app', 'timezone'], 'Europe/Jersey')) ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Date format</label>
-                                <select name="app_date_format" class="form-select">
-                                    <?php $selectedDateFormat = $cfg(['app', 'date_format'], 'd/m/Y'); ?>
-                                    <?php foreach ($dateFormatOptions as $format => $label): ?>
-                                        <option value="<?= h($format) ?>" <?= $selectedDateFormat === $format ? 'selected' : '' ?>>
-                                            <?= h($label) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="form-text">Applies to all displayed dates.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Time format</label>
-                                <select name="app_time_format" class="form-select">
-                                    <?php $selectedTimeFormat = $cfg(['app', 'time_format'], 'H:i'); ?>
-                                    <?php foreach ($timeFormatOptions as $format => $label): ?>
-                                        <option value="<?= h($format) ?>" <?= $selectedTimeFormat === $format ? 'selected' : '' ?>>
-                                            <?= h($label) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="form-text">Choose 12 or 24 hour clock.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Primary colour (hex)</label>
-                                <input type="text" name="app_primary_color" class="form-control" value="<?= h($cfg(['app', 'primary_color'], '#660000')) ?>">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Missed cutoff minutes</label>
-                                <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
-                                <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
-                                <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
-                                <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
-                                <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
-                                <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Logo URL</label>
-                                <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
-                            </div>
-                            <div class="col-md-6 d-flex align-items-end">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-2">
-                            <div class="col-12">
-                                <hr class="my-1">
-                                <h6 class="mt-3 mb-1">Reservation controls</h6>
-                                <div class="text-muted small mb-2">
-                                    These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
-                                </div>
-                            </div>
 
                             <div class="col-12">
                                 <div class="border rounded p-3">
@@ -1481,6 +1417,74 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                 </div>
                             </div>
 
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">App Preferences</h5>
+                        <p class="text-muted small mb-3">UI customisation and behaviour tweaks.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Timezone (PHP identifier)</label>
+                                <input type="text" name="app_timezone" class="form-control" value="<?= h($cfg(['app', 'timezone'], 'Europe/Jersey')) ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Date format</label>
+                                <select name="app_date_format" class="form-select">
+                                    <?php $selectedDateFormat = $cfg(['app', 'date_format'], 'd/m/Y'); ?>
+                                    <?php foreach ($dateFormatOptions as $format => $label): ?>
+                                        <option value="<?= h($format) ?>" <?= $selectedDateFormat === $format ? 'selected' : '' ?>>
+                                            <?= h($label) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Applies to all displayed dates.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Time format</label>
+                                <select name="app_time_format" class="form-select">
+                                    <?php $selectedTimeFormat = $cfg(['app', 'time_format'], 'H:i'); ?>
+                                    <?php foreach ($timeFormatOptions as $format => $label): ?>
+                                        <option value="<?= h($format) ?>" <?= $selectedTimeFormat === $format ? 'selected' : '' ?>>
+                                            <?= h($label) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text">Choose 12 or 24 hour clock.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Primary colour (hex)</label>
+                                <input type="text" name="app_primary_color" class="form-control" value="<?= h($cfg(['app', 'primary_color'], '#660000')) ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Missed cutoff minutes</label>
+                                <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
+                                <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
+                                <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
+                                <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
+                                <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
+                                <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Logo URL</label>
+                                <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
+                                </div>
+                            </div>
                             <div class="col-12">
                                 <div class="form-check">
                                     <input class="form-check-input"
