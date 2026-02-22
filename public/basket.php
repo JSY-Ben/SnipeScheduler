@@ -400,6 +400,15 @@ document.addEventListener('DOMContentLoaded', function () {
             + ':' + pad(date.getMinutes());
     }
 
+    function setDatetimeInputValue(input, value) {
+        if (!input) return;
+        if (input._flatpickr) {
+            input._flatpickr.setDate(value, true, input._flatpickr.config.dateFormat);
+            return;
+        }
+        input.value = value;
+    }
+
     function normalizeWindowEnd() {
         if (!startInput || !endInput) return;
         const startVal = startInput.value.trim();
@@ -413,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const nextDay = new Date(startDate);
             nextDay.setDate(startDate.getDate() + 1);
             nextDay.setHours(9, 0, 0, 0);
-            endInput.value = toLocalDatetimeValue(nextDay);
+            setDatetimeInputValue(endInput, toLocalDatetimeValue(nextDay));
         }
     }
 

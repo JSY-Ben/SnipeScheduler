@@ -1357,6 +1357,8 @@ form .form-select {
 }
 
 .checked-out-table td input[type="datetime-local"],
+.checked-out-table td input.flatpickr-input,
+.checked-out-table td input.flatpickr-alt-input,
 .checked-out-table td .btn {
     width: 100%;
     min-width: 0;

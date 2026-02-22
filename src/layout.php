@@ -110,7 +110,7 @@ if (!function_exists('layout_theme_styles')) {
         [$rs, $gs, $bs]       = layout_color_to_rgb($primaryStrong);
         [$rl, $gl, $bl]       = layout_color_to_rgb($primarySoft);
 
-        $style = <<<CSS
+        $style = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">' . "\n" . <<<CSS
 <style>
 :root {
     --primary: {$primary};
@@ -174,8 +174,169 @@ if (!function_exists('layout_footer')) {
         $versionRaw  = is_file($versionFile) ? trim((string)@file_get_contents($versionFile)) : '';
         $version     = $versionRaw !== '' ? $versionRaw : 'dev';
         $versionEsc  = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
+        $flatpickrCfg = app_flatpickr_settings(layout_cached_config());
+        $flatpickrCfgJson = json_encode($flatpickrCfg, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
         echo '<script src="assets/nav.js"></script>';
+        echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
+        echo '<script>window.SnipeSchedulerFlatpickr=' . ($flatpickrCfgJson ?: '{}') . ';</script>';
+        echo <<<SCRIPT
+<script>
+(function () {
+    const boot = () => {
+        if (typeof window.flatpickr !== 'function') return;
+        const cfg = window.SnipeSchedulerFlatpickr || {};
+
+        const normalizeFormats = (formats) => {
+            const unique = [];
+            formats.forEach((fmt) => {
+                const v = String(fmt || '').trim();
+                if (!v || unique.indexOf(v) !== -1) return;
+                unique.push(v);
+            });
+            return unique;
+        };
+
+        const fallbackFormats = {
+            date: normalizeFormats([cfg.machine_date_format, 'Y-m-d']),
+            datetime: normalizeFormats([
+                cfg.machine_datetime_format,
+                'Y-m-d\\TH:i:S',
+                'Y-m-d\\TH:i',
+                'Y-m-d H:i:S',
+                'Y-m-d H:i',
+            ]),
+            time: normalizeFormats([
+                cfg.machine_time_format,
+                'H:i:S',
+                'H:i',
+                'h:i:S K',
+                'h:i K',
+            ]),
+        };
+
+        const detectPickerType = (input) => {
+            const explicit = String(input.getAttribute('data-flatpickr') || '').toLowerCase().trim();
+            if (explicit === 'date' || explicit === 'time' || explicit === 'datetime') {
+                return explicit;
+            }
+
+            const inputType = String(input.getAttribute('type') || '').toLowerCase().trim();
+            if (inputType === 'date') return 'date';
+            if (inputType === 'time') return 'time';
+            if (inputType === 'datetime-local') return 'datetime';
+            return '';
+        };
+
+        const parseDateFactory = (formats) => (raw) => {
+            const value = String(raw || '').trim();
+            if (!value) return undefined;
+
+            for (let i = 0; i < formats.length; i += 1) {
+                const parsed = window.flatpickr.parseDate(value, formats[i]);
+                if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
+                    return parsed;
+                }
+            }
+
+            const timestamp = Date.parse(value);
+            if (!Number.isNaN(timestamp)) {
+                return new Date(timestamp);
+            }
+
+            return undefined;
+        };
+
+        const initInput = (input) => {
+            if (!(input instanceof HTMLInputElement)) return;
+            if (input.dataset.flatpickrBound === '1') return;
+            if (input.getAttribute('data-flatpickr') === 'off') return;
+
+            const pickerType = detectPickerType(input);
+            if (!pickerType) return;
+
+            const originalType = String(input.getAttribute('type') || '').toLowerCase().trim();
+            if (originalType === 'date' || originalType === 'time' || originalType === 'datetime-local') {
+                input.setAttribute('type', 'text');
+            }
+
+            const baseOptions = {
+                allowInput: true,
+                disableMobile: true,
+                altInput: true,
+                altInputClass: (input.className ? input.className + ' ' : '') + 'flatpickr-alt-input',
+                parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
+            };
+
+            if (pickerType === 'date') {
+                baseOptions.dateFormat = String(cfg.machine_date_format || 'Y-m-d');
+                baseOptions.altFormat = String(cfg.alt_date_format || 'Y-m-d');
+            } else if (pickerType === 'time') {
+                baseOptions.enableTime = true;
+                baseOptions.noCalendar = true;
+                baseOptions.time_24hr = !!cfg.time_24hr;
+                baseOptions.enableSeconds = !!cfg.enable_seconds;
+                baseOptions.dateFormat = String(cfg.machine_time_format || 'H:i');
+                baseOptions.altFormat = String(cfg.alt_time_format || 'H:i');
+            } else {
+                baseOptions.enableTime = true;
+                baseOptions.time_24hr = !!cfg.time_24hr;
+                baseOptions.enableSeconds = !!cfg.enable_seconds;
+                baseOptions.dateFormat = String(cfg.machine_datetime_format || 'Y-m-d\\TH:i');
+                baseOptions.altFormat = String(cfg.alt_datetime_format || 'Y-m-d H:i');
+            }
+
+            try {
+                const picker = window.flatpickr(input, baseOptions);
+                if (picker && picker.altInput) {
+                    if (input.style && input.style.cssText) {
+                        picker.altInput.style.cssText = input.style.cssText;
+                    }
+                    if (input.hasAttribute('placeholder')) {
+                        picker.altInput.setAttribute('placeholder', input.getAttribute('placeholder') || '');
+                    }
+                    picker.altInput.required = input.required;
+                    picker.altInput.disabled = input.disabled;
+                    picker.altInput.readOnly = input.readOnly;
+                }
+                input.dataset.flatpickrBound = '1';
+            } catch (e) {
+                // Keep native input as fallback if Flatpickr fails for this field.
+            }
+        };
+
+        const scan = (root) => {
+            if (!(root instanceof Element || root instanceof Document)) return;
+            if (root instanceof HTMLInputElement) {
+                initInput(root);
+            }
+            root.querySelectorAll('input').forEach(initInput);
+        };
+
+        scan(document);
+
+        if (document.body && typeof MutationObserver === 'function') {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof Element) {
+                            scan(node);
+                        }
+                    });
+                });
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+})();
+</script>
+SCRIPT;
         echo '<footer class="text-center text-muted mt-4 small">'
             . 'SnipeScheduler Version ' . $versionEsc . ' - Created by '
             . '<a href="https://www.linkedin.com/in/ben-pirozzolo-76212a88" target="_blank" rel="noopener noreferrer">Ben Pirozzolo</a>'

@@ -1728,14 +1728,23 @@ document.addEventListener('DOMContentLoaded', function () {
             + ':' + pad(date.getMinutes());
     }
 
+    function setDatetimeInputValue(input, value) {
+        if (!input) return;
+        if (input._flatpickr) {
+            input._flatpickr.setDate(value, true, input._flatpickr.config.dateFormat);
+            return;
+        }
+        input.value = value;
+    }
+
     function setTodayWindow() {
         if (!windowStartInput || !windowEndInput) return;
         const now = new Date();
         const tomorrow = new Date(now);
         tomorrow.setDate(now.getDate() + 1);
         tomorrow.setHours(9, 0, 0, 0);
-        windowStartInput.value = toLocalDatetimeValue(now);
-        windowEndInput.value = toLocalDatetimeValue(tomorrow);
+        setDatetimeInputValue(windowStartInput, toLocalDatetimeValue(now));
+        setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(tomorrow));
         showLoadingOverlay();
         maybeSubmitWindow();
     }
@@ -1753,7 +1762,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const nextDay = new Date(startDate);
             nextDay.setDate(startDate.getDate() + 1);
             nextDay.setHours(9, 0, 0, 0);
-            windowEndInput.value = toLocalDatetimeValue(nextDay);
+            setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(nextDay));
         }
     }
 
