@@ -256,9 +256,14 @@ if (!function_exists('layout_footer')) {
         };
 
         const fallbackFormats = {
-            date: normalizeFormats([cfg.machine_date_format, 'Y-m-d']),
+            date: normalizeFormats([
+                cfg.machine_date_format,
+                cfg.alt_date_format,
+                'Y-m-d',
+            ]),
             datetime: normalizeFormats([
                 cfg.machine_datetime_format,
+                cfg.alt_datetime_format,
                 'Y-m-d\\TH:i:S',
                 'Y-m-d\\TH:i',
                 'Y-m-d H:i:S',
@@ -266,6 +271,7 @@ if (!function_exists('layout_footer')) {
             ]),
             time: normalizeFormats([
                 cfg.machine_time_format,
+                cfg.alt_time_format,
                 'H:i:S',
                 'H:i',
                 'h:i:S K',
@@ -286,20 +292,25 @@ if (!function_exists('layout_footer')) {
             return '';
         };
 
-        const parseDateFactory = (formats) => (raw) => {
+        const parseDateFactory = (formats) => (raw, formatHint) => {
             const value = String(raw || '').trim();
             if (!value) return undefined;
 
-            for (let i = 0; i < formats.length; i += 1) {
-                const parsed = window.flatpickr.parseDate(value, formats[i]);
+            const parseFormats = normalizeFormats([formatHint].concat(formats || []));
+            for (let i = 0; i < parseFormats.length; i += 1) {
+                const parsed = window.flatpickr.parseDate(value, parseFormats[i]);
                 if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) {
                     return parsed;
                 }
             }
 
-            const timestamp = Date.parse(value);
-            if (!Number.isNaN(timestamp)) {
-                return new Date(timestamp);
+            // Only allow native parsing for strict ISO-like values to avoid
+            // locale-dependent reinterpretation on blur/close.
+            if (/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(value)) {
+                const timestamp = Date.parse(value.replace(' ', 'T'));
+                if (!Number.isNaN(timestamp)) {
+                    return new Date(timestamp);
+                }
             }
 
             return undefined;
