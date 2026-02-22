@@ -831,6 +831,9 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             <li class="nav-item">
                 <a class="nav-link" href="announcements.php">Announcements</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="reports.php">Reports</a>
+            </li>
         </ul>
 
         <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form" enctype="multipart/form-data">

@@ -248,6 +248,9 @@ try {
             <li class="nav-item">
                 <a class="nav-link" href="announcements.php">Announcements</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="reports.php">Reports</a>
+            </li>
         </ul>
 
         <div class="card">

@@ -335,6 +335,9 @@ foreach ($storedAnnouncements as $item) {
             <li class="nav-item">
                 <a class="nav-link active" href="announcements.php">Announcements</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="reports.php">Reports</a>
+            </li>
         </ul>
 
         <div class="d-flex justify-content-end mb-3">
