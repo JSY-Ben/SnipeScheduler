@@ -24,27 +24,17 @@ $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     : true;
 $overdueCacheTtl = 0;
 
-$catalogueAnnouncement = null;
-$announcementMessage = trim((string)($appCfg['announcement_message'] ?? ''));
-$announcementStartTs = max(0, (int)($appCfg['announcement_start_ts'] ?? 0));
-$announcementEndTs = max(0, (int)($appCfg['announcement_end_ts'] ?? 0));
-if ($announcementStartTs <= 0) {
-    $announcementStartRaw = trim((string)($appCfg['announcement_start_datetime'] ?? ''));
-    $announcementStartTs = $announcementStartRaw !== '' ? (int)strtotime($announcementStartRaw) : 0;
-}
-if ($announcementEndTs <= 0) {
-    $announcementEndRaw = trim((string)($appCfg['announcement_end_datetime'] ?? ''));
-    $announcementEndTs = $announcementEndRaw !== '' ? (int)strtotime($announcementEndRaw) : 0;
-}
-if ($announcementMessage !== '' && $announcementStartTs > 0 && $announcementEndTs > $announcementStartTs) {
-    $nowTs = time();
-    if ($nowTs >= $announcementStartTs && $nowTs <= $announcementEndTs) {
-        $announcementTz = app_get_timezone($config);
-        $catalogueAnnouncement = [
-            'message' => $announcementMessage,
-            'start_display' => app_format_datetime($announcementStartTs, $config, $announcementTz),
-            'end_display' => app_format_datetime($announcementEndTs, $config, $announcementTz),
-        ];
+$catalogueAnnouncements = [];
+$allAnnouncements = app_announcements_from_app_config($appCfg, app_get_timezone($config));
+if (!empty($allAnnouncements)) {
+    $activeAnnouncements = app_announcements_active($allAnnouncements, time());
+    if (!empty($activeAnnouncements)) {
+        $announcementToken = app_announcements_session_token($activeAnnouncements);
+        $shownAnnouncementToken = trim((string)($_SESSION['catalogue_announcement_shown_token'] ?? ''));
+        if ($shownAnnouncementToken !== $announcementToken) {
+            $catalogueAnnouncements = $activeAnnouncements;
+            $_SESSION['catalogue_announcement_shown_token'] = $announcementToken;
+        }
     }
 }
 
@@ -1613,7 +1603,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
      aria-live="polite"
      aria-hidden="true"></div>
 
-<?php if ($catalogueAnnouncement !== null): ?>
+<?php if (!empty($catalogueAnnouncements)): ?>
 <div id="catalogue-announcement-modal"
      class="catalogue-modal catalogue-modal--announcement"
      role="dialog"
@@ -1624,7 +1614,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
     <div class="catalogue-modal__backdrop" data-announcement-close></div>
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
-            <h2 id="catalogue-announcement-title" class="catalogue-modal__title">Announcement</h2>
+            <h2 id="catalogue-announcement-title" class="catalogue-modal__title">
+                <?= count($catalogueAnnouncements) > 1 ? 'Announcements' : 'Announcement' ?>
+            </h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-announcement-close>
@@ -1632,10 +1624,15 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             </button>
         </div>
         <div class="catalogue-modal__body">
-            <div class="announcement-modal__range">
-                Active from <?= h($catalogueAnnouncement['start_display']) ?> to <?= h($catalogueAnnouncement['end_display']) ?>
-            </div>
-            <div class="announcement-modal__message"><?= nl2br(h($catalogueAnnouncement['message'])) ?></div>
+            <?php if (count($catalogueAnnouncements) === 1): ?>
+                <div class="announcement-modal__message"><?= nl2br(h((string)$catalogueAnnouncements[0]['message'])) ?></div>
+            <?php else: ?>
+                <ol class="announcement-modal__list">
+                    <?php foreach ($catalogueAnnouncements as $announcement): ?>
+                        <li class="announcement-modal__list-item"><?= nl2br(h((string)$announcement['message'])) ?></li>
+                    <?php endforeach; ?>
+                </ol>
+            <?php endif; ?>
         </div>
     </div>
 </div>

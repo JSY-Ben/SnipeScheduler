@@ -31,147 +31,201 @@ $definedValues = [
     'CATALOGUE_ITEMS_PER_PAGE'  => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
 ];
 
-function announcement_parse_datetime_input(string $raw, ?DateTimeZone $tz = null): ?DateTime
-{
-    $text = trim($raw);
-    if ($text === '') {
-        return null;
-    }
-
-    $formats = [
-        'Y-m-d\TH:i:s',
-        'Y-m-d\TH:i',
-        'Y-m-d H:i:s',
-        'Y-m-d H:i',
-    ];
-    foreach ($formats as $format) {
-        $dt = $tz
-            ? DateTime::createFromFormat('!' . $format, $text, $tz)
-            : DateTime::createFromFormat('!' . $format, $text);
-        if (!$dt) {
-            continue;
-        }
-        $lastErrors = DateTime::getLastErrors();
-        if (is_array($lastErrors) && ((int)($lastErrors['warning_count'] ?? 0) > 0 || (int)($lastErrors['error_count'] ?? 0) > 0)) {
-            continue;
-        }
-        return $dt;
-    }
-
-    return app_parse_datetime_value($text, $tz);
-}
-
-function announcement_format_datetime_for_input(int $timestamp, ?DateTimeZone $tz, string $format): string
-{
-    if ($timestamp <= 0) {
-        return '';
-    }
-    $dt = new DateTime('@' . $timestamp);
-    if ($tz) {
-        $dt->setTimezone($tz);
-    }
-    return $dt->format($format);
-}
-
 $tz = app_get_timezone($config);
 $timeFormat = app_get_time_format($config);
 $dateInputFormat = strpos($timeFormat, 's') !== false ? 'Y-m-d\TH:i:s' : 'Y-m-d\TH:i';
 $dateInputStep = strpos($timeFormat, 's') !== false ? 1 : 60;
 
 $appCfg = is_array($config['app'] ?? null) ? $config['app'] : [];
-$storedMessage = trim((string)($appCfg['announcement_message'] ?? ''));
-$storedStartTs = max(0, (int)($appCfg['announcement_start_ts'] ?? 0));
-$storedEndTs = max(0, (int)($appCfg['announcement_end_ts'] ?? 0));
+$storedAnnouncements = app_announcements_from_app_config($appCfg, $tz);
 
-if ($storedStartTs <= 0) {
-    $legacyStartRaw = trim((string)($appCfg['announcement_start_datetime'] ?? ''));
-    $legacyStart = $legacyStartRaw !== '' ? announcement_parse_datetime_input($legacyStartRaw, $tz) : null;
-    if ($legacyStart instanceof DateTime) {
-        $storedStartTs = $legacyStart->getTimestamp();
-    }
-}
-if ($storedEndTs <= 0) {
-    $legacyEndRaw = trim((string)($appCfg['announcement_end_datetime'] ?? ''));
-    $legacyEnd = $legacyEndRaw !== '' ? announcement_parse_datetime_input($legacyEndRaw, $tz) : null;
-    if ($legacyEnd instanceof DateTime) {
-        $storedEndTs = $legacyEnd->getTimestamp();
-    }
-}
+$formatRow = static function (array $announcement) use ($tz, $dateInputFormat): array {
+    return [
+        'start' => app_announcement_format_datetime_for_input((int)$announcement['start_ts'], $tz, $dateInputFormat),
+        'end' => app_announcement_format_datetime_for_input((int)$announcement['end_ts'], $tz, $dateInputFormat),
+        'message' => (string)($announcement['message'] ?? ''),
+    ];
+};
 
-$formMessage = $storedMessage;
-$formStartRaw = announcement_format_datetime_for_input($storedStartTs, $tz, $dateInputFormat);
-$formEndRaw = announcement_format_datetime_for_input($storedEndTs, $tz, $dateInputFormat);
+$formRows = array_map($formatRow, $storedAnnouncements);
+if (empty($formRows)) {
+    $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string)($_POST['action'] ?? 'save'));
-    $formMessage = trim((string)($_POST['announcement_message'] ?? ''));
-    $formStartRaw = trim((string)($_POST['announcement_start'] ?? ''));
-    $formEndRaw = trim((string)($_POST['announcement_end'] ?? ''));
+    $starts = $_POST['announcement_start'] ?? [];
+    $ends = $_POST['announcement_end'] ?? [];
+    $messagesRaw = $_POST['announcement_message'] ?? [];
+
+    $starts = is_array($starts) ? $starts : [];
+    $ends = is_array($ends) ? $ends : [];
+    $messagesRaw = is_array($messagesRaw) ? $messagesRaw : [];
+
     $newConfig = $config;
     $newApp = is_array($newConfig['app'] ?? null) ? $newConfig['app'] : [];
-    $statusMessage = '';
+    $normalizedAnnouncements = [];
+    $formRows = [];
 
-    if ($action === 'clear' || ($formMessage === '' && $formStartRaw === '' && $formEndRaw === '')) {
-        $newApp['announcement_message'] = '';
-        $newApp['announcement_start_ts'] = 0;
-        $newApp['announcement_end_ts'] = 0;
-        $newApp['announcement_start_datetime'] = '';
-        $newApp['announcement_end_datetime'] = '';
-        $statusMessage = 'Announcement cleared.';
-        $formMessage = '';
-        $formStartRaw = '';
-        $formEndRaw = '';
+    if ($action === 'clear') {
+        $normalizedAnnouncements = [];
+        $formRows = [['start' => '', 'end' => '', 'message' => '']];
     } else {
-        if ($formMessage === '') {
-            $errors[] = 'Announcement message is required.';
-        }
-        if ($formStartRaw === '' || $formEndRaw === '') {
-            $errors[] = 'Announcement start and end are required.';
+        $rowCount = max(count($starts), count($ends), count($messagesRaw));
+
+        for ($i = 0; $i < $rowCount; $i++) {
+            $startRaw = trim((string)($starts[$i] ?? ''));
+            $endRaw = trim((string)($ends[$i] ?? ''));
+            $messageRaw = trim((string)($messagesRaw[$i] ?? ''));
+
+            $formRows[] = [
+                'start' => $startRaw,
+                'end' => $endRaw,
+                'message' => $messageRaw,
+            ];
+
+            if ($startRaw === '' && $endRaw === '' && $messageRaw === '') {
+                continue;
+            }
+
+            $rowNumber = $i + 1;
+            if ($messageRaw === '') {
+                $errors[] = 'Announcement ' . $rowNumber . ': message is required.';
+                continue;
+            }
+            if ($startRaw === '' || $endRaw === '') {
+                $errors[] = 'Announcement ' . $rowNumber . ': start and end date/time are required.';
+                continue;
+            }
+
+            $startDt = app_announcement_parse_datetime_input($startRaw, $tz);
+            $endDt = app_announcement_parse_datetime_input($endRaw, $tz);
+            if (!$startDt || !$endDt) {
+                $errors[] = 'Announcement ' . $rowNumber . ': please provide valid start and end date/time values.';
+                continue;
+            }
+            if ($endDt->getTimestamp() <= $startDt->getTimestamp()) {
+                $errors[] = 'Announcement ' . $rowNumber . ': end date/time must be after start date/time.';
+                continue;
+            }
+
+            $normalized = app_announcement_normalize_entry([
+                'message' => $messageRaw,
+                'start_ts' => $startDt->getTimestamp(),
+                'end_ts' => $endDt->getTimestamp(),
+            ], $tz);
+            if (!$normalized) {
+                $errors[] = 'Announcement ' . $rowNumber . ': could not normalize this announcement.';
+                continue;
+            }
+            $normalizedAnnouncements[] = $normalized;
         }
 
-        $startDt = announcement_parse_datetime_input($formStartRaw, $tz);
-        $endDt = announcement_parse_datetime_input($formEndRaw, $tz);
-        if (!$startDt || !$endDt) {
-            $errors[] = 'Please provide a valid start and end date/time.';
-        } elseif ($endDt->getTimestamp() <= $startDt->getTimestamp()) {
-            $errors[] = 'Announcement end date/time must be after the start date/time.';
-        } else {
-            $newApp['announcement_message'] = $formMessage;
-            $newApp['announcement_start_ts'] = $startDt->getTimestamp();
-            $newApp['announcement_end_ts'] = $endDt->getTimestamp();
-            $newApp['announcement_start_datetime'] = $startDt->format('Y-m-d H:i:s');
-            $newApp['announcement_end_datetime'] = $endDt->format('Y-m-d H:i:s');
-            $statusMessage = 'Announcement saved.';
-            $formStartRaw = announcement_format_datetime_for_input($startDt->getTimestamp(), $tz, $dateInputFormat);
-            $formEndRaw = announcement_format_datetime_for_input($endDt->getTimestamp(), $tz, $dateInputFormat);
+        if (empty($formRows)) {
+            $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
         }
     }
 
     if (empty($errors)) {
+        $seen = [];
+        $uniqueAnnouncements = [];
+        foreach ($normalizedAnnouncements as $item) {
+            $token = (string)($item['token'] ?? '');
+            if ($token !== '' && isset($seen[$token])) {
+                continue;
+            }
+            if ($token !== '') {
+                $seen[$token] = true;
+            }
+            $uniqueAnnouncements[] = $item;
+        }
+
+        usort($uniqueAnnouncements, static function (array $a, array $b): int {
+            if ($a['start_ts'] !== $b['start_ts']) {
+                return $a['start_ts'] <=> $b['start_ts'];
+            }
+            if ($a['end_ts'] !== $b['end_ts']) {
+                return $a['end_ts'] <=> $b['end_ts'];
+            }
+            return strcmp($a['message'], $b['message']);
+        });
+
+        $newApp['announcements'] = array_map(static function (array $item): array {
+            return [
+                'message' => (string)$item['message'],
+                'start_ts' => (int)$item['start_ts'],
+                'end_ts' => (int)$item['end_ts'],
+                'start_datetime' => (string)$item['start_datetime'],
+                'end_datetime' => (string)$item['end_datetime'],
+            ];
+        }, $uniqueAnnouncements);
+
+        $firstAnnouncement = $uniqueAnnouncements[0] ?? null;
+        if ($firstAnnouncement) {
+            $newApp['announcement_message'] = (string)$firstAnnouncement['message'];
+            $newApp['announcement_start_ts'] = (int)$firstAnnouncement['start_ts'];
+            $newApp['announcement_end_ts'] = (int)$firstAnnouncement['end_ts'];
+            $newApp['announcement_start_datetime'] = (string)$firstAnnouncement['start_datetime'];
+            $newApp['announcement_end_datetime'] = (string)$firstAnnouncement['end_datetime'];
+        } else {
+            $newApp['announcement_message'] = '';
+            $newApp['announcement_start_ts'] = 0;
+            $newApp['announcement_end_ts'] = 0;
+            $newApp['announcement_start_datetime'] = '';
+            $newApp['announcement_end_datetime'] = '';
+        }
+
         $newConfig['app'] = $newApp;
         $content = layout_build_config_file($newConfig, $definedValues);
+
         if (!is_dir(CONFIG_PATH)) {
             @mkdir(CONFIG_PATH, 0755, true);
         }
+
         if (@file_put_contents($configPath, $content, LOCK_EX) === false) {
             $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
         } else {
-            $messages[] = $statusMessage;
+            $savedCount = count($uniqueAnnouncements);
+            if ($savedCount === 0) {
+                $messages[] = 'All announcements cleared.';
+            } elseif ($savedCount === 1) {
+                $messages[] = '1 announcement saved.';
+            } else {
+                $messages[] = $savedCount . ' announcements saved.';
+            }
+
             $config = $newConfig;
             $appCfg = $newApp;
-            $storedMessage = trim((string)($appCfg['announcement_message'] ?? ''));
-            $storedStartTs = max(0, (int)($appCfg['announcement_start_ts'] ?? 0));
-            $storedEndTs = max(0, (int)($appCfg['announcement_end_ts'] ?? 0));
+            $storedAnnouncements = app_announcements_from_app_config($appCfg, $tz);
+            $formRows = array_map($formatRow, $storedAnnouncements);
+            if (empty($formRows)) {
+                $formRows[] = ['start' => '', 'end' => '', 'message' => ''];
+            }
         }
     }
 }
 
-$announcementConfigured = ($storedMessage !== '' && $storedStartTs > 0 && $storedEndTs > $storedStartTs);
 $nowTs = time();
-$announcementActive = $announcementConfigured && $nowTs >= $storedStartTs && $nowTs <= $storedEndTs;
-$rangeDisplay = $announcementConfigured
-    ? app_format_datetime($storedStartTs, $config, $tz) . ' to ' . app_format_datetime($storedEndTs, $config, $tz)
-    : 'No announcement scheduled.';
+$announcementRows = [];
+foreach ($storedAnnouncements as $item) {
+    $startTs = (int)($item['start_ts'] ?? 0);
+    $endTs = (int)($item['end_ts'] ?? 0);
+    $status = 'Scheduled';
+    if ($startTs > 0 && $endTs > 0) {
+        if ($nowTs >= $startTs && $nowTs <= $endTs) {
+            $status = 'Active now';
+        } elseif ($nowTs > $endTs) {
+            $status = 'Ended';
+        }
+    }
+
+    $announcementRows[] = [
+        'start' => app_format_datetime($startTs, $config, $tz),
+        'end' => app_format_datetime($endTs, $config, $tz),
+        'status' => $status,
+        'message' => (string)($item['message'] ?? ''),
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -232,62 +286,191 @@ $rangeDisplay = $announcementConfigured
             </li>
         </ul>
 
-        <form method="post" action="announcements.php" class="row g-3 settings-form">
+        <form method="post" action="announcements.php" class="row g-3 settings-form" id="announcements-form">
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">Catalogue Announcement</h5>
+                        <h5 class="card-title mb-1">Announcement Entries</h5>
                         <p class="text-muted small mb-3">
-                            Users will see this message as a modal when the catalogue loads during the selected date/time window.
+                            Add one or more announcements. Users will see all active announcements in one modal when opening the catalogue.
                         </p>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label" for="announcement_start">Start date/time</label>
-                                <input type="datetime-local"
-                                       name="announcement_start"
-                                       id="announcement_start"
-                                       class="form-control"
-                                       step="<?= $dateInputStep ?>"
-                                       value="<?= h($formStartRaw) ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label" for="announcement_end">End date/time</label>
-                                <input type="datetime-local"
-                                       name="announcement_end"
-                                       id="announcement_end"
-                                       class="form-control"
-                                       step="<?= $dateInputStep ?>"
-                                       value="<?= h($formEndRaw) ?>">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label" for="announcement_message">Message</label>
-                                <textarea name="announcement_message"
-                                          id="announcement_message"
-                                          rows="6"
-                                          class="form-control"
-                                          placeholder="Enter the announcement text shown on catalogue load."><?= h($formMessage) ?></textarea>
-                                <div class="form-text">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>. Leave all fields blank and save to clear.</div>
-                            </div>
-                            <div class="col-12">
-                                <div class="alert <?= $announcementActive ? 'alert-info' : 'alert-secondary' ?> mb-0">
-                                    <strong>Status:</strong>
-                                    <?= $announcementActive ? 'Active now' : ($announcementConfigured ? 'Scheduled' : 'Not configured') ?>
-                                    <br>
-                                    <strong>Range:</strong> <?= h($rangeDisplay) ?>
+
+                        <div id="announcement-rows" class="d-grid gap-3">
+                            <?php foreach ($formRows as $idx => $row): ?>
+                                <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index><?= (int)($idx + 1) ?></span></div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Start date/time</label>
+                                            <input type="datetime-local"
+                                                   name="announcement_start[]"
+                                                   class="form-control"
+                                                   step="<?= $dateInputStep ?>"
+                                                   value="<?= h((string)$row['start']) ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">End date/time</label>
+                                            <input type="datetime-local"
+                                                   name="announcement_end[]"
+                                                   class="form-control"
+                                                   step="<?= $dateInputStep ?>"
+                                                   value="<?= h((string)$row['end']) ?>">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label">Message</label>
+                                            <textarea name="announcement_message[]"
+                                                      rows="4"
+                                                      class="form-control"
+                                                      placeholder="Enter the announcement shown on catalogue load."><?= h((string)$row['message']) ?></textarea>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
+
+                        <div class="mt-3 d-flex justify-content-start">
+                            <button type="button" id="announcement-add-row" class="btn btn-outline-secondary btn-sm">Add announcement</button>
+                        </div>
+                        <div class="form-text mt-2">Time zone: <?= h((string)($appCfg['timezone'] ?? 'Europe/Jersey')) ?>.</div>
                     </div>
                 </div>
             </div>
 
             <div class="col-12 d-flex justify-content-end gap-2">
-                <button type="submit" name="action" value="clear" class="btn btn-outline-secondary">Clear announcement</button>
-                <button type="submit" name="action" value="save" class="btn btn-primary">Save announcement</button>
+                <button type="submit" name="action" value="clear" class="btn btn-outline-secondary">Clear all announcements</button>
+                <button type="submit" name="action" value="save" class="btn btn-primary">Save announcements</button>
             </div>
         </form>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title mb-1">Configured Announcements</h5>
+                <p class="text-muted small mb-3">Current announcement list and status.</p>
+
+                <?php if (empty($announcementRows)): ?>
+                    <div class="text-muted small">No announcements configured.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($announcementRows as $index => $row): ?>
+                                <tr>
+                                    <td><?= (int)($index + 1) ?></td>
+                                    <td class="text-nowrap"><?= h($row['start']) ?></td>
+                                    <td class="text-nowrap"><?= h($row['end']) ?></td>
+                                    <td class="text-nowrap"><?= h($row['status']) ?></td>
+                                    <td style="white-space: pre-wrap;"><?= h($row['message']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 </div>
+
+<template id="announcement-row-template">
+    <div class="announcement-editor__row border rounded-3 p-3" data-announcement-row>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="small text-muted fw-semibold text-uppercase">Announcement <span data-announcement-row-index></span></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-announcement-row-remove>Remove</button>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Start date/time</label>
+                <input type="datetime-local"
+                       name="announcement_start[]"
+                       class="form-control"
+                       step="<?= $dateInputStep ?>">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">End date/time</label>
+                <input type="datetime-local"
+                       name="announcement_end[]"
+                       class="form-control"
+                       step="<?= $dateInputStep ?>">
+            </div>
+            <div class="col-12">
+                <label class="form-label">Message</label>
+                <textarea name="announcement_message[]"
+                          rows="4"
+                          class="form-control"
+                          placeholder="Enter the announcement shown on catalogue load."></textarea>
+            </div>
+        </div>
+    </div>
+</template>
+
 <?php layout_footer(); ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const rowsContainer = document.getElementById('announcement-rows');
+    const addBtn = document.getElementById('announcement-add-row');
+    const template = document.getElementById('announcement-row-template');
+
+    if (!rowsContainer || !addBtn || !template) {
+        return;
+    }
+
+    const renumberRows = function () {
+        const rows = Array.from(rowsContainer.querySelectorAll('[data-announcement-row]'));
+        rows.forEach(function (row, index) {
+            const label = row.querySelector('[data-announcement-row-index]');
+            if (label) {
+                label.textContent = String(index + 1);
+            }
+        });
+        rows.forEach(function (row) {
+            const removeBtn = row.querySelector('[data-announcement-row-remove]');
+            if (removeBtn) {
+                removeBtn.disabled = rows.length <= 1;
+            }
+        });
+    };
+
+    const addRow = function () {
+        const fragment = template.content.cloneNode(true);
+        rowsContainer.appendChild(fragment);
+        renumberRows();
+    };
+
+    addBtn.addEventListener('click', function () {
+        addRow();
+    });
+
+    rowsContainer.addEventListener('click', function (event) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+
+        const removeBtn = target.closest('[data-announcement-row-remove]');
+        if (!removeBtn) return;
+
+        const row = removeBtn.closest('[data-announcement-row]');
+        if (!row) return;
+
+        row.remove();
+        if (!rowsContainer.querySelector('[data-announcement-row]')) {
+            addRow();
+        }
+        renumberRows();
+    });
+
+    renumberRows();
+});
+</script>
 </body>
 </html>

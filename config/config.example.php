@@ -145,6 +145,21 @@ return [
         ],
         'reservation_blackout_bypass_checkout_staff' => false, // allow checkout staff blackout bypass on behalf bookings
         'reservation_blackout_bypass_admins' => false, // allow admin blackout bypass on behalf bookings
+        'announcements' => [
+            // [
+            //     'message' => 'Maintenance window this afternoon.',
+            //     'start_ts' => 1767238800,
+            //     'end_ts' => 1767249600,
+            //     'start_datetime' => '2026-01-01 09:00:00',
+            //     'end_datetime' => '2026-01-01 12:00:00',
+            // ],
+        ],
+        // Backward-compatible single announcement fields (managed automatically by settings UI)
+        'announcement_message' => '',
+        'announcement_start_ts' => 0,
+        'announcement_end_ts' => 0,
+        'announcement_start_datetime' => '',
+        'announcement_end_datetime' => '',
     ],
 
     'catalogue' => [
