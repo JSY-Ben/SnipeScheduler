@@ -90,7 +90,7 @@ $formatHourRange = static function (int $hour) use ($timeFormat, $tz): string {
 
 $today = new DateTimeImmutable('today', $tz);
 $defaultToDate = $today;
-$defaultFromDate = $today->sub(new DateInterval('P29D'));
+$defaultFromDate = $today->sub(new DateInterval('P6D'));
 
 $fromRaw = trim((string)($_GET['from'] ?? ''));
 $toRaw = trim((string)($_GET['to'] ?? ''));
@@ -553,18 +553,18 @@ $renderPagination = static function (array $pagination, string $pageKey) use ($b
 
     $prevDisabled = $currentPage <= 1 ? ' disabled' : '';
     $prevHref = $currentPage <= 1 ? '#' : h($buildPageUrl($pageKey, $currentPage - 1));
-    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link" href="' . $prevHref . '">Previous</a></li>';
+    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link js-report-page-link" href="' . $prevHref . '">Previous</a></li>';
 
     for ($pageNum = $startPage; $pageNum <= $endPage; $pageNum++) {
         $isActive = $pageNum === $currentPage;
         $itemClass = 'page-item' . ($isActive ? ' active' : '');
         $href = $isActive ? '#' : h($buildPageUrl($pageKey, $pageNum));
-        $html .= '<li class="' . $itemClass . '"><a class="page-link" href="' . $href . '">' . $pageNum . '</a></li>';
+        $html .= '<li class="' . $itemClass . '"><a class="page-link js-report-page-link" href="' . $href . '">' . $pageNum . '</a></li>';
     }
 
     $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
     $nextHref = $currentPage >= $totalPages ? '#' : h($buildPageUrl($pageKey, $currentPage + 1));
-    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link" href="' . $nextHref . '">Next</a></li>';
+    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link js-report-page-link" href="' . $nextHref . '">Next</a></li>';
     $html .= '</ul></nav>';
 
     return $html;
@@ -586,7 +586,7 @@ $renderSortableHeader = static function (
         $indicator = $currentDir === 'asc' ? ' (asc)' : ' (desc)';
     }
 
-    return '<a class="link-body-emphasis text-decoration-none" href="'
+    return '<a class="link-body-emphasis text-decoration-none js-report-sort-link" href="'
         . $href
         . '">'
         . h($label)
@@ -905,6 +905,57 @@ $renderSortableHeader = static function (
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const scrollKey = 'snipeScheduler:reportsSortScrollY';
+
+    function restoreScrollPosition() {
+        try {
+            const raw = window.sessionStorage.getItem(scrollKey);
+            if (raw === null) return;
+            window.sessionStorage.removeItem(scrollKey);
+            const target = parseInt(raw, 10);
+            if (!Number.isFinite(target)) return;
+
+            const scrollToSavedY = function () {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
+                const nextY = Math.max(0, Math.min(maxY, target));
+                window.scrollTo(0, nextY);
+            };
+
+            window.requestAnimationFrame(function () {
+                scrollToSavedY();
+                window.setTimeout(scrollToSavedY, 120);
+            });
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    function saveScrollPosition() {
+        try {
+            const y = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+            window.sessionStorage.setItem(scrollKey, String(y));
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    restoreScrollPosition();
+
+    document.querySelectorAll('.js-report-sort-link, .js-report-page-link').forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            if (event.defaultPrevented) return;
+            if (event.button !== 0) return;
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            const href = link.getAttribute('href') || '';
+            if (href === '' || href === '#' || href.toLowerCase().startsWith('javascript:')) return;
+            saveScrollPosition();
+        });
+    });
+});
+</script>
 <?php layout_footer(); ?>
 </body>
 </html>
