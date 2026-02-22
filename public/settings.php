@@ -36,6 +36,7 @@ $loadedConfig = $config;
 
 $dateFormatOptions = app_date_format_options();
 $timeFormatOptions = app_time_format_options();
+$timezoneOptions = timezone_identifiers_list();
 
 $categoryOptions    = [];
 $categoryFetchError = '';
@@ -363,10 +364,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ms['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
 
     $app = $config['app'] ?? [];
-    $app['timezone']              = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
+    $timezoneRaw = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
+    $currentTimezone = (string)($app['timezone'] ?? 'Europe/Jersey');
+    if (!in_array($currentTimezone, $timezoneOptions, true)) {
+        $currentTimezone = 'Europe/Jersey';
+    }
+    $app['timezone']              = in_array($timezoneRaw, $timezoneOptions, true) ? $timezoneRaw : $currentTimezone;
     $app['debug']                 = isset($_POST['app_debug']);
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
-    $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
+    $app['primary_color']         = layout_normalize_hex_color($post('app_primary_color', $app['primary_color'] ?? '#660000'), '#660000');
     $dateFormatRaw = $post('app_date_format', $app['date_format'] ?? 'd/m/Y');
     $app['date_format']           = array_key_exists($dateFormatRaw, $dateFormatOptions) ? $dateFormatRaw : 'd/m/Y';
     $timeFormatRaw = $post('app_time_format', $app['time_format'] ?? 'H:i');
@@ -685,6 +691,11 @@ if (empty($reservationBlackoutRows)) {
 
 $settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
 $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
+$selectedTimezone = (string)$cfg(['app', 'timezone'], 'Europe/Jersey');
+if (!in_array($selectedTimezone, $timezoneOptions, true)) {
+    $selectedTimezone = 'Europe/Jersey';
+}
+$selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary_color'], '#660000'), '#660000');
 
 ?>
 <!DOCTYPE html>
@@ -1476,7 +1487,13 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Timezone (PHP identifier)</label>
-                                <input type="text" name="app_timezone" class="form-control" value="<?= h($cfg(['app', 'timezone'], 'Europe/Jersey')) ?>">
+                                <select name="app_timezone" class="form-select">
+                                    <?php foreach ($timezoneOptions as $timezone): ?>
+                                        <option value="<?= h($timezone) ?>" <?= $selectedTimezone === $timezone ? 'selected' : '' ?>>
+                                            <?= h($timezone) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Date format</label>
@@ -1504,7 +1521,20 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Primary colour (hex)</label>
-                                <input type="text" name="app_primary_color" class="form-control" value="<?= h($cfg(['app', 'primary_color'], '#660000')) ?>">
+                                <div class="input-group">
+                                    <input type="color"
+                                           class="form-control form-control-color"
+                                           id="app_primary_color_picker"
+                                           value="<?= h($selectedPrimaryColor) ?>"
+                                           aria-label="Pick primary colour">
+                                    <input type="text"
+                                           name="app_primary_color"
+                                           id="app_primary_color"
+                                           class="form-control"
+                                           value="<?= h($selectedPrimaryColor) ?>"
+                                           placeholder="#660000">
+                                </div>
+                                <div class="form-text">Use the picker or type a hex value like <code>#660000</code>.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Logo URL</label>
@@ -1562,6 +1592,55 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
 
     const initialTab = settingsTabInput ? settingsTabInput.value : 'frontend';
     applySettingsTab(initialTab);
+
+    const primaryColorPicker = document.getElementById('app_primary_color_picker');
+    const primaryColorInput = document.getElementById('app_primary_color');
+    const normalizeHexColor = (rawValue) => {
+        const value = String(rawValue || '').trim();
+        let match = value.match(/^#?([0-9a-fA-F]{6})$/);
+        if (match) {
+            return '#' + match[1].toLowerCase();
+        }
+        match = value.match(/^#?([0-9a-fA-F]{3})$/);
+        if (match) {
+            const shortHex = match[1].toLowerCase();
+            return '#' + shortHex[0] + shortHex[0] + shortHex[1] + shortHex[1] + shortHex[2] + shortHex[2];
+        }
+        return '';
+    };
+
+    if (primaryColorPicker && primaryColorInput) {
+        const applyPrimaryColor = (rawValue) => {
+            const normalized = normalizeHexColor(rawValue);
+            if (!normalized) {
+                return false;
+            }
+            primaryColorPicker.value = normalized;
+            primaryColorInput.value = normalized;
+            return true;
+        };
+
+        primaryColorPicker.addEventListener('input', () => {
+            primaryColorInput.value = primaryColorPicker.value;
+        });
+
+        primaryColorInput.addEventListener('input', () => {
+            const normalized = normalizeHexColor(primaryColorInput.value);
+            if (normalized) {
+                primaryColorPicker.value = normalized;
+            }
+        });
+
+        primaryColorInput.addEventListener('blur', () => {
+            if (!applyPrimaryColor(primaryColorInput.value)) {
+                applyPrimaryColor(primaryColorPicker.value || '#660000');
+            }
+        });
+
+        if (!applyPrimaryColor(primaryColorInput.value)) {
+            applyPrimaryColor(primaryColorPicker.value || '#660000');
+        }
+    }
 
     const clearStatus = (el) => {
         if (!el) return;
