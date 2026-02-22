@@ -330,11 +330,10 @@ if (!function_exists('reservation_policy_rule_can_bypass')) {
         string $ruleKey,
         bool $isAdmin,
         bool $isStaff,
-        bool $isOnBehalf
+        bool $_isOnBehalf
     ): bool {
-        if (!$isOnBehalf) {
-            return false;
-        }
+        // Bypass applies to privileged users for both self-booking and
+        // booking on behalf of others.
 
         $ruleCfg = $policy['bypass'][$ruleKey] ?? [];
         if ($isAdmin) {

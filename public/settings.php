@@ -1125,7 +1125,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                     <div class="card-body">
                         <h5 class="card-title mb-1">Reservation Controls</h5>
                         <p class="text-muted small mb-3">
-                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
+                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it for their own bookings and when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
                         </p>
                         <div class="row g-3">
 
@@ -1170,7 +1170,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_notice_bypass_staff"
                                                     <?= $cfg(['app', 'reservation_notice_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_notice_bypass_staff">
-                                                    Checkout staff can bypass when booking for a user
+                                                    Checkout staff can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1182,7 +1182,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_notice_bypass_admin"
                                                     <?= $cfg(['app', 'reservation_notice_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_notice_bypass_admin">
-                                                    Admins can bypass when booking for a user
+                                                    Admins can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1262,7 +1262,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_duration_bypass_staff"
                                                     <?= $cfg(['app', 'reservation_duration_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_duration_bypass_staff">
-                                                    Checkout staff can bypass when booking for a user
+                                                    Checkout staff can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1274,7 +1274,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_duration_bypass_admin"
                                                     <?= $cfg(['app', 'reservation_duration_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_duration_bypass_admin">
-                                                    Admins can bypass when booking for a user
+                                                    Admins can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1305,7 +1305,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_concurrent_bypass_staff"
                                                     <?= $cfg(['app', 'reservation_concurrent_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_concurrent_bypass_staff">
-                                                    Checkout staff can bypass when booking for a user
+                                                    Checkout staff can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1317,7 +1317,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_concurrent_bypass_admin"
                                                     <?= $cfg(['app', 'reservation_concurrent_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_concurrent_bypass_admin">
-                                                    Admins can bypass when booking for a user
+                                                    Admins can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1397,7 +1397,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_blackout_bypass_staff"
                                                     <?= $cfg(['app', 'reservation_blackout_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_blackout_bypass_staff">
-                                                    Checkout staff can bypass when booking for a user
+                                                    Checkout staff can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
@@ -1409,7 +1409,7 @@ $settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
                                                        id="app_res_blackout_bypass_admin"
                                                     <?= $cfg(['app', 'reservation_blackout_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_blackout_bypass_admin">
-                                                    Admins can bypass when booking for a user
+                                                    Admins can bypass this rule
                                                 </label>
                                             </div>
                                         </div>
