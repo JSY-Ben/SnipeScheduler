@@ -468,6 +468,17 @@ document.addEventListener('DOMContentLoaded', function () {
         maybeSubmitWindow();
     }
 
+    function bindFlatpickrApplySubmit(input) {
+        if (!input || !input._flatpickr || !input._flatpickr.calendarContainer) return;
+        const confirmButton = input._flatpickr.calendarContainer.querySelector('.flatpickr-confirm');
+        if (!confirmButton || confirmButton.dataset.windowApplyBound === '1') return;
+        confirmButton.dataset.windowApplyBound = '1';
+        confirmButton.addEventListener('click', function () {
+            normalizeWindowEnd();
+            maybeSubmitWindow();
+        });
+    }
+
     if (windowForm) {
         windowForm.addEventListener('submit', function () {
             if (startInput && endInput) {
@@ -484,6 +495,8 @@ document.addEventListener('DOMContentLoaded', function () {
         endInput.addEventListener('change', function () {
             normalizeWindowEnd();
         });
+        bindFlatpickrApplySubmit(startInput);
+        bindFlatpickrApplySubmit(endInput);
     }
 
     if (todayBtn) {

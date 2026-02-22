@@ -124,6 +124,61 @@ if (!function_exists('layout_theme_styles')) {
     --accent: var(--primary-strong);
     --accent-2: var(--primary-soft);
 }
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.flatpickr-day.today {
+    border-color: var(--primary);
+}
+
+.flatpickr-day.today:hover,
+.flatpickr-day.today:focus {
+    background: var(--primary-soft);
+    border-color: var(--primary-soft);
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+    fill: var(--primary);
+}
+
+.flatpickr-time input:hover,
+.flatpickr-time .flatpickr-am-pm:hover,
+.flatpickr-time input:focus,
+.flatpickr-time .flatpickr-am-pm:focus {
+    background: rgba(var(--primary-rgb), 0.12);
+}
+
+.flatpickr-calendar .flatpickr-confirm {
+    background: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: #fff !important;
+}
+
+.flatpickr-calendar .flatpickr-confirm:hover,
+.flatpickr-calendar .flatpickr-confirm:focus {
+    background: var(--primary-strong) !important;
+    border-color: var(--primary-strong) !important;
+    color: #fff !important;
+}
+
+.flatpickr-calendar .flatpickr-confirm svg {
+    fill: currentColor;
+}
 </style>
 CSS;
 

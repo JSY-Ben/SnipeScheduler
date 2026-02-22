@@ -1688,6 +1688,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
     const todayBtn = document.getElementById('catalogue-today-btn');
+    let windowSubmitInFlight = false;
+    let lastSubmittedWindow = (windowStartInput && windowEndInput)
+        ? (windowStartInput.value.trim() + '|' + windowEndInput.value.trim())
+        : '';
     const modelDetailCards = document.querySelectorAll('.model-card--details');
     const modelDetailsModal = document.getElementById('model-details-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
@@ -1717,7 +1721,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function maybeSubmitWindow() {
-        if (!windowForm || !windowStartInput || !windowEndInput) return;
+        if (windowSubmitInFlight || !windowForm || !windowStartInput || !windowEndInput) return;
         const startVal = windowStartInput.value.trim();
         const endVal = windowEndInput.value.trim();
         if (startVal === '' && endVal === '') return;
@@ -1725,6 +1729,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const startMs = Date.parse(startVal);
         const endMs = Date.parse(endVal);
         if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return;
+        const windowKey = startVal + '|' + endVal;
+        if (windowKey === lastSubmittedWindow) return;
+        lastSubmittedWindow = windowKey;
+        windowSubmitInFlight = true;
         showLoadingOverlay();
         windowForm.submit();
     }
@@ -1774,6 +1782,17 @@ document.addEventListener('DOMContentLoaded', function () {
             nextDay.setHours(9, 0, 0, 0);
             setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(nextDay));
         }
+    }
+
+    function bindFlatpickrApplySubmit(input) {
+        if (!input || !input._flatpickr || !input._flatpickr.calendarContainer) return;
+        const confirmButton = input._flatpickr.calendarContainer.querySelector('.flatpickr-confirm');
+        if (!confirmButton || confirmButton.dataset.windowApplyBound === '1') return;
+        confirmButton.dataset.windowApplyBound = '1';
+        confirmButton.addEventListener('click', function () {
+            normalizeWindowEnd();
+            maybeSubmitWindow();
+        });
     }
 
     function applyOverdueBlock(items) {
@@ -2318,10 +2337,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (windowStartInput && windowEndInput) {
         windowStartInput.addEventListener('change', normalizeWindowEnd);
         windowEndInput.addEventListener('change', normalizeWindowEnd);
+        bindFlatpickrApplySubmit(windowStartInput);
+        bindFlatpickrApplySubmit(windowEndInput);
     }
     if (windowForm) {
         windowForm.addEventListener('submit', () => {
             normalizeWindowEnd();
+            if (windowStartInput && windowEndInput) {
+                lastSubmittedWindow = windowStartInput.value.trim() + '|' + windowEndInput.value.trim();
+            }
+            windowSubmitInFlight = true;
             showLoadingOverlay();
         });
     }
