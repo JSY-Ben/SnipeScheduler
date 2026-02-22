@@ -1367,7 +1367,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            value="<?= h($windowEndRaw) ?>">
                 </div>
                 <div class="col-md-2 d-grid">
-                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn" type="button" id="catalogue-today-btn">
+                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 mb-2 mb-md-0 reservation-window-btn" type="button" id="catalogue-today-btn">
                         Today
                     </button>
                 </div>
