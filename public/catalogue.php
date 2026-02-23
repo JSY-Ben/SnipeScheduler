@@ -24,6 +24,29 @@ $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     : true;
 $overdueCacheTtl = 0;
 
+$catalogueAnnouncements = [];
+$allAnnouncements = app_announcements_from_app_config($appCfg, app_get_timezone($config));
+// Only advance session "shown" state on the actual rendered catalogue view,
+// not on the lightweight redirect shell request.
+$isRenderedCatalogueRequest = $_SERVER['REQUEST_METHOD'] === 'GET'
+    && isset($_GET['prefetch'])
+    && !isset($_GET['ajax']);
+if ($isRenderedCatalogueRequest && !empty($allAnnouncements)) {
+    $activeAnnouncements = app_announcements_active($allAnnouncements, time());
+    if (!empty($activeAnnouncements)) {
+        $announcementToken = app_announcements_session_token($activeAnnouncements);
+        $shownAnnouncementToken = trim((string)($_SESSION['catalogue_announcement_shown_token'] ?? ''));
+        $shownAnnouncementSource = trim((string)($_SESSION['catalogue_announcement_shown_source'] ?? ''));
+        $alreadyShownThisSession = ($shownAnnouncementToken === $announcementToken)
+            && ($shownAnnouncementSource === 'rendered_catalogue');
+        if (!$alreadyShownThisSession) {
+            $catalogueAnnouncements = $activeAnnouncements;
+            $_SESSION['catalogue_announcement_shown_token'] = $announcementToken;
+            $_SESSION['catalogue_announcement_shown_source'] = 'rendered_catalogue';
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch']) && !isset($_GET['ajax'])) {
     $query = $_GET;
     $query['prefetch'] = 1;
@@ -1021,6 +1044,16 @@ if ($windowStartRaw === '' && $windowEndRaw === '') {
         $windowEndRaw   = $sessionEnd;
     }
 }
+if ($windowStartRaw === '' && $windowEndRaw === '') {
+    $windowTz = app_get_timezone($config);
+    $windowStartDt = $windowTz ? new DateTime('now', $windowTz) : new DateTime('now');
+    $windowEndDt = clone $windowStartDt;
+    $windowEndDt->modify('+1 day');
+    $windowEndDt->setTime(9, 0, 0);
+
+    $windowStartRaw = $windowStartDt->format('Y-m-d\TH:i');
+    $windowEndRaw   = $windowEndDt->format('Y-m-d\TH:i');
+}
 
 $windowStartTs = $windowStartRaw !== '' ? strtotime($windowStartRaw) : false;
 $windowEndTs   = $windowEndRaw !== '' ? strtotime($windowEndRaw) : false;
@@ -1340,7 +1373,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="form-label fw-semibold">Start date &amp; time</label>
                     <input type="datetime-local"
                            name="start_datetime"
@@ -1348,7 +1381,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            class="form-control form-control-lg"
                            value="<?= h($windowStartRaw) ?>">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="form-label fw-semibold">End date &amp; time</label>
                     <input type="datetime-local"
                            name="end_datetime"
@@ -1356,12 +1389,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                            class="form-control form-control-lg"
                            value="<?= h($windowEndRaw) ?>">
                 </div>
-                <div class="col-md-4 d-grid d-md-flex gap-2">
-                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn" type="button" id="catalogue-today-btn">
+                <div class="col-12 col-md-2 d-grid mb-2 mb-md-0">
+                    <button class="btn btn-primary btn-lg" type="button" id="catalogue-today-btn">
                         Today
-                    </button>
-                    <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn" type="submit">
-                        Update availability
                     </button>
                 </div>
             </div>
@@ -1582,6 +1612,41 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
      aria-live="polite"
      aria-hidden="true"></div>
 
+<?php if (!empty($catalogueAnnouncements)): ?>
+<div id="catalogue-announcement-modal"
+     class="catalogue-modal catalogue-modal--announcement"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-labelledby="catalogue-announcement-title"
+     hidden>
+    <div class="catalogue-modal__backdrop" data-announcement-close></div>
+    <div class="catalogue-modal__dialog" role="document">
+        <div class="catalogue-modal__header">
+            <h2 id="catalogue-announcement-title" class="catalogue-modal__title">
+                <?= count($catalogueAnnouncements) > 1 ? 'Announcements' : 'Announcement' ?>
+            </h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-announcement-close>
+                Dismiss
+            </button>
+        </div>
+        <div class="catalogue-modal__body">
+            <?php if (count($catalogueAnnouncements) === 1): ?>
+                <div class="announcement-modal__message"><?= nl2br(h((string)$catalogueAnnouncements[0]['message'])) ?></div>
+            <?php else: ?>
+                <ol class="announcement-modal__list">
+                    <?php foreach ($catalogueAnnouncements as $announcement): ?>
+                        <li class="announcement-modal__list-item"><?= nl2br(h((string)$announcement['message'])) ?></li>
+                    <?php endforeach; ?>
+                </ol>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div id="model-details-modal"
      class="catalogue-modal"
      role="dialog"
@@ -1678,7 +1743,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
     const todayBtn = document.getElementById('catalogue-today-btn');
+    const windowScrollRestoreKey = 'snipeScheduler:catalogueWindowScrollY';
+    let windowSubmitInFlight = false;
+    let lastSubmittedWindow = (windowStartInput && windowEndInput)
+        ? (windowStartInput.value.trim() + '|' + windowEndInput.value.trim())
+        : '';
+    let nativeWindowDirty = false;
+    let nativeWindowBlurTimer = null;
     const modelDetailCards = document.querySelectorAll('.model-card--details');
+    const announcementModal = document.getElementById('catalogue-announcement-modal');
     const modelDetailsModal = document.getElementById('model-details-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
     const modelDetailsTitle = document.getElementById('model-details-title');
@@ -1697,8 +1770,15 @@ document.addEventListener('DOMContentLoaded', function () {
     let modelBookings = [];
     let modelDetailsRequestId = 0;
     let modelModalOpen = false;
+    let announcementModalOpen = false;
     let modelModalOpenAnimation = null;
+    let announcementModalLastFocused = null;
     let modalLastFocusedElement = null;
+
+    function syncModalBodyState() {
+        const hasOpenModal = modelModalOpen || announcementModalOpen;
+        document.body.classList.toggle('catalogue-modal-open', hasOpenModal);
+    }
 
     function showLoadingOverlay() {
         if (!loadingOverlay) return;
@@ -1706,8 +1786,69 @@ document.addEventListener('DOMContentLoaded', function () {
         loadingOverlay.setAttribute('aria-busy', 'true');
     }
 
+    function saveWindowScrollPosition() {
+        try {
+            const y = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+            window.sessionStorage.setItem(windowScrollRestoreKey, String(y));
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    function restoreWindowScrollPosition() {
+        try {
+            const raw = window.sessionStorage.getItem(windowScrollRestoreKey);
+            if (raw === null) return;
+            window.sessionStorage.removeItem(windowScrollRestoreKey);
+            const target = parseInt(raw, 10);
+            if (!Number.isFinite(target)) return;
+
+            const scrollToSavedY = function () {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const maxY = Math.max(0, document.documentElement.scrollHeight - Math.max(1, viewportHeight));
+                const nextY = Math.max(0, Math.min(maxY, target));
+                window.scrollTo(0, nextY);
+            };
+
+            window.requestAnimationFrame(function () {
+                scrollToSavedY();
+                window.setTimeout(scrollToSavedY, 120);
+            });
+        } catch (e) {
+            // Ignore storage errors (private mode / blocked storage).
+        }
+    }
+
+    restoreWindowScrollPosition();
+
+    function closeAnnouncementModal() {
+        if (!announcementModal || !announcementModalOpen) return;
+        announcementModalOpen = false;
+        announcementModal.classList.remove('is-open');
+        announcementModal.hidden = true;
+        announcementModal.setAttribute('aria-hidden', 'true');
+        syncModalBodyState();
+        if (announcementModalLastFocused && typeof announcementModalLastFocused.focus === 'function') {
+            announcementModalLastFocused.focus();
+        }
+        announcementModalLastFocused = null;
+    }
+
+    function openAnnouncementModal() {
+        if (!announcementModal || announcementModalOpen) return;
+        announcementModalLastFocused = document.activeElement;
+        announcementModalOpen = true;
+        announcementModal.hidden = false;
+        announcementModal.setAttribute('aria-hidden', 'false');
+        syncModalBodyState();
+        window.requestAnimationFrame(function () {
+            if (!announcementModal || !announcementModalOpen) return;
+            announcementModal.classList.add('is-open');
+        });
+    }
+
     function maybeSubmitWindow() {
-        if (!windowForm || !windowStartInput || !windowEndInput) return;
+        if (windowSubmitInFlight || !windowForm || !windowStartInput || !windowEndInput) return;
         const startVal = windowStartInput.value.trim();
         const endVal = windowEndInput.value.trim();
         if (startVal === '' && endVal === '') return;
@@ -1715,8 +1856,32 @@ document.addEventListener('DOMContentLoaded', function () {
         const startMs = Date.parse(startVal);
         const endMs = Date.parse(endVal);
         if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return;
+        const windowKey = startVal + '|' + endVal;
+        if (windowKey === lastSubmittedWindow) return;
+        lastSubmittedWindow = windowKey;
+        windowSubmitInFlight = true;
+        saveWindowScrollPosition();
         showLoadingOverlay();
         windowForm.submit();
+    }
+
+    function isNativeWindowMode() {
+        return !!(windowStartInput && windowEndInput && !windowStartInput._flatpickr && !windowEndInput._flatpickr);
+    }
+
+    function maybeSubmitNativeWindowOnBlur() {
+        if (!isNativeWindowMode() || !nativeWindowDirty) return;
+        if (nativeWindowBlurTimer) {
+            clearTimeout(nativeWindowBlurTimer);
+        }
+        nativeWindowBlurTimer = window.setTimeout(function () {
+            const activeElement = document.activeElement;
+            if (activeElement === windowStartInput || activeElement === windowEndInput) {
+                return;
+            }
+            nativeWindowDirty = false;
+            maybeSubmitWindow();
+        }, 120);
     }
 
     function toLocalDatetimeValue(date) {
@@ -1728,14 +1893,23 @@ document.addEventListener('DOMContentLoaded', function () {
             + ':' + pad(date.getMinutes());
     }
 
+    function setDatetimeInputValue(input, value) {
+        if (!input) return;
+        if (input._flatpickr) {
+            input._flatpickr.setDate(value, true, input._flatpickr.config.dateFormat);
+            return;
+        }
+        input.value = value;
+    }
+
     function setTodayWindow() {
         if (!windowStartInput || !windowEndInput) return;
         const now = new Date();
         const tomorrow = new Date(now);
         tomorrow.setDate(now.getDate() + 1);
         tomorrow.setHours(9, 0, 0, 0);
-        windowStartInput.value = toLocalDatetimeValue(now);
-        windowEndInput.value = toLocalDatetimeValue(tomorrow);
+        setDatetimeInputValue(windowStartInput, toLocalDatetimeValue(now));
+        setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(tomorrow));
         showLoadingOverlay();
         maybeSubmitWindow();
     }
@@ -1753,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const nextDay = new Date(startDate);
             nextDay.setDate(startDate.getDate() + 1);
             nextDay.setHours(9, 0, 0, 0);
-            windowEndInput.value = toLocalDatetimeValue(nextDay);
+            setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(nextDay));
         }
     }
 
@@ -2145,7 +2319,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelDetailsModal.classList.remove('is-open');
         modelDetailsModal.hidden = true;
         modelDetailsModal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('catalogue-modal-open');
+        syncModalBodyState();
         setModelFeedback('', 'info');
 
         if (modalLastFocusedElement && typeof modalLastFocusedElement.focus === 'function') {
@@ -2162,7 +2336,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelDetailsModal.classList.remove('is-open');
         modelDetailsModal.hidden = false;
         modelDetailsModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('catalogue-modal-open');
+        syncModalBodyState();
         window.requestAnimationFrame(function () {
             if (!modelModalOpen || !modelDetailsModal) {
                 return;
@@ -2297,16 +2471,57 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (windowStartInput && windowEndInput) {
-        windowStartInput.addEventListener('change', normalizeWindowEnd);
-        windowEndInput.addEventListener('change', normalizeWindowEnd);
-        windowStartInput.addEventListener('change', maybeSubmitWindow);
-        windowEndInput.addEventListener('change', maybeSubmitWindow);
-        windowStartInput.addEventListener('blur', maybeSubmitWindow);
-        windowEndInput.addEventListener('blur', maybeSubmitWindow);
+        windowStartInput.addEventListener('change', function () {
+            normalizeWindowEnd();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
+            }
+        });
+        windowEndInput.addEventListener('change', function () {
+            normalizeWindowEnd();
+            if (isNativeWindowMode()) {
+                nativeWindowDirty = true;
+                maybeSubmitNativeWindowOnBlur();
+            }
+        });
+        windowStartInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
+        windowEndInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
+    }
+    if (windowForm) {
+        windowForm.addEventListener('submit', () => {
+            normalizeWindowEnd();
+            if (windowStartInput && windowEndInput) {
+                lastSubmittedWindow = windowStartInput.value.trim() + '|' + windowEndInput.value.trim();
+            }
+            windowSubmitInFlight = true;
+            saveWindowScrollPosition();
+            showLoadingOverlay();
+        });
     }
     if (todayBtn) {
         todayBtn.addEventListener('click', setTodayWindow);
     }
+    document.addEventListener('click', function (event) {
+        if (!windowStartInput || !windowEndInput) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        const confirmButton = target.closest('.flatpickr-confirm');
+        if (!confirmButton) return;
+        const calendar = confirmButton.closest('.flatpickr-calendar');
+        if (!calendar) return;
+
+        const startCalendar = windowStartInput._flatpickr
+            ? windowStartInput._flatpickr.calendarContainer
+            : null;
+        const endCalendar = windowEndInput._flatpickr
+            ? windowEndInput._flatpickr.calendarContainer
+            : null;
+        if (calendar !== startCalendar && calendar !== endCalendar) return;
+
+        normalizeWindowEnd();
+        maybeSubmitWindow();
+    });
 
     const overdueEnabled = document.body.dataset.catalogueOverdue === '1';
     if (overdueEnabled) {
@@ -2459,6 +2674,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    if (announcementModal) {
+        announcementModal.addEventListener('click', function (event) {
+            const target = event.target;
+            if (target && target.closest && target.closest('[data-announcement-close]')) {
+                closeAnnouncementModal();
+            }
+        });
+        openAnnouncementModal();
+    }
+
     if (modelDetailsModal) {
         modelDetailsModal.addEventListener('click', function (event) {
             const target = event.target;
@@ -2469,9 +2694,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && modelModalOpen) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        if (modelModalOpen) {
             event.preventDefault();
             closeModelDetailsModal();
+            return;
+        }
+        if (announcementModalOpen) {
+            event.preventDefault();
+            closeAnnouncementModal();
         }
     });
 

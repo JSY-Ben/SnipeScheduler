@@ -22,6 +22,18 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';
 
 $config = load_config();
+$scriptTz = app_get_timezone($config);
+$nowStamp = static function () use ($config, $scriptTz): string {
+    return app_format_datetime(time(), $config, $scriptTz);
+};
+$logOut = static function (string $level, string $message) use ($nowStamp): void {
+    fwrite(STDOUT, '[' . $nowStamp() . '] [' . $level . '] ' . $message . PHP_EOL);
+};
+$logErr = static function (string $message) use ($nowStamp): void {
+    fwrite(STDERR, '[' . $nowStamp() . '] [error] ' . $message . PHP_EOL);
+};
+$logOut('info', 'email_overdue_staff run started');
+
 $staffEmailRaw = trim((string)($config['app']['overdue_staff_email'] ?? ''));
 $staffNameRaw  = trim((string)($config['app']['overdue_staff_name'] ?? ''));
 
@@ -41,7 +53,7 @@ $staffEmails = $splitList($staffEmailRaw);
 $staffNames  = $splitList($staffNameRaw);
 
 if (empty($staffEmails)) {
-    fwrite(STDERR, "[error] Overdue staff recipient email is not configured in settings.\n");
+    $logErr('Overdue staff recipient email is not configured in settings.');
     exit(1);
 }
 
@@ -89,12 +101,12 @@ function build_overdue_email_staff(array $rows, string $subject, array $config):
 try {
     $assets = list_checked_out_assets(true); // overdue only
 } catch (Throwable $e) {
-    fwrite(STDERR, "[error] Failed to load overdue assets: {$e->getMessage()}\n");
+    $logErr('Failed to load overdue assets: ' . $e->getMessage());
     exit(1);
 }
 
 if (empty($assets)) {
-    echo "[info] No overdue assets found.\n";
+    $logOut('info', 'No overdue assets found.');
     exit(0);
 }
 
@@ -133,6 +145,8 @@ usort($lines, static function (array $a, array $b): int {
     return $b['days'] <=> $a['days'];
 });
 
+$logOut('info', 'Overdue staff report contains ' . count($lines) . ' overdue item(s).');
+
 $appName = $config['app']['name'] ?? 'SnipeScheduler';
 $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
@@ -154,14 +168,14 @@ try {
         );
         if ($ok) {
             $sentCount++;
-            echo "[sent] Overdue report sent to {$email}\n";
+            $logOut('sent', "Overdue report sent to {$email}");
         } else {
             throw new RuntimeException('Email send failed (see logs).');
         }
     }
 } catch (Throwable $e) {
-    fwrite(STDERR, "[error] Failed to send overdue report: {$e->getMessage()}\n");
+    $logErr('Failed to send overdue report: ' . $e->getMessage());
     exit(1);
 }
 
-echo "[done]\n";
+$logOut('done', "Completed; sent {$sentCount} email(s).");

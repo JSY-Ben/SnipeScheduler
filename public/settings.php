@@ -3,6 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/config_writer.php';
+require_once SRC_PATH . '/reservation_policy.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';
 
@@ -35,6 +36,7 @@ $loadedConfig = $config;
 
 $dateFormatOptions = app_date_format_options();
 $timeFormatOptions = app_time_format_options();
+$timezoneOptions = timezone_identifiers_list();
 
 $categoryOptions    = [];
 $categoryFetchError = '';
@@ -264,6 +266,68 @@ function layout_test_ldap(array $ldap): string
     return 'LDAP connection and bind succeeded.';
 }
 
+function layout_upload_logo_file(array $file, array &$errors): ?string
+{
+    $uploadError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadError === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        $errors[] = 'Logo upload failed. Please try again.';
+        return null;
+    }
+
+    $tmpPath = (string)($file['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+        $errors[] = 'Uploaded logo file is invalid.';
+        return null;
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    $maxBytes = 4 * 1024 * 1024; // 4 MB
+    if ($size <= 0 || $size > $maxBytes) {
+        $errors[] = 'Logo image must be smaller than 4 MB.';
+        return null;
+    }
+
+    $imageInfo = @getimagesize($tmpPath);
+    $mime = strtolower((string)($imageInfo['mime'] ?? ''));
+    $allowedMimes = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($allowedMimes[$mime])) {
+        $errors[] = 'Only JPG, PNG, GIF, and WEBP images are allowed for the logo.';
+        return null;
+    }
+
+    $targetDir = APP_ROOT . '/public/uploads/logos';
+    if (!is_dir($targetDir) && !@mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+        $errors[] = 'Could not create logo upload directory.';
+        return null;
+    }
+
+    try {
+        $randomPart = bin2hex(random_bytes(5));
+    } catch (Throwable $e) {
+        $randomPart = substr(sha1((string)microtime(true) . mt_rand()), 0, 10);
+    }
+
+    $filename = 'logo-' . date('Ymd-His') . '-' . $randomPart . '.' . $allowedMimes[$mime];
+    $targetPath = $targetDir . '/' . $filename;
+    if (!@move_uploaded_file($tmpPath, $targetPath)) {
+        $errors[] = 'Could not save uploaded logo image.';
+        return null;
+    }
+
+    @chmod($targetPath, 0644);
+
+    return 'uploads/logos/' . $filename;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
@@ -362,10 +426,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ms['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
 
     $app = $config['app'] ?? [];
-    $app['timezone']              = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
+    $timezoneRaw = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
+    $currentTimezone = (string)($app['timezone'] ?? 'Europe/Jersey');
+    if (!in_array($currentTimezone, $timezoneOptions, true)) {
+        $currentTimezone = 'Europe/Jersey';
+    }
+    $app['timezone']              = in_array($timezoneRaw, $timezoneOptions, true) ? $timezoneRaw : $currentTimezone;
     $app['debug']                 = isset($_POST['app_debug']);
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
-    $app['primary_color']         = $post('app_primary_color', $app['primary_color'] ?? '#660000');
+    if ($action === 'save' && isset($_FILES['app_logo_file']) && is_array($_FILES['app_logo_file'])) {
+        $uploadedLogoPath = layout_upload_logo_file($_FILES['app_logo_file'], $errors);
+        if ($uploadedLogoPath !== null) {
+            $app['logo_url'] = $uploadedLogoPath;
+            $messages[] = 'Logo image uploaded.';
+        }
+    }
+    $app['primary_color']         = layout_normalize_hex_color($post('app_primary_color', $app['primary_color'] ?? '#660000'), '#660000');
     $dateFormatRaw = $post('app_date_format', $app['date_format'] ?? 'd/m/Y');
     $app['date_format']           = array_key_exists($dateFormatRaw, $dateFormatOptions) ? $dateFormatRaw : 'd/m/Y';
     $timeFormatRaw = $post('app_time_format', $app['time_format'] ?? 'H:i');
@@ -375,6 +451,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
+
+    $existingPolicy = reservation_policy_get(['app' => $app]);
+    $existingNoticeParts = reservation_policy_minutes_to_parts($existingPolicy['notice_minutes'] ?? 0);
+    $existingMinDurationParts = reservation_policy_minutes_to_parts($existingPolicy['min_duration_minutes'] ?? 0);
+    $existingMaxDurationParts = reservation_policy_minutes_to_parts($existingPolicy['max_duration_minutes'] ?? 0);
+
+    $noticeDays = max(0, (int)$post('app_res_notice_days', $existingNoticeParts['days'] ?? 0));
+    $noticeHours = max(0, (int)$post('app_res_notice_hours', $existingNoticeParts['hours'] ?? 0));
+    $noticeMinutes = max(0, (int)$post('app_res_notice_minutes', $existingNoticeParts['minutes'] ?? 0));
+    $app['reservation_notice_minutes'] = reservation_policy_parts_to_minutes($noticeDays, $noticeHours, $noticeMinutes);
+    $app['reservation_notice_bypass_checkout_staff'] = isset($_POST['app_res_notice_bypass_staff']);
+    $app['reservation_notice_bypass_admins'] = isset($_POST['app_res_notice_bypass_admin']);
+
+    $minDurationDays = max(0, (int)$post('app_res_duration_min_days', $existingMinDurationParts['days'] ?? 0));
+    $minDurationHours = max(0, (int)$post('app_res_duration_min_hours', $existingMinDurationParts['hours'] ?? 0));
+    $minDurationMinutes = max(0, (int)$post('app_res_duration_min_minutes', $existingMinDurationParts['minutes'] ?? 0));
+    $app['reservation_min_duration_minutes'] = reservation_policy_parts_to_minutes(
+        $minDurationDays,
+        $minDurationHours,
+        $minDurationMinutes
+    );
+
+    $maxDurationDays = max(0, (int)$post('app_res_duration_max_days', $existingMaxDurationParts['days'] ?? 0));
+    $maxDurationHours = max(0, (int)$post('app_res_duration_max_hours', $existingMaxDurationParts['hours'] ?? 0));
+    $maxDurationMinutes = max(0, (int)$post('app_res_duration_max_minutes', $existingMaxDurationParts['minutes'] ?? 0));
+    $app['reservation_max_duration_minutes'] = reservation_policy_parts_to_minutes(
+        $maxDurationDays,
+        $maxDurationHours,
+        $maxDurationMinutes
+    );
+    if (
+        $app['reservation_max_duration_minutes'] > 0
+        && $app['reservation_min_duration_minutes'] > 0
+        && $app['reservation_max_duration_minutes'] < $app['reservation_min_duration_minutes']
+    ) {
+        $app['reservation_max_duration_minutes'] = $app['reservation_min_duration_minutes'];
+    }
+    $app['reservation_duration_bypass_checkout_staff'] = isset($_POST['app_res_duration_bypass_staff']);
+    $app['reservation_duration_bypass_admins'] = isset($_POST['app_res_duration_bypass_admin']);
+
+    $app['reservation_max_concurrent_reservations'] = max(
+        0,
+        (int)$post('app_res_max_concurrent', $existingPolicy['max_concurrent_reservations'] ?? 0)
+    );
+    $app['reservation_concurrent_bypass_checkout_staff'] = isset($_POST['app_res_concurrent_bypass_staff']);
+    $app['reservation_concurrent_bypass_admins'] = isset($_POST['app_res_concurrent_bypass_admin']);
+
+    $blackoutStartsRaw = $_POST['app_res_blackout_start'] ?? [];
+    $blackoutEndsRaw   = $_POST['app_res_blackout_end'] ?? [];
+    $blackoutReasonsRaw = $_POST['app_res_blackout_reason'] ?? [];
+    $blackoutRows = [];
+    if (is_array($blackoutStartsRaw) || is_array($blackoutEndsRaw) || is_array($blackoutReasonsRaw)) {
+        $starts = is_array($blackoutStartsRaw) ? $blackoutStartsRaw : [];
+        $ends   = is_array($blackoutEndsRaw) ? $blackoutEndsRaw : [];
+        $reasons = is_array($blackoutReasonsRaw) ? $blackoutReasonsRaw : [];
+        $rowCount = max(count($starts), count($ends), count($reasons));
+        for ($i = 0; $i < $rowCount; $i++) {
+            $startValue = trim((string)($starts[$i] ?? ''));
+            $endValue   = trim((string)($ends[$i] ?? ''));
+            $reasonValue = trim((string)($reasons[$i] ?? ''));
+            if ($startValue === '' && $endValue === '' && $reasonValue === '') {
+                continue;
+            }
+            $blackoutRows[] = [
+                'start' => $startValue,
+                'end' => $endValue,
+                'reason' => $reasonValue,
+            ];
+        }
+    }
+    $legacyBlackoutRaw = trim((string)($_POST['app_res_blackout_slots'] ?? ''));
+    if (!empty($blackoutRows)) {
+        $app['reservation_blackout_slots'] = reservation_policy_normalize_blackout_slots($blackoutRows, ['app' => $app]);
+    } elseif ($legacyBlackoutRaw !== '') {
+        $app['reservation_blackout_slots'] = reservation_policy_parse_blackout_slots_text($legacyBlackoutRaw, ['app' => $app]);
+    } else {
+        $app['reservation_blackout_slots'] = [];
+    }
+    $app['reservation_blackout_bypass_checkout_staff'] = isset($_POST['app_res_blackout_bypass_staff']);
+    $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
 
     $catalogue = $config['catalogue'] ?? [];
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
@@ -579,6 +735,44 @@ if (!is_array($allowedCategoryIds)) {
 }
 $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 
+$reservationPolicy = reservation_policy_get($config);
+$reservationNoticeParts = reservation_policy_minutes_to_parts($reservationPolicy['notice_minutes'] ?? 0);
+$reservationMinDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['min_duration_minutes'] ?? 0);
+$reservationMaxDurationParts = reservation_policy_minutes_to_parts($reservationPolicy['max_duration_minutes'] ?? 0);
+$reservationBlackoutRows = [];
+$reservationTz = app_get_timezone($config);
+foreach (($reservationPolicy['blackout_slots'] ?? []) as $slot) {
+    $startValue = (string)($slot['start'] ?? '');
+    $endValue = (string)($slot['end'] ?? '');
+    $startDateTime = app_parse_datetime_value($startValue, $reservationTz);
+    $endDateTime = app_parse_datetime_value($endValue, $reservationTz);
+    if (!$startDateTime || !$endDateTime) {
+        continue;
+    }
+    if ($endDateTime->getTimestamp() <= $startDateTime->getTimestamp()) {
+        continue;
+    }
+
+    $reservationBlackoutRows[] = [
+        'start' => $startDateTime->format('Y-m-d\TH:i'),
+        'end' => $endDateTime->format('Y-m-d\TH:i'),
+        'reason' => trim((string)($slot['reason'] ?? '')),
+    ];
+}
+if (empty($reservationBlackoutRows)) {
+    $reservationBlackoutRows[] = ['start' => '', 'end' => '', 'reason' => ''];
+}
+
+$settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
+$settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
+$selectedTimezone = (string)$cfg(['app', 'timezone'], 'Europe/Jersey');
+if (!in_array($selectedTimezone, $timezoneOptions, true)) {
+    $selectedTimezone = 'Europe/Jersey';
+}
+$selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary_color'], '#660000'), '#660000');
+$configuredLogoUrl = trim((string)$cfg(['app', 'logo_url'], ''));
+$effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_default_logo_url();
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -634,10 +828,38 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
             <li class="nav-item">
                 <a class="nav-link active" href="settings.php">Settings</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="announcements.php">Announcements</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="reports.php">Reports</a>
+            </li>
         </ul>
 
-        <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form">
+        <form method="post" action="<?= h($active) ?>" class="row g-3 settings-form" id="settings-form" enctype="multipart/form-data">
+            <input type="hidden" name="settings_tab" id="settings_tab_input" value="<?= h($settingsTab) ?>">
             <div class="col-12">
+                <ul class="nav nav-tabs reservations-subtabs mb-1" id="settings-group-tabs">
+                    <li class="nav-item">
+                        <button type="button"
+                                class="nav-link <?= $settingsTab === 'frontend' ? 'active' : '' ?>"
+                                data-settings-tab="frontend"
+                                aria-selected="<?= $settingsTab === 'frontend' ? 'true' : 'false' ?>">
+                            Frontend Settings
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button"
+                                class="nav-link <?= $settingsTab === 'backend' ? 'active' : '' ?>"
+                                data-settings-tab="backend"
+                                aria-selected="<?= $settingsTab === 'backend' ? 'true' : 'false' ?>">
+                            Backend Settings
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card" id="admin-settings">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Database</h5>
@@ -676,7 +898,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Snipe-IT API</h5>
@@ -707,7 +929,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card" id="admin-access">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Authentication</h5>
@@ -865,7 +1087,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'backend' ? '' : ' d-none' ?>" data-settings-group="backend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">SMTP (email)</h5>
@@ -928,7 +1150,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
@@ -949,7 +1171,7 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
@@ -991,15 +1213,385 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 </div>
             </div>
 
-            <div class="col-12">
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">App preferences</h5>
+                        <h5 class="card-title mb-1">Reservation Controls</h5>
+                        <p class="text-muted small mb-3">
+                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it for their own bookings and when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
+                        </p>
+                        <div class="row g-3">
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">1) Minimum notice for new reservations</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-2">
+                                            <label class="form-label">Days</label>
+                                            <input type="number"
+                                                   name="app_res_notice_days"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['days'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Hours</label>
+                                            <input type="number"
+                                                   name="app_res_notice_hours"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['hours'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Minutes</label>
+                                            <input type="number"
+                                                   name="app_res_notice_minutes"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationNoticeParts['minutes'] ?? 0) ?>">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-text">Set all values to 0 to disable notice requirements.</div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_notice_bypass_staff"
+                                                       id="app_res_notice_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_notice_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_notice_bypass_staff">
+                                                    Checkout staff can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_notice_bypass_admin"
+                                                       id="app_res_notice_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_notice_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_notice_bypass_admin">
+                                                    Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">2) Reservation duration limits</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Minimum duration</label>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_days"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['days'] ?? 0) ?>">
+                                                    <div class="form-text">Days</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_hours"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['hours'] ?? 0) ?>">
+                                                    <div class="form-text">Hours</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_min_minutes"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMinDurationParts['minutes'] ?? 0) ?>">
+                                                    <div class="form-text">Minutes</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-semibold">Maximum duration</label>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_days"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['days'] ?? 0) ?>">
+                                                    <div class="form-text">Days</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_hours"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['hours'] ?? 0) ?>">
+                                                    <div class="form-text">Hours</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <input type="number"
+                                                           name="app_res_duration_max_minutes"
+                                                           class="form-control"
+                                                           min="0"
+                                                           value="<?= (int)($reservationMaxDurationParts['minutes'] ?? 0) ?>">
+                                                    <div class="form-text">Minutes</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_duration_bypass_staff"
+                                                       id="app_res_duration_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_duration_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_duration_bypass_staff">
+                                                    Checkout staff can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_duration_bypass_admin"
+                                                       id="app_res_duration_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_duration_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_duration_bypass_admin">
+                                                    Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">3) Maximum concurrent reservations per user</h6>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Concurrent reservations</label>
+                                            <input type="number"
+                                                   name="app_res_max_concurrent"
+                                                   class="form-control"
+                                                   min="0"
+                                                   value="<?= (int)($reservationPolicy['max_concurrent_reservations'] ?? 0) ?>">
+                                            <div class="form-text">Set to 0 for no limit.</div>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_concurrent_bypass_staff"
+                                                       id="app_res_concurrent_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_concurrent_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_concurrent_bypass_staff">
+                                                    Checkout staff can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_concurrent_bypass_admin"
+                                                       id="app_res_concurrent_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_concurrent_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_concurrent_bypass_admin">
+                                                    Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">4) Blackout slots</h6>
+                                    <div id="blackout-slots-list" class="d-grid gap-2">
+                                        <?php foreach ($reservationBlackoutRows as $row): ?>
+                                            <div class="row g-2 align-items-end" data-blackout-row>
+                                                <div class="col-lg-3 col-md-6">
+                                                    <label class="form-label">Start</label>
+                                                    <input type="datetime-local"
+                                                           class="form-control"
+                                                           name="app_res_blackout_start[]"
+                                                           value="<?= h((string)($row['start'] ?? '')) ?>">
+                                                </div>
+                                                <div class="col-lg-3 col-md-6">
+                                                    <label class="form-label">End</label>
+                                                    <input type="datetime-local"
+                                                           class="form-control"
+                                                           name="app_res_blackout_end[]"
+                                                           value="<?= h((string)($row['end'] ?? '')) ?>">
+                                                </div>
+                                                <div class="col-lg-4 col-md-8">
+                                                    <label class="form-label">Reason (optional)</label>
+                                                    <input type="text"
+                                                           class="form-control"
+                                                           name="app_res_blackout_reason[]"
+                                                           value="<?= h((string)($row['reason'] ?? '')) ?>"
+                                                           placeholder="Shown to users when this blackout blocks a booking">
+                                                </div>
+                                                <div class="col-lg-2 col-md-4 d-grid">
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger"
+                                                            data-blackout-remove>
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <template id="blackout-slot-template">
+                                        <div class="row g-2 align-items-end" data-blackout-row>
+                                            <div class="col-lg-3 col-md-6">
+                                                <label class="form-label">Start</label>
+                                                <input type="datetime-local"
+                                                       class="form-control"
+                                                       name="app_res_blackout_start[]"
+                                                       value="">
+                                            </div>
+                                            <div class="col-lg-3 col-md-6">
+                                                <label class="form-label">End</label>
+                                                <input type="datetime-local"
+                                                       class="form-control"
+                                                       name="app_res_blackout_end[]"
+                                                       value="">
+                                            </div>
+                                            <div class="col-lg-4 col-md-8">
+                                                <label class="form-label">Reason (optional)</label>
+                                                <input type="text"
+                                                       class="form-control"
+                                                       name="app_res_blackout_reason[]"
+                                                       value=""
+                                                       placeholder="Shown to users when this blackout blocks a booking">
+                                            </div>
+                                            <div class="col-lg-2 col-md-4 d-grid">
+                                                <button type="button"
+                                                        class="btn btn-outline-danger"
+                                                        data-blackout-remove>
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="blackout-add-btn">
+                                            Add blackout slot
+                                        </button>
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        Use the date/time pickers to add blackout windows. Reasons are shown to users when a blackout blocks a booking.
+                                    </div>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_blackout_bypass_staff"
+                                                       id="app_res_blackout_bypass_staff"
+                                                    <?= $cfg(['app', 'reservation_blackout_bypass_checkout_staff'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_blackout_bypass_staff">
+                                                    Checkout staff can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_blackout_bypass_admin"
+                                                       id="app_res_blackout_bypass_admin"
+                                                    <?= $cfg(['app', 'reservation_blackout_bypass_admins'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_blackout_bypass_admin">
+                                                    Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">5) Catalogue access with overdue checkouts</h6>
+                                    <div class="row g-2 mt-1">
+                                        <div class="col-12">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_block_catalogue_overdue"
+                                                       id="app_block_catalogue_overdue"
+                                                    <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
+                                                <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
+                                                    Block catalogue for users with overdue checkouts
+                                                </label>
+                                            </div>
+                                            <div class="form-text mt-1">
+                                                When enabled, users with overdue assets cannot access the catalogue until items are returned.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="border rounded p-3">
+                                    <h6 class="mb-2">6) Reservation reminders</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Missed cutoff minutes</label>
+                                            <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
+                                            <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
+                                            <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
+                                            <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
+                                            <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
+                                            <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">App Preferences</h5>
                         <p class="text-muted small mb-3">UI customisation and behaviour tweaks.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Timezone (PHP identifier)</label>
-                                <input type="text" name="app_timezone" class="form-control" value="<?= h($cfg(['app', 'timezone'], 'Europe/Jersey')) ?>">
+                                <select name="app_timezone" class="form-select">
+                                    <?php foreach ($timezoneOptions as $timezone): ?>
+                                        <option value="<?= h($timezone) ?>" <?= $selectedTimezone === $timezone ? 'selected' : '' ?>>
+                                            <?= h($timezone) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Date format</label>
@@ -1027,48 +1619,54 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Primary colour (hex)</label>
-                                <input type="text" name="app_primary_color" class="form-control" value="<?= h($cfg(['app', 'primary_color'], '#660000')) ?>">
+                                <div class="input-group">
+                                    <input type="color"
+                                           class="form-control form-control-color"
+                                           id="app_primary_color_picker"
+                                           value="<?= h($selectedPrimaryColor) ?>"
+                                           aria-label="Pick primary colour">
+                                    <input type="text"
+                                           name="app_primary_color"
+                                           id="app_primary_color"
+                                           class="form-control"
+                                           value="<?= h($selectedPrimaryColor) ?>"
+                                           placeholder="#660000">
+                                </div>
+                                <div class="form-text">Use the picker or type a hex value like <code>#660000</code>.</div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Missed cutoff minutes</label>
-                                <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
-                                <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
-                                <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
-                                <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
-                                <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
-                                <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
-                            </div>
-                            <div class="col-md-6">
+                            <div class="col-md-8">
                                 <label class="form-label">Logo URL</label>
-                                <input type="text" name="app_logo_url" class="form-control" value="<?= h($cfg(['app', 'logo_url'], '')) ?>">
+                                <input type="text"
+                                       name="app_logo_url"
+                                       id="app_logo_url"
+                                       class="form-control"
+                                       value="<?= h($cfg(['app', 'logo_url'], '')) ?>"
+                                       placeholder="https://example.com/logo.png or uploads/logos/your-logo.png">
+                                <div class="form-text">Use a full URL or an app-relative path.</div>
+
+                                <label class="form-label mt-2">Upload logo image</label>
+                                <input type="file"
+                                       name="app_logo_file"
+                                       id="app_logo_file"
+                                       class="form-control"
+                                       accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
+                                <div class="form-text">Accepted formats: JPG, PNG, GIF, WEBP. Max size 4 MB. Uploaded file sets Logo URL when you save.</div>
+
+                                <div class="settings-logo-preview mt-2">
+                                    <div class="small text-muted mb-1">Logo preview</div>
+                                    <div class="settings-logo-preview__frame">
+                                        <img src="<?= h($effectiveLogoUrl) ?>"
+                                             alt="Current app logo preview"
+                                             id="app_logo_preview"
+                                             class="settings-logo-preview__image"
+                                             data-default-src="<?= h(layout_default_logo_url()) ?>">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
+                            <div class="col-md-4 d-flex align-items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-2">
-                            <div class="col-12">
-                                <div class="form-check">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           name="app_block_catalogue_overdue"
-                                           id="app_block_catalogue_overdue"
-                                        <?= $cfg(['app', 'block_catalogue_overdue'], true) ? 'checked' : '' ?>>
-                                    <label class="form-check-label fw-semibold" for="app_block_catalogue_overdue">
-                                        Block catalogue for users with overdue checkouts
-                                    </label>
-                                </div>
-                                <div class="form-text mt-1">
-                                    When enabled, users with overdue assets cannot access the catalogue until items are returned.
                                 </div>
                             </div>
                         </div>
@@ -1087,6 +1685,147 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 (function () {
     const form = document.getElementById('settings-form');
     if (!form) return;
+    const settingsTabInput = document.getElementById('settings_tab_input');
+    const settingsTabs = Array.from(document.querySelectorAll('#settings-group-tabs [data-settings-tab]'));
+    const settingsSections = Array.from(form.querySelectorAll('[data-settings-group]'));
+    const settingsTabAllowed = new Set(['frontend', 'backend']);
+
+    const applySettingsTab = (tabName) => {
+        const nextTab = settingsTabAllowed.has(tabName) ? tabName : 'frontend';
+        settingsSections.forEach((section) => {
+            const sectionTab = section.getAttribute('data-settings-group') || '';
+            section.classList.toggle('d-none', sectionTab !== nextTab);
+        });
+        settingsTabs.forEach((btn) => {
+            const active = btn.getAttribute('data-settings-tab') === nextTab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        if (settingsTabInput) {
+            settingsTabInput.value = nextTab;
+        }
+    };
+
+    settingsTabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-settings-tab') || 'frontend';
+            applySettingsTab(targetTab);
+        });
+    });
+
+    const initialTab = settingsTabInput ? settingsTabInput.value : 'frontend';
+    applySettingsTab(initialTab);
+
+    const primaryColorPicker = document.getElementById('app_primary_color_picker');
+    const primaryColorInput = document.getElementById('app_primary_color');
+    const normalizeHexColor = (rawValue) => {
+        const value = String(rawValue || '').trim();
+        let match = value.match(/^#?([0-9a-fA-F]{6})$/);
+        if (match) {
+            return '#' + match[1].toLowerCase();
+        }
+        match = value.match(/^#?([0-9a-fA-F]{3})$/);
+        if (match) {
+            const shortHex = match[1].toLowerCase();
+            return '#' + shortHex[0] + shortHex[0] + shortHex[1] + shortHex[1] + shortHex[2] + shortHex[2];
+        }
+        return '';
+    };
+
+    if (primaryColorPicker && primaryColorInput) {
+        const applyPrimaryColor = (rawValue) => {
+            const normalized = normalizeHexColor(rawValue);
+            if (!normalized) {
+                return false;
+            }
+            primaryColorPicker.value = normalized;
+            primaryColorInput.value = normalized;
+            return true;
+        };
+
+        primaryColorPicker.addEventListener('input', () => {
+            primaryColorInput.value = primaryColorPicker.value;
+        });
+
+        primaryColorInput.addEventListener('input', () => {
+            const normalized = normalizeHexColor(primaryColorInput.value);
+            if (normalized) {
+                primaryColorPicker.value = normalized;
+            }
+        });
+
+        primaryColorInput.addEventListener('blur', () => {
+            if (!applyPrimaryColor(primaryColorInput.value)) {
+                applyPrimaryColor(primaryColorPicker.value || '#660000');
+            }
+        });
+
+        if (!applyPrimaryColor(primaryColorInput.value)) {
+            applyPrimaryColor(primaryColorPicker.value || '#660000');
+        }
+    }
+
+    const logoUrlInput = document.getElementById('app_logo_url');
+    const logoFileInput = document.getElementById('app_logo_file');
+    const logoPreview = document.getElementById('app_logo_preview');
+    let logoObjectUrl = '';
+
+    const setLogoPreview = (src) => {
+        if (!logoPreview) return;
+        const fallback = String(logoPreview.dataset.defaultSrc || '').trim();
+        const nextSrc = String(src || '').trim();
+        if (nextSrc !== '') {
+            logoPreview.src = nextSrc;
+            return;
+        }
+        if (fallback !== '') {
+            logoPreview.src = fallback;
+        }
+    };
+
+    if (logoPreview) {
+        logoPreview.addEventListener('error', () => {
+            const fallback = String(logoPreview.dataset.defaultSrc || '').trim();
+            if (fallback !== '' && logoPreview.src !== fallback) {
+                logoPreview.src = fallback;
+            }
+        });
+    }
+
+    if (logoUrlInput) {
+        const syncPreviewFromUrl = () => {
+            if (logoObjectUrl !== '') {
+                URL.revokeObjectURL(logoObjectUrl);
+                logoObjectUrl = '';
+            }
+            setLogoPreview(logoUrlInput.value);
+        };
+        logoUrlInput.addEventListener('input', syncPreviewFromUrl);
+        logoUrlInput.addEventListener('blur', syncPreviewFromUrl);
+    }
+
+    if (logoFileInput) {
+        logoFileInput.addEventListener('change', () => {
+            if (logoObjectUrl !== '') {
+                URL.revokeObjectURL(logoObjectUrl);
+                logoObjectUrl = '';
+            }
+            const file = logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+            if (!file) {
+                setLogoPreview(logoUrlInput ? logoUrlInput.value : '');
+                return;
+            }
+            logoObjectUrl = URL.createObjectURL(file);
+            setLogoPreview(logoObjectUrl);
+        });
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (logoObjectUrl !== '') {
+            URL.revokeObjectURL(logoObjectUrl);
+            logoObjectUrl = '';
+        }
+    });
 
     const clearStatus = (el) => {
         if (!el) return;
@@ -1166,6 +1905,71 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
                 });
         });
     });
+
+    const blackoutList = document.getElementById('blackout-slots-list');
+    const blackoutAddBtn = document.getElementById('blackout-add-btn');
+    const blackoutTemplate = document.getElementById('blackout-slot-template');
+
+    if (blackoutList && blackoutAddBtn && blackoutTemplate) {
+        const updateBlackoutRemoveButtons = () => {
+            const rows = blackoutList.querySelectorAll('[data-blackout-row]');
+            rows.forEach((row) => {
+                const removeBtn = row.querySelector('[data-blackout-remove]');
+                if (!removeBtn) return;
+                removeBtn.disabled = false;
+            });
+        };
+
+        const addBlackoutRow = (startValue = '', endValue = '', reasonValue = '') => {
+            const fragment = blackoutTemplate.content.cloneNode(true);
+            const row = fragment.querySelector('[data-blackout-row]');
+            if (!row) return;
+
+            const startInput = row.querySelector('input[name="app_res_blackout_start[]"]');
+            const endInput = row.querySelector('input[name="app_res_blackout_end[]"]');
+            const reasonInput = row.querySelector('input[name="app_res_blackout_reason[]"]');
+            if (startInput) {
+                startInput.value = startValue;
+            }
+            if (endInput) {
+                endInput.value = endValue;
+            }
+            if (reasonInput) {
+                reasonInput.value = reasonValue;
+            }
+
+            blackoutList.appendChild(row);
+            updateBlackoutRemoveButtons();
+        };
+
+        blackoutAddBtn.addEventListener('click', () => {
+            addBlackoutRow();
+        });
+
+        blackoutList.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement)) return;
+            const removeBtn = target.closest('[data-blackout-remove]');
+            if (!removeBtn) return;
+
+            const row = removeBtn.closest('[data-blackout-row]');
+            if (!row) return;
+
+            row.remove();
+
+            if (!blackoutList.querySelector('[data-blackout-row]')) {
+                addBlackoutRow();
+            } else {
+                updateBlackoutRemoveButtons();
+            }
+        });
+
+        if (!blackoutList.querySelector('[data-blackout-row]')) {
+            addBlackoutRow();
+        } else {
+            updateBlackoutRemoveButtons();
+        }
+    }
 })();
 </script>
 </body>

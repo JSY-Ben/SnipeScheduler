@@ -10,10 +10,18 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 
 $config = load_config();
+$scriptTz = app_get_timezone($config);
+$nowStamp = static function () use ($config, $scriptTz): string {
+    return app_format_datetime(time(), $config, $scriptTz);
+};
+$logOut = static function (string $level, string $message) use ($nowStamp): void {
+    fwrite(STDOUT, '[' . $nowStamp() . '] [' . $level . '] ' . $message . PHP_EOL);
+};
 
 $appCfg         = $config['app'] ?? [];
 $cutoffMinutes  = isset($appCfg['missed_cutoff_minutes']) ? (int)$appCfg['missed_cutoff_minutes'] : 60;
 $cutoffMinutes  = max(1, $cutoffMinutes);
+$logOut('info', 'cron_mark_missed run started');
 
 // Ensure the status column includes 'missed' in the ENUM definition.
 try {
@@ -25,10 +33,10 @@ try {
             MODIFY status ENUM('pending','confirmed','completed','cancelled','missed')
             NOT NULL DEFAULT 'pending'
         ");
-        echo "[" . date('Y-m-d H:i:s') . "] Updated reservations.status enum to include 'missed'\n";
+        $logOut('info', "Updated reservations.status enum to include 'missed'");
     }
 } catch (Throwable $e) {
-    echo "[" . date('Y-m-d H:i:s') . "] Warning: could not verify/alter status column: " . $e->getMessage() . "\n";
+    $logOut('warn', 'Could not verify/alter status column: ' . $e->getMessage());
 }
 
 // Use DB server time to avoid PHP/DB drift.
@@ -102,9 +110,8 @@ foreach ($missedIds as $missedId) {
     }
 }
 
-echo sprintf(
-    "[%s] Marked %d reservation(s) as missed (cutoff %d minutes)\n",
-    date('Y-m-d H:i:s'),
+$logOut('done', sprintf(
+    'Marked %d reservation(s) as missed (cutoff %d minutes)',
     $affected,
     $cutoffMinutes
-);
+));

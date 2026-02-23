@@ -18,10 +18,23 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 
+$config = load_config();
+$scriptTz = app_get_timezone($config);
+$nowStamp = static function () use ($config, $scriptTz): string {
+    return app_format_datetime(time(), $config, $scriptTz);
+};
+$logOut = static function (string $level, string $message) use ($nowStamp): void {
+    fwrite(STDOUT, '[' . $nowStamp() . '] [' . $level . '] ' . $message . PHP_EOL);
+};
+$logErr = static function (string $message) use ($nowStamp): void {
+    fwrite(STDERR, '[' . $nowStamp() . '] [error] ' . $message . PHP_EOL);
+};
+$logOut('info', 'sync_checked_out_assets run started');
+
 try {
     $assets = fetch_checked_out_assets_from_snipeit(false, 0);
 } catch (Throwable $e) {
-    fwrite(STDERR, "[error] Failed to load checked-out assets: {$e->getMessage()}\n");
+    $logErr('Failed to load checked-out assets: ' . $e->getMessage());
     exit(1);
 }
 
@@ -126,11 +139,11 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->commit();
     }
-    echo "[done] Synced " . count($assets) . " checked-out asset(s).\n";
+    $logOut('done', 'Synced ' . count($assets) . ' checked-out asset(s).');
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    fwrite(STDERR, "[error] Failed to sync checked-out assets: {$e->getMessage()}\n");
+    $logErr('Failed to sync checked-out assets: ' . $e->getMessage());
     exit(1);
 }
