@@ -875,7 +875,8 @@ function format_location_availability_summary(array $locationCounts): string
 
     $parts = [];
     foreach ($entries as $entry) {
-        $parts[] = (int)$entry['count'] . ' in ' . (string)$entry['location'];
+        $locationSafe = htmlspecialchars((string)$entry['location'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $parts[] = (int)$entry['count'] . ' in <strong>' . $locationSafe . '</strong>';
     }
 
     return '(' . implode(', ', $parts) . ')';
@@ -1763,7 +1764,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <?php endif; ?>
                                     <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= $freeNow ?></span>
                                     <?php if ($locationAvailabilitySummary !== ''): ?>
-                                        <span class="model-location-summary d-block"><?= h($locationAvailabilitySummary) ?></span>
+                                        <span class="model-location-summary d-block"><?= $locationAvailabilitySummary ?></span>
                                     <?php endif; ?>
                                     <?php if (!empty($notes)): ?>
                                         <div class="mt-2 text-muted clamp-3">
