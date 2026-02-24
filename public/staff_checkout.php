@@ -93,6 +93,33 @@ function display_datetime(?string $iso): string
     return app_format_datetime($iso);
 }
 
+function reservation_checkout_asset_default_location(array $asset): string
+{
+    $candidates = [
+        $asset['rtd_location'] ?? null,
+        $asset['default_location'] ?? null,
+        $asset['location'] ?? null,
+        $asset['default_loc'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_array($candidate)) {
+            $name = trim((string)($candidate['name'] ?? ($candidate['label'] ?? ($candidate['text'] ?? ''))));
+            if ($name !== '') {
+                return $name;
+            }
+            continue;
+        }
+
+        $name = trim((string)$candidate);
+        if ($name !== '') {
+            return $name;
+        }
+    }
+
+    return '';
+}
+
 /**
  * Check if a model is booked in another reservation overlapping the window.
  */
@@ -1031,9 +1058,13 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                         $aid   = (int)($opt['id'] ?? 0);
                                                                         $atag  = $opt['asset_tag'] ?? ('ID ' . $aid);
                                                                         $aname = $opt['name'] ?? '';
+                                                                        $locationName = reservation_checkout_asset_default_location($opt);
                                                                         $label = $aname !== ''
-                                                                            ? trim($atag . ' – ' . $aname)
+                                                                            ? trim($atag . ' - ' . $aname)
                                                                             : $atag;
+                                                                        if ($locationName !== '') {
+                                                                            $label .= ' - (' . $locationName . ')';
+                                                                        }
                                                                         $selectedId = $presetSelections[$mid][$i] ?? 0;
                                                                         $selectedAttr = $aid > 0 && $selectedId === $aid ? 'selected' : '';
                                                                         ?>
