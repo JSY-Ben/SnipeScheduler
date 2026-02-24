@@ -1175,11 +1175,11 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="catalogue_show_available_default_locations"
                                         <?= $cfg(['catalogue', 'show_available_default_locations'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="catalogue_show_available_default_locations">
-                                        Display Snipe-IT Default Location for Available Assets on Catalogue
+                                        Display Snipe-IT Default Location for Available Assets on Catalogue and Checkout
                                     </label>
                                 </div>
                                 <div class="form-text">
-                                    Shows a per-location availability line under each model card (for example: <code>(2 in MB109, 2 in MB108)</code>).
+                                    Shows a per-location availability line on catalogue model cards and appends default location in reservation checkout asset selections.
                                 </div>
                             </div>
                         </div>

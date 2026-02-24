@@ -17,6 +17,10 @@ require_once SRC_PATH . '/layout.php';
 
 $config     = load_config();
 $timezone   = $config['app']['timezone'] ?? 'Europe/Jersey';
+$catalogueCfg = $config['catalogue'] ?? [];
+$showAvailableDefaultLocations = array_key_exists('show_available_default_locations', $catalogueCfg)
+    ? !empty($catalogueCfg['show_available_default_locations'])
+    : true;
 $embedded   = defined('RESERVATIONS_EMBED');
 $pageBase   = $embedded ? 'reservations.php' : 'staff_checkout.php';
 $baseQuery  = $embedded ? ['tab' => 'today'] : [];
@@ -1058,10 +1062,12 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                         $aid   = (int)($opt['id'] ?? 0);
                                                                         $atag  = $opt['asset_tag'] ?? ('ID ' . $aid);
                                                                         $aname = $opt['name'] ?? '';
-                                                                        $locationName = reservation_checkout_asset_default_location($opt);
                                                                         $label = $aname !== ''
                                                                             ? trim($atag . ' - ' . $aname)
                                                                             : $atag;
+                                                                        $locationName = $showAvailableDefaultLocations
+                                                                            ? reservation_checkout_asset_default_location($opt)
+                                                                            : '';
                                                                         if ($locationName !== '') {
                                                                             $label .= ' - (' . $locationName . ')';
                                                                         }
