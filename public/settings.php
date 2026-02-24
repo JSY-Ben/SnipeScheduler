@@ -533,6 +533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
 
     $catalogue = $config['catalogue'] ?? [];
+    $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
     if (is_array($allowedRaw)) {
@@ -1165,6 +1166,21 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <label class="form-label">API cache TTL (seconds)</label>
                                 <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
                                 <div class="form-text">Cache Snipe-IT GET responses. Set 0 to disable.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_available_default_locations"
+                                           id="catalogue_show_available_default_locations"
+                                        <?= $cfg(['catalogue', 'show_available_default_locations'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_available_default_locations">
+                                        Display Snipe-IT Default Location for Available Assets on Catalogue
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    Shows a per-location availability line under each model card (for example: <code>(2 in MB109, 2 in MB108)</code>).
+                                </div>
                             </div>
                         </div>
                     </div>

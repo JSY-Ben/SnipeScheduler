@@ -18,9 +18,13 @@ $activeUser      = $bookingOverride ?: $currentUser;
 
 $ldapCfg  = $config['ldap'] ?? [];
 $appCfg   = $config['app'] ?? [];
+$catalogueCfg = $config['catalogue'] ?? [];
 $debugOn  = !empty($appCfg['debug']);
 $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     ? !empty($appCfg['block_catalogue_overdue'])
+    : true;
+$showAvailableDefaultLocations = array_key_exists('show_available_default_locations', $catalogueCfg)
+    ? !empty($catalogueCfg['show_available_default_locations'])
     : true;
 $overdueCacheTtl = 0;
 
@@ -1283,21 +1287,58 @@ try {
 
 if (!empty($models)) {
     try {
-        $stmt = $pdo->query("
-            SELECT model_id, asset_id
-              FROM checked_out_asset_cache
-        ");
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rows as $row) {
-            $mid = (int)($row['model_id'] ?? 0);
-            $assetId = (int)($row['asset_id'] ?? 0);
-            if ($mid <= 0) {
-                continue;
+        $pageModelIds = [];
+        foreach ($models as $rowModel) {
+            $mid = (int)($rowModel['id'] ?? 0);
+            if ($mid > 0) {
+                $pageModelIds[$mid] = true;
             }
+        }
 
-            $checkedOutCounts[$mid] = ($checkedOutCounts[$mid] ?? 0) + 1;
-            if ($assetId > 0) {
-                $checkedOutAssetIdsByModel[$mid][$assetId] = true;
+        if (!empty($pageModelIds)) {
+            $modelIdList = array_keys($pageModelIds);
+            $modelIdChunks = array_chunk($modelIdList, 250);
+            foreach ($modelIdChunks as $chunk) {
+                $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+                if ($showAvailableDefaultLocations) {
+                    $stmt = $pdo->prepare("
+                        SELECT model_id, asset_id
+                          FROM checked_out_asset_cache
+                         WHERE model_id IN ({$placeholders})
+                    ");
+                    $stmt->execute($chunk);
+                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($rows as $row) {
+                        $mid = (int)($row['model_id'] ?? 0);
+                        $assetId = (int)($row['asset_id'] ?? 0);
+                        if ($mid <= 0) {
+                            continue;
+                        }
+
+                        $checkedOutCounts[$mid] = ($checkedOutCounts[$mid] ?? 0) + 1;
+                        if ($assetId > 0) {
+                            $checkedOutAssetIdsByModel[$mid][$assetId] = true;
+                        }
+                    }
+                } else {
+                    $stmt = $pdo->prepare("
+                        SELECT model_id, COUNT(*) AS cnt
+                          FROM checked_out_asset_cache
+                         WHERE model_id IN ({$placeholders})
+                         GROUP BY model_id
+                    ");
+                    $stmt->execute($chunk);
+                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($rows as $row) {
+                        $mid = (int)($row['model_id'] ?? 0);
+                        if ($mid <= 0) {
+                            continue;
+                        }
+                        $checkedOutCounts[$mid] = (int)($row['cnt'] ?? 0);
+                    }
+                }
             }
         }
     } catch (Throwable $e) {
@@ -1540,28 +1581,32 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     $isRequestable = false;
                     $locationAvailabilitySummary = '';
                     try {
-                        $assetsCount = isset($model['assets_count']) && is_numeric($model['assets_count'])
-                            ? (int)$model['assets_count']
-                            : 0;
-                        $assetLookupLimit = min(500, max(100, $assetsCount + 25));
-                        $assets = list_assets_by_model($modelId, $assetLookupLimit);
                         $requestableLocationCounts = [];
                         $requestableAssetLocationById = [];
-                        $assetCount = 0;
+                        if ($showAvailableDefaultLocations) {
+                            $assetsCount = isset($model['assets_count']) && is_numeric($model['assets_count'])
+                                ? (int)$model['assets_count']
+                                : 0;
+                            $assetLookupLimit = min(500, max(100, $assetsCount + 25));
+                            $assets = list_assets_by_model($modelId, $assetLookupLimit);
+                            $assetCount = 0;
 
-                        foreach ($assets as $asset) {
-                            if (empty($asset['requestable'])) {
-                                continue;
+                            foreach ($assets as $asset) {
+                                if (empty($asset['requestable'])) {
+                                    continue;
+                                }
+
+                                $assetCount++;
+                                $locationName = extract_asset_default_location_name($asset);
+                                $requestableLocationCounts[$locationName] = ($requestableLocationCounts[$locationName] ?? 0) + 1;
+
+                                $assetId = (int)($asset['id'] ?? 0);
+                                if ($assetId > 0) {
+                                    $requestableAssetLocationById[$assetId] = $locationName;
+                                }
                             }
-
-                            $assetCount++;
-                            $locationName = extract_asset_default_location_name($asset);
-                            $requestableLocationCounts[$locationName] = ($requestableLocationCounts[$locationName] ?? 0) + 1;
-
-                            $assetId = (int)($asset['id'] ?? 0);
-                            if ($assetId > 0) {
-                                $requestableAssetLocationById[$assetId] = $locationName;
-                            }
+                        } else {
+                            $assetCount = count_requestable_assets_by_model($modelId);
                         }
 
                         if ($windowActive) {
@@ -1613,7 +1658,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         $maxQty = $freeNow;
                         $isRequestable = $assetCount > 0;
 
-                        if ($freeNow > 0 && !empty($requestableLocationCounts)) {
+                        if ($showAvailableDefaultLocations && $freeNow > 0 && !empty($requestableLocationCounts)) {
                             $availableLocationCounts = $requestableLocationCounts;
                             $matchedCheckedOutAssets = 0;
                             $checkedOutAssetIds = $checkedOutAssetIdsByModel[$modelId] ?? [];
@@ -1718,7 +1763,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <?php endif; ?>
                                     <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= $freeNow ?></span>
                                     <?php if ($locationAvailabilitySummary !== ''): ?>
-                                        <span class="text-muted"> <?= h($locationAvailabilitySummary) ?></span>
+                                        <span class="model-location-summary d-block"><?= h($locationAvailabilitySummary) ?></span>
                                     <?php endif; ?>
                                     <?php if (!empty($notes)): ?>
                                         <div class="mt-2 text-muted clamp-3">

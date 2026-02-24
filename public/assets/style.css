@@ -1495,6 +1495,12 @@ form .form-select {
     color: var(--muted);
 }
 
+.model-location-summary {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    margin-top: 0.15rem;
+}
+
 .alert-secondary {
     background: linear-gradient(120deg, rgba(var(--primary-rgb), 0.08), rgba(var(--primary-soft-rgb), 0.08));
     border: 1px solid var(--border);

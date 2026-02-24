@@ -447,6 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         ];
         $newConfig['catalogue'] = [
             'allowed_categories' => [],
+            'show_available_default_locations' => true,
         ];
         $newConfig['smtp'] = [
             'host'       => $post('smtp_host', ''),

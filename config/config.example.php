@@ -166,6 +166,8 @@ return [
         // Restrict which categories appear in the catalogue filter.
         // Leave empty to show all categories returned by Snipe-IT.
         'allowed_categories' => [],
+        // Show grouped default location availability on catalogue model cards.
+        'show_available_default_locations' => true,
     ],
 
     'smtp' => [
