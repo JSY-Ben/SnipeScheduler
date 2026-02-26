@@ -1731,12 +1731,13 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         <p class="text-muted small mb-3">Control outbound emails for operational events and add extra recipients.</p>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">Overdue staff reminder recipients</h6>
+                            <h6 class="mb-2">Overdue Equipment Report Recipients</h6>
+                            <p class="text-muted small mb-3">Used by `scripts/email_overdue_staff.php` cron script to email a report of who is currently overdue on returning resources.</p>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
                                     <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
-                                    <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended).</div>
+                                    <div class="form-text">Multiple emails allowed (comma or new line).</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
