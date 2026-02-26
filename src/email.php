@@ -271,6 +271,60 @@ function layout_extra_notification_recipients(string $raw, array $excludeEmails 
     return $recipients;
 }
 
+/**
+ * Build named recipients from paired email/name raw lists.
+ *
+ * Email list is required; names are optional and matched by position.
+ * If only one name is provided, it is reused for all recipients.
+ *
+ * @param string[] $excludeEmails
+ * @return array<int, array{email: string, name: string}>
+ */
+function layout_named_recipients_from_lists(string $emailsRaw, string $namesRaw = '', array $excludeEmails = []): array
+{
+    $exclude = [];
+    foreach ($excludeEmails as $email) {
+        $key = strtolower(trim((string)$email));
+        if ($key !== '') {
+            $exclude[$key] = true;
+        }
+    }
+
+    $emails = layout_parse_email_list($emailsRaw);
+    $nameParts = preg_split('/[\r\n,;]+/', $namesRaw) ?: [];
+    $names = [];
+    foreach ($nameParts as $part) {
+        $name = trim((string)$part);
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+
+    $recipients = [];
+    foreach ($emails as $idx => $email) {
+        $key = strtolower(trim($email));
+        if ($key === '' || isset($exclude[$key])) {
+            continue;
+        }
+
+        $name = $names[$idx] ?? '';
+        if ($name === '' && count($names) === 1) {
+            $name = $names[0];
+        }
+        if ($name === '') {
+            $name = $email;
+        }
+
+        $exclude[$key] = true;
+        $recipients[] = [
+            'email' => $email,
+            'name'  => $name,
+        ];
+    }
+
+    return $recipients;
+}
+
 function encode_header(string $str): string
 {
     if (preg_match('/[^\x20-\x7E]/', $str)) {

@@ -129,6 +129,10 @@ return [
         'api_cache_ttl_seconds' => 60, // cache Snipe-IT GET responses for this many seconds
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
+        'notification_reservation_submitted_enabled' => true, // new reservation submitted email notifications
+        'notification_reservation_submitted_send_user' => true, // include reservation user for submitted notifications
+        'notification_reservation_submitted_send_staff' => true, // include configured default staff recipients for submitted notifications
+        'notification_reservation_submitted_extra_emails' => '', // extra recipients for reservation submitted emails (comma/newline separated)
         'notification_quick_checkout_enabled' => true, // quick checkout email notifications
         'notification_quick_checkout_extra_emails' => '', // extra recipients for quick checkout emails (comma/newline separated)
         'notification_staff_checkout_enabled' => true, // reservation checkout (staff page) email notifications

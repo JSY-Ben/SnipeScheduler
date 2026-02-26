@@ -456,6 +456,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'app_notify_quick_checkout_extra_emails',
         $app['notification_quick_checkout_extra_emails'] ?? ''
     );
+    $app['notification_reservation_submitted_enabled'] = isset($_POST['app_notify_reservation_submitted_enabled']);
+    $app['notification_reservation_submitted_send_user'] = isset($_POST['app_notify_reservation_submitted_send_user']);
+    $app['notification_reservation_submitted_send_staff'] = isset($_POST['app_notify_reservation_submitted_send_staff']);
+    $app['notification_reservation_submitted_extra_emails'] = $post(
+        'app_notify_reservation_submitted_extra_emails',
+        $app['notification_reservation_submitted_extra_emails'] ?? ''
+    );
     $app['notification_staff_checkout_enabled'] = isset($_POST['app_notify_staff_checkout_enabled']);
     $app['notification_staff_checkout_extra_emails'] = $post(
         'app_notify_staff_checkout_extra_emails',
@@ -1733,7 +1740,51 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">1) Quick checkout notifications</h6>
+                            <h6 class="mb-2">1) New reservation submitted notifications</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_reservation_submitted_enabled"
+                                               id="app_notify_reservation_submitted_enabled"
+                                            <?= $cfg(['app', 'notification_reservation_submitted_enabled'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_notify_reservation_submitted_enabled">
+                                            Enable reservation submitted emails
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_reservation_submitted_send_user"
+                                               id="app_notify_reservation_submitted_send_user"
+                                            <?= $cfg(['app', 'notification_reservation_submitted_send_user'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_reservation_submitted_send_user">
+                                            Email reservation user
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_reservation_submitted_send_staff"
+                                               id="app_notify_reservation_submitted_send_staff"
+                                            <?= $cfg(['app', 'notification_reservation_submitted_send_staff'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_reservation_submitted_send_staff">
+                                            Email default staff recipients
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">Default staff recipients use the overdue staff reminder addresses above.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Additional recipient emails</label>
+                                    <textarea name="app_notify_reservation_submitted_extra_emails" class="form-control" rows="2"><?= h($cfg(['app', 'notification_reservation_submitted_extra_emails'], '')) ?></textarea>
+                                    <div class="form-text">Optional comma/newline list. These recipients are added on top of enabled defaults.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="mb-2">2) Quick checkout notifications</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1757,7 +1808,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">2) Reservation checkout notifications (Staff Checkout page)</h6>
+                            <h6 class="mb-2">3) Reservation checkout notifications (Staff Checkout page)</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1781,7 +1832,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">3) Quick check-in notifications</h6>
+                            <h6 class="mb-2">4) Quick check-in notifications</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1805,7 +1856,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3">
-                            <h6 class="mb-2">4) Missed reservation notifications (`cron_mark_missed.php`)</h6>
+                            <h6 class="mb-2">5) Missed reservation notifications (`cron_mark_missed.php`)</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
