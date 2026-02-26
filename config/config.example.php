@@ -190,6 +190,8 @@ return [
         'allowed_categories' => [],
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
+        // Allow non-logged-in users to view Dashboard/Catalogue (booking actions still require login).
+        'allow_public_view' => false,
     ],
 
     'smtp' => [

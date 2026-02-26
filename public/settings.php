@@ -571,6 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $catalogue = $config['catalogue'] ?? [];
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
+    $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
     if (is_array($allowedRaw)) {
@@ -1201,7 +1202,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
-                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue and how long to cache API responses.</p>
+                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue, API cache behavior, and guest visibility.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
@@ -1226,6 +1227,21 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 </div>
                                 <div class="form-text">
                                     Shows a per-location availability line on catalogue model cards and appends default location in reservation checkout asset selections.
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_allow_public_view"
+                                           id="catalogue_allow_public_view"
+                                        <?= $cfg(['catalogue', 'allow_public_view'], false) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_allow_public_view">
+                                        Allow public viewing of Dashboard and Catalogue
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    When enabled, non-logged-in visitors can view only Dashboard and Catalogue. Selecting Add to basket or View basket sends them to the login screen.
                                 </div>
                             </div>
                         </div>
