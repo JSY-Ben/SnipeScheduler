@@ -688,13 +688,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_staff_checkout_enabled'])
                             : true;
+                        $sendUserDefault = array_key_exists('notification_staff_checkout_send_user', $appCfg)
+                            ? !empty($appCfg['notification_staff_checkout_send_user'])
+                            : true;
+                        $sendStaffDefault = array_key_exists('notification_staff_checkout_send_staff', $appCfg)
+                            ? !empty($appCfg['notification_staff_checkout_send_staff'])
+                            : true;
                         if ($notifyEnabled) {
                             $defaultEmails = [];
-                            if ($userEmail !== '') {
+                            if ($sendUserDefault && $userEmail !== '') {
                                 layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $bodyLines, $config);
                                 $defaultEmails[] = $userEmail;
                             }
-                            if ($staffEmail !== '') {
+                            if ($sendStaffDefault && $staffEmail !== '') {
                                 layout_send_notification(
                                     $staffEmail,
                                     $staffName !== '' ? $staffName : $staffEmail,

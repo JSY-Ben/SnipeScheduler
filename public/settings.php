@@ -452,6 +452,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
     $app['notification_quick_checkout_enabled'] = isset($_POST['app_notify_quick_checkout_enabled']);
+    $app['notification_quick_checkout_send_user'] = isset($_POST['app_notify_quick_checkout_send_user']);
+    $app['notification_quick_checkout_send_staff'] = isset($_POST['app_notify_quick_checkout_send_staff']);
     $app['notification_quick_checkout_extra_emails'] = $post(
         'app_notify_quick_checkout_extra_emails',
         $app['notification_quick_checkout_extra_emails'] ?? ''
@@ -464,11 +466,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $app['notification_reservation_submitted_extra_emails'] ?? ''
     );
     $app['notification_staff_checkout_enabled'] = isset($_POST['app_notify_staff_checkout_enabled']);
+    $app['notification_staff_checkout_send_user'] = isset($_POST['app_notify_staff_checkout_send_user']);
+    $app['notification_staff_checkout_send_staff'] = isset($_POST['app_notify_staff_checkout_send_staff']);
     $app['notification_staff_checkout_extra_emails'] = $post(
         'app_notify_staff_checkout_extra_emails',
         $app['notification_staff_checkout_extra_emails'] ?? ''
     );
     $app['notification_quick_checkin_enabled'] = isset($_POST['app_notify_quick_checkin_enabled']);
+    $app['notification_quick_checkin_send_user'] = isset($_POST['app_notify_quick_checkin_send_user']);
+    $app['notification_quick_checkin_send_staff'] = isset($_POST['app_notify_quick_checkin_send_staff']);
     $app['notification_quick_checkin_extra_emails'] = $post(
         'app_notify_quick_checkin_extra_emails',
         $app['notification_quick_checkin_extra_emails'] ?? ''
@@ -1797,7 +1803,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             Enable quick checkout emails
                                         </label>
                                     </div>
-                                    <div class="form-text">Default recipients: checked-out user and staff member who performed checkout.</div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkout_send_user"
+                                               id="app_notify_quick_checkout_send_user"
+                                            <?= $cfg(['app', 'notification_quick_checkout_send_user'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_quick_checkout_send_user">
+                                            Email checked-out user
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkout_send_staff"
+                                               id="app_notify_quick_checkout_send_staff"
+                                            <?= $cfg(['app', 'notification_quick_checkout_send_staff'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_quick_checkout_send_staff">
+                                            Email staff member who performed checkout
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">These control default recipients. Extra recipients below are separate.</div>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label">Additional recipient emails</label>
@@ -1821,7 +1847,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             Enable reservation checkout emails
                                         </label>
                                     </div>
-                                    <div class="form-text">Default recipients: reservation owner and staff member who checked out the reservation.</div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_staff_checkout_send_user"
+                                               id="app_notify_staff_checkout_send_user"
+                                            <?= $cfg(['app', 'notification_staff_checkout_send_user'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_staff_checkout_send_user">
+                                            Email reservation user
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_staff_checkout_send_staff"
+                                               id="app_notify_staff_checkout_send_staff"
+                                            <?= $cfg(['app', 'notification_staff_checkout_send_staff'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_staff_checkout_send_staff">
+                                            Email staff member who checked out reservation
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">These control default recipients. Extra recipients below are separate.</div>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label">Additional recipient emails</label>
@@ -1845,7 +1891,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             Enable quick check-in emails
                                         </label>
                                     </div>
-                                    <div class="form-text">Default recipients: affected user(s) and staff member who performed check-in.</div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkin_send_user"
+                                               id="app_notify_quick_checkin_send_user"
+                                            <?= $cfg(['app', 'notification_quick_checkin_send_user'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_quick_checkin_send_user">
+                                            Email affected user(s)
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkin_send_staff"
+                                               id="app_notify_quick_checkin_send_staff"
+                                            <?= $cfg(['app', 'notification_quick_checkin_send_staff'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_quick_checkin_send_staff">
+                                            Email staff member who performed check-in
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">These control default recipients. Extra recipients below are separate.</div>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label">Additional recipient emails</label>

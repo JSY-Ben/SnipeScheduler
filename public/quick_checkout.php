@@ -398,16 +398,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_quick_checkout_enabled'])
                             : true;
+                        $sendUserDefault = array_key_exists('notification_quick_checkout_send_user', $appCfg)
+                            ? !empty($appCfg['notification_quick_checkout_send_user'])
+                            : true;
+                        $sendStaffDefault = array_key_exists('notification_quick_checkout_send_staff', $appCfg)
+                            ? !empty($appCfg['notification_quick_checkout_send_staff'])
+                            : true;
 
                         if ($notifyEnabled) {
                             $defaultEmails = [];
 
-                            if ($userEmail !== '') {
+                            if ($sendUserDefault && $userEmail !== '') {
                                 layout_send_notification($userEmail, $userName, 'Assets checked out', $bodyLines, $config);
                                 $defaultEmails[] = $userEmail;
                             }
 
-                            if ($staffEmail !== '') {
+                            if ($sendStaffDefault && $staffEmail !== '') {
                                 $staffBody = array_merge(
                                     [
                                         "You checked out assets for {$userName}"

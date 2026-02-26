@@ -134,10 +134,16 @@ return [
         'notification_reservation_submitted_send_staff' => true, // include configured default staff recipients for submitted notifications
         'notification_reservation_submitted_extra_emails' => '', // extra recipients for reservation submitted emails (comma/newline separated)
         'notification_quick_checkout_enabled' => true, // quick checkout email notifications
+        'notification_quick_checkout_send_user' => true, // include checked-out user for quick checkout notifications
+        'notification_quick_checkout_send_staff' => true, // include staff member who performed quick checkout notifications
         'notification_quick_checkout_extra_emails' => '', // extra recipients for quick checkout emails (comma/newline separated)
         'notification_staff_checkout_enabled' => true, // reservation checkout (staff page) email notifications
+        'notification_staff_checkout_send_user' => true, // include reservation user for staff checkout notifications
+        'notification_staff_checkout_send_staff' => true, // include staff member for staff checkout notifications
         'notification_staff_checkout_extra_emails' => '', // extra recipients for staff checkout emails (comma/newline separated)
         'notification_quick_checkin_enabled' => true, // quick check-in email notifications
+        'notification_quick_checkin_send_user' => true, // include affected user(s) for quick check-in notifications
+        'notification_quick_checkin_send_staff' => true, // include staff member for quick check-in notifications
         'notification_quick_checkin_extra_emails' => '', // extra recipients for quick check-in emails (comma/newline separated)
         'notification_mark_missed_enabled' => false, // cron_mark_missed email notifications
         'notification_mark_missed_send_user' => true, // include reservation user in missed notifications when enabled
