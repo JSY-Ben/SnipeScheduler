@@ -1832,7 +1832,17 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                 <?php else: ?>
                                     <div class="mt-auto">
                                         <?php if ($isRequestable && $freeNow > 0): ?>
-                                            <a href="login.php" class="btn btn-sm btn-success w-100">Add to basket</a>
+                                            <form method="post" action="basket_add.php">
+                                                <input type="hidden" name="model_id" value="<?= $modelId ?>">
+                                                <?php if ($windowActive): ?>
+                                                    <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                                    <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                                <?php endif; ?>
+                                                <input type="hidden" name="quantity" value="1">
+                                                <button type="submit" class="btn btn-sm btn-success w-100">
+                                                    Add to basket
+                                                </button>
+                                            </form>
                                         <?php else: ?>
                                             <div class="alert alert-secondary small mb-0">
                                                 <?php if (!$isRequestable): ?>
