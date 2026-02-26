@@ -1748,7 +1748,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">1) New reservation submitted notifications</h6>
+                            <h6 class="mb-2">New reservation submitted notifications</h6>
                             <?php
                             $legacyReservationSubmittedSendStaff = $cfg(['app', 'notification_reservation_submitted_send_staff'], true);
                             $reservationSubmittedSendCheckoutUsers = $cfg(
@@ -1816,7 +1816,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">2) Quick checkout notifications</h6>
+                            <h6 class="mb-2">Quick checkout notifications</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1860,7 +1860,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">3) Reservation checkout notifications (Staff Checkout page)</h6>
+                            <h6 class="mb-2">Reservation checkout notifications (Staff Checkout page)</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1904,7 +1904,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">4) Quick check-in notifications</h6>
+                            <h6 class="mb-2">Quick check-in notifications</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1948,7 +1948,8 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <div class="border rounded p-3">
-                            <h6 class="mb-2">5) Missed reservation notifications (`cron_mark_missed.php`)</h6>
+                            <h6 class="mb-2">Missed Reservation Notifications</h6>
+                            <p class="text-muted small mb-3">Used by `scripts/cron_mark_missed.php` cron script when a notification is marked as missed after the specified time in 'Frontend Settings'</p>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
