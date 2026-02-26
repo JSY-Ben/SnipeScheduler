@@ -451,6 +451,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
+    $app['notification_quick_checkout_enabled'] = isset($_POST['app_notify_quick_checkout_enabled']);
+    $app['notification_quick_checkout_extra_emails'] = $post(
+        'app_notify_quick_checkout_extra_emails',
+        $app['notification_quick_checkout_extra_emails'] ?? ''
+    );
+    $app['notification_staff_checkout_enabled'] = isset($_POST['app_notify_staff_checkout_enabled']);
+    $app['notification_staff_checkout_extra_emails'] = $post(
+        'app_notify_staff_checkout_extra_emails',
+        $app['notification_staff_checkout_extra_emails'] ?? ''
+    );
+    $app['notification_quick_checkin_enabled'] = isset($_POST['app_notify_quick_checkin_enabled']);
+    $app['notification_quick_checkin_extra_emails'] = $post(
+        'app_notify_quick_checkin_extra_emails',
+        $app['notification_quick_checkin_extra_emails'] ?? ''
+    );
+    $app['notification_mark_missed_enabled'] = isset($_POST['app_notify_mark_missed_enabled']);
+    $app['notification_mark_missed_send_user'] = isset($_POST['app_notify_mark_missed_send_user']);
+    $app['notification_mark_missed_extra_emails'] = $post(
+        'app_notify_mark_missed_extra_emails',
+        $app['notification_mark_missed_extra_emails'] ?? ''
+    );
 
     $existingPolicy = reservation_policy_get(['app' => $app]);
     $existingNoticeParts = reservation_policy_minutes_to_parts($existingPolicy['notice_minutes'] ?? 0);
@@ -765,7 +786,8 @@ if (empty($reservationBlackoutRows)) {
 }
 
 $settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
-$settingsTab = $settingsTabRaw === 'backend' ? 'backend' : 'frontend';
+$settingsTabAllowed = ['frontend', 'backend', 'notifications'];
+$settingsTab = in_array($settingsTabRaw, $settingsTabAllowed, true) ? $settingsTabRaw : 'frontend';
 $selectedTimezone = (string)$cfg(['app', 'timezone'], 'Europe/Jersey');
 if (!in_array($selectedTimezone, $timezoneOptions, true)) {
     $selectedTimezone = 'Europe/Jersey';
@@ -855,6 +877,14 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 data-settings-tab="backend"
                                 aria-selected="<?= $settingsTab === 'backend' ? 'true' : 'false' ?>">
                             Backend Settings
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button type="button"
+                                class="nav-link <?= $settingsTab === 'notifications' ? 'active' : '' ?>"
+                                data-settings-tab="notifications"
+                                aria-selected="<?= $settingsTab === 'notifications' ? 'true' : 'false' ?>">
+                            Notifications
                         </button>
                     </li>
                 </ul>
@@ -1574,16 +1604,6 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             <input type="number" name="app_missed_cutoff" class="form-control" min="0" value="<?= (int)$cfg(['app', 'missed_cutoff_minutes'], 60) ?>">
                                             <div class="form-text">After this many minutes past start, mark reservation as missed.</div>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
-                                            <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
-                                            <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended). Each run sends a list of overdue assets to every address.</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
-                                            <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
-                                            <div class="form-text">Optional. Provide one name per email in the same order (comma or new line). If blank, the email address is used.</div>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1690,6 +1710,137 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 </div>
             </div>
 
+            <div class="col-12<?= $settingsTab === 'notifications' ? '' : ' d-none' ?>" data-settings-group="notifications">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Notifications</h5>
+                        <p class="text-muted small mb-3">Control outbound emails for operational events and add extra recipients.</p>
+
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="mb-2">Overdue staff reminder recipients</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
+                                    <textarea name="app_overdue_staff_email" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_email'], '')) ?></textarea>
+                                    <div class="form-text">Multiple emails allowed (comma or new line). Used by `scripts/email_overdue_staff.php` (cron recommended).</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Overdue Asset Staff Reminder Email Name</label>
+                                    <textarea name="app_overdue_staff_name" class="form-control" rows="2"><?= h($cfg(['app', 'overdue_staff_name'], '')) ?></textarea>
+                                    <div class="form-text">Optional. Provide one name per email in the same order as the email list.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="mb-2">1) Quick checkout notifications</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkout_enabled"
+                                               id="app_notify_quick_checkout_enabled"
+                                            <?= $cfg(['app', 'notification_quick_checkout_enabled'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_notify_quick_checkout_enabled">
+                                            Enable quick checkout emails
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Default recipients: checked-out user and staff member who performed checkout.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Additional recipient emails</label>
+                                    <textarea name="app_notify_quick_checkout_extra_emails" class="form-control" rows="2"><?= h($cfg(['app', 'notification_quick_checkout_extra_emails'], '')) ?></textarea>
+                                    <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="mb-2">2) Reservation checkout notifications (Staff Checkout page)</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_staff_checkout_enabled"
+                                               id="app_notify_staff_checkout_enabled"
+                                            <?= $cfg(['app', 'notification_staff_checkout_enabled'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_notify_staff_checkout_enabled">
+                                            Enable reservation checkout emails
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Default recipients: reservation owner and staff member who checked out the reservation.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Additional recipient emails</label>
+                                    <textarea name="app_notify_staff_checkout_extra_emails" class="form-control" rows="2"><?= h($cfg(['app', 'notification_staff_checkout_extra_emails'], '')) ?></textarea>
+                                    <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="mb-2">3) Quick check-in notifications</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_quick_checkin_enabled"
+                                               id="app_notify_quick_checkin_enabled"
+                                            <?= $cfg(['app', 'notification_quick_checkin_enabled'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_notify_quick_checkin_enabled">
+                                            Enable quick check-in emails
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Default recipients: affected user(s) and staff member who performed check-in.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Additional recipient emails</label>
+                                    <textarea name="app_notify_quick_checkin_extra_emails" class="form-control" rows="2"><?= h($cfg(['app', 'notification_quick_checkin_extra_emails'], '')) ?></textarea>
+                                    <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3">
+                            <h6 class="mb-2">4) Missed reservation notifications (`cron_mark_missed.php`)</h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_mark_missed_enabled"
+                                               id="app_notify_mark_missed_enabled"
+                                            <?= $cfg(['app', 'notification_mark_missed_enabled'], false) ? 'checked' : '' ?>>
+                                        <label class="form-check-label fw-semibold" for="app_notify_mark_missed_enabled">
+                                            Enable missed reservation emails
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_mark_missed_send_user"
+                                               id="app_notify_mark_missed_send_user"
+                                            <?= $cfg(['app', 'notification_mark_missed_send_user'], true) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_mark_missed_send_user">
+                                            Email affected reservation user
+                                        </label>
+                                    </div>
+                                    <div class="form-text">Each reservation marked missed by cron can trigger an email.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">Additional recipient emails</label>
+                                    <textarea name="app_notify_mark_missed_extra_emails" class="form-control" rows="2"><?= h($cfg(['app', 'notification_mark_missed_extra_emails'], '')) ?></textarea>
+                                    <div class="form-text">Optional comma/newline list. Emails are sent per missed reservation.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="col-12 d-flex justify-content-end">
                 <button type="submit" name="action" value="save" class="btn btn-primary">Save settings</button>
             </div>
@@ -1704,7 +1855,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
     const settingsTabInput = document.getElementById('settings_tab_input');
     const settingsTabs = Array.from(document.querySelectorAll('#settings-group-tabs [data-settings-tab]'));
     const settingsSections = Array.from(form.querySelectorAll('[data-settings-group]'));
-    const settingsTabAllowed = new Set(['frontend', 'backend']);
+    const settingsTabAllowed = new Set(['frontend', 'backend', 'notifications']);
 
     const applySettingsTab = (tabName) => {
         const nextTab = settingsTabAllowed.has(tabName) ? tabName : 'frontend';

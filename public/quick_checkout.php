@@ -392,17 +392,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             "Return by: {$dueDisplay}",
                             $note !== '' ? "Note: {$note}" : '',
                         ];
-                        if ($userEmail !== '') {
-                            layout_send_notification($userEmail, $userName, 'Assets checked out', $bodyLines);
-                        }
-                        if ($staffEmail !== '') {
-                            $staffBody = array_merge(
-                                [
-                                    "You checked out assets for {$userName}"
-                                ],
-                                $bodyLines
+
+                        $config = load_config();
+                        $appCfg = $config['app'] ?? [];
+                        $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
+                            ? !empty($appCfg['notification_quick_checkout_enabled'])
+                            : true;
+
+                        if ($notifyEnabled) {
+                            $defaultEmails = [];
+
+                            if ($userEmail !== '') {
+                                layout_send_notification($userEmail, $userName, 'Assets checked out', $bodyLines, $config);
+                                $defaultEmails[] = $userEmail;
+                            }
+
+                            if ($staffEmail !== '') {
+                                $staffBody = array_merge(
+                                    [
+                                        "You checked out assets for {$userName}"
+                                    ],
+                                    $bodyLines
+                                );
+                                layout_send_notification($staffEmail, $staffDisplayName, 'You checked out assets', $staffBody, $config);
+                                $defaultEmails[] = $staffEmail;
+                            }
+
+                            $extraRecipients = layout_extra_notification_recipients(
+                                (string)($appCfg['notification_quick_checkout_extra_emails'] ?? ''),
+                                $defaultEmails
                             );
-                            layout_send_notification($staffEmail, $staffDisplayName, 'You checked out assets', $staffBody);
+                            foreach ($extraRecipients as $recipient) {
+                                layout_send_notification(
+                                    $recipient['email'],
+                                    $recipient['name'],
+                                    'Assets checked out',
+                                    $bodyLines,
+                                    $config
+                                );
+                            }
                         }
 
                         $checkoutAssets = [];

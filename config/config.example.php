@@ -129,6 +129,15 @@ return [
         'api_cache_ttl_seconds' => 60, // cache Snipe-IT GET responses for this many seconds
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
+        'notification_quick_checkout_enabled' => true, // quick checkout email notifications
+        'notification_quick_checkout_extra_emails' => '', // extra recipients for quick checkout emails (comma/newline separated)
+        'notification_staff_checkout_enabled' => true, // reservation checkout (staff page) email notifications
+        'notification_staff_checkout_extra_emails' => '', // extra recipients for staff checkout emails (comma/newline separated)
+        'notification_quick_checkin_enabled' => true, // quick check-in email notifications
+        'notification_quick_checkin_extra_emails' => '', // extra recipients for quick check-in emails (comma/newline separated)
+        'notification_mark_missed_enabled' => false, // cron_mark_missed email notifications
+        'notification_mark_missed_send_user' => true, // include reservation user in missed notifications when enabled
+        'notification_mark_missed_extra_emails' => '', // extra recipients for missed reservation emails (comma/newline separated)
         'block_catalogue_overdue' => true, // block catalogue for users with overdue checkouts
         'reservation_notice_minutes' => 0, // minimum notice before start (0 disables)
         'reservation_notice_bypass_checkout_staff' => false, // allow checkout staff bypass when booking on behalf

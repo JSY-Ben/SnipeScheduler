@@ -205,6 +205,72 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
     return layout_send_mail($toEmail, $toName, $prefixedSubject, $body, $cfg, $htmlBody);
 }
 
+/**
+ * Parse a comma/newline/semicolon separated email list.
+ *
+ * Invalid entries are ignored.
+ *
+ * @return string[]
+ */
+function layout_parse_email_list(string $raw): array
+{
+    $parts = preg_split('/[\r\n,;]+/', $raw) ?: [];
+    $emails = [];
+    $seen = [];
+
+    foreach ($parts as $part) {
+        $email = trim((string)$part);
+        if ($email === '') {
+            continue;
+        }
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            continue;
+        }
+
+        $key = strtolower($email);
+        if (isset($seen[$key])) {
+            continue;
+        }
+
+        $seen[$key] = true;
+        $emails[] = $email;
+    }
+
+    return $emails;
+}
+
+/**
+ * Build recipient entries from a raw list, excluding any matching emails.
+ *
+ * @param string[] $excludeEmails
+ * @return array<int, array{email: string, name: string}>
+ */
+function layout_extra_notification_recipients(string $raw, array $excludeEmails = []): array
+{
+    $exclude = [];
+    foreach ($excludeEmails as $email) {
+        $key = strtolower(trim((string)$email));
+        if ($key !== '') {
+            $exclude[$key] = true;
+        }
+    }
+
+    $recipients = [];
+    foreach (layout_parse_email_list($raw) as $email) {
+        $key = strtolower(trim($email));
+        if ($key === '' || isset($exclude[$key])) {
+            continue;
+        }
+        $exclude[$key] = true;
+        $recipients[] = [
+            'email' => $email,
+            'name'  => $email,
+        ];
+    }
+
+    return $recipients;
+}
+
 function encode_header(string $str): string
 {
     if (preg_match('/[^\x20-\x7E]/', $str)) {
