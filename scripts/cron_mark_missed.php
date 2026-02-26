@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/email.php';
 
 $config = load_config();
 $scriptTz = app_get_timezone($config);
@@ -21,6 +22,27 @@ $logOut = static function (string $level, string $message) use ($nowStamp): void
 $appCfg         = $config['app'] ?? [];
 $cutoffMinutes  = isset($appCfg['missed_cutoff_minutes']) ? (int)$appCfg['missed_cutoff_minutes'] : 60;
 $cutoffMinutes  = max(1, $cutoffMinutes);
+$notifyMissedEnabled = !empty($appCfg['notification_mark_missed_enabled']);
+$notifyMissedSendUser = array_key_exists('notification_mark_missed_send_user', $appCfg)
+    ? !empty($appCfg['notification_mark_missed_send_user'])
+    : true;
+$notifyMissedSendCheckoutUsers = array_key_exists('notification_mark_missed_send_checkout_users', $appCfg)
+    ? !empty($appCfg['notification_mark_missed_send_checkout_users'])
+    : false;
+$notifyMissedSendAdmins = array_key_exists('notification_mark_missed_send_admins', $appCfg)
+    ? !empty($appCfg['notification_mark_missed_send_admins'])
+    : false;
+$notifyMissedExtraRecipientsRaw = (string)($appCfg['notification_mark_missed_extra_emails'] ?? '');
+$notifyMissedRoleRecipients = [];
+if ($notifyMissedSendCheckoutUsers || $notifyMissedSendAdmins) {
+    $notifyMissedRoleRecipients = layout_role_notification_recipients(
+        $notifyMissedSendCheckoutUsers,
+        $notifyMissedSendAdmins,
+        $config
+    );
+}
+$emailSent = 0;
+$emailFailed = 0;
 $logOut('info', 'cron_mark_missed run started');
 
 // Ensure the status column includes 'missed' in the ENUM definition.
@@ -50,14 +72,19 @@ $sql = "
 $pdo->beginTransaction();
 
 $selectStmt = $pdo->prepare("
-    SELECT id
+    SELECT id, user_name, user_email, start_datetime, end_datetime
       FROM reservations
      WHERE status IN ('pending', 'confirmed')
        AND start_datetime < (NOW() - INTERVAL :mins MINUTE)
 ");
 $selectStmt->bindValue(':mins', $cutoffMinutes, PDO::PARAM_INT);
 $selectStmt->execute();
-$missedIds = $selectStmt->fetchAll(PDO::FETCH_COLUMN);
+$missedReservations = $selectStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$missedIds = array_values(array_filter(array_map(static function (array $row): int {
+    return (int)($row['id'] ?? 0);
+}, $missedReservations), static function (int $id): bool {
+    return $id > 0;
+}));
 
 $stmt = $pdo->prepare($sql);
 $stmt->bindValue(':mins', $cutoffMinutes, PDO::PARAM_INT);
@@ -96,22 +123,117 @@ if (!empty($missedIdInts)) {
     }
 }
 
-foreach ($missedIds as $missedId) {
-    $resId = (int)$missedId;
-    if ($resId > 0) {
-        activity_log_event('reservation_missed', 'Reservation marked as missed', [
-            'subject_type' => 'reservation',
-            'subject_id'   => $resId,
-            'metadata'     => [
-                'assets' => $assetsByReservation[$resId] ?? [],
-                'cutoff_minutes' => $cutoffMinutes,
-            ],
-        ]);
+foreach ($missedReservations as $reservation) {
+    $resId = (int)($reservation['id'] ?? 0);
+    if ($resId <= 0) {
+        continue;
+    }
+
+    $assetSummary = $assetsByReservation[$resId] ?? [];
+    activity_log_event('reservation_missed', 'Reservation marked as missed', [
+        'subject_type' => 'reservation',
+        'subject_id'   => $resId,
+        'metadata'     => [
+            'assets' => $assetSummary,
+            'cutoff_minutes' => $cutoffMinutes,
+        ],
+    ]);
+
+    if (!$notifyMissedEnabled) {
+        continue;
+    }
+
+    $startDisplay = app_format_datetime((string)($reservation['start_datetime'] ?? ''), $config, $scriptTz);
+    $endDisplay = app_format_datetime((string)($reservation['end_datetime'] ?? ''), $config, $scriptTz);
+    $itemsDisplay = !empty($assetSummary) ? implode(', ', $assetSummary) : 'No reservation item details available';
+    $userEmail = trim((string)($reservation['user_email'] ?? ''));
+    $userName = trim((string)($reservation['user_name'] ?? ''));
+    $userDisplay = $userName !== '' ? $userName : ($userEmail !== '' ? $userEmail : 'Unknown user');
+    if ($userEmail !== '' && $userName !== '' && strcasecmp($userName, $userEmail) !== 0) {
+        $userDisplay .= " ({$userEmail})";
+    }
+
+    $bodyBase = [
+        "Reservation #{$resId} has been marked as missed.",
+        "Scheduled start: {$startDisplay}",
+        "Scheduled end: {$endDisplay}",
+        "Items: {$itemsDisplay}",
+        "Missed cutoff: {$cutoffMinutes} minute(s) after the start time.",
+    ];
+    $adminBody = array_merge($bodyBase, ["Reserved for: {$userDisplay}"]);
+    $notifiedEmails = [];
+    $notifiedEmailKeys = [];
+
+    if ($notifyMissedSendUser && $userEmail !== '') {
+        $sent = layout_send_notification(
+            $userEmail,
+            $userName !== '' ? $userName : $userEmail,
+            'Reservation marked as missed',
+            $bodyBase,
+            $config
+        );
+        if ($sent) {
+            $emailSent++;
+            $notifiedEmails[] = $userEmail;
+            $notifiedEmailKeys[strtolower($userEmail)] = true;
+        } else {
+            $emailFailed++;
+            $logOut('warn', "Failed to send missed reservation email to {$userEmail} for reservation #{$resId}");
+        }
+    }
+
+    foreach ($notifyMissedRoleRecipients as $recipient) {
+        $recipientEmail = trim((string)($recipient['email'] ?? ''));
+        $recipientKey = strtolower($recipientEmail);
+        if ($recipientKey === '' || isset($notifiedEmailKeys[$recipientKey])) {
+            continue;
+        }
+
+        $sent = layout_send_notification(
+            $recipientEmail,
+            (string)($recipient['name'] ?? $recipientEmail),
+            'Reservation marked as missed',
+            $adminBody,
+            $config
+        );
+        if ($sent) {
+            $emailSent++;
+            $notifiedEmails[] = $recipientEmail;
+            $notifiedEmailKeys[$recipientKey] = true;
+        } else {
+            $emailFailed++;
+            $logOut('warn', "Failed to send missed reservation email to {$recipientEmail} for reservation #{$resId}");
+        }
+    }
+
+    $extraRecipients = layout_extra_notification_recipients($notifyMissedExtraRecipientsRaw, $notifiedEmails);
+    foreach ($extraRecipients as $recipient) {
+        $recipientEmail = trim((string)($recipient['email'] ?? ''));
+        if ($recipientEmail === '') {
+            continue;
+        }
+        $sent = layout_send_notification(
+            $recipientEmail,
+            (string)($recipient['name'] ?? $recipientEmail),
+            'Reservation marked as missed',
+            $adminBody,
+            $config
+        );
+        if ($sent) {
+            $emailSent++;
+        } else {
+            $emailFailed++;
+            $logOut('warn', "Failed to send missed reservation email to {$recipientEmail} for reservation #{$resId}");
+        }
     }
 }
 
-$logOut('done', sprintf(
+$summary = sprintf(
     'Marked %d reservation(s) as missed (cutoff %d minutes)',
     $affected,
     $cutoffMinutes
-));
+);
+if ($notifyMissedEnabled) {
+    $summary .= sprintf('; emails sent %d, failed %d', $emailSent, $emailFailed);
+}
+$logOut('done', $summary);

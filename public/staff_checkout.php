@@ -684,11 +684,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $note !== '' ? "Note: {$note}" : '',
                             "Checked out by: {$staffName}",
                         ];
-                        if ($userEmail !== '') {
-                            layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $bodyLines);
-                        }
-                        if ($staffEmail !== '') {
-                            layout_send_notification($staffEmail, $staffName !== '' ? $staffName : $staffEmail, 'You checked out a reservation', $bodyLines);
+                        $appCfg = $config['app'] ?? [];
+                        $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
+                            ? !empty($appCfg['notification_staff_checkout_enabled'])
+                            : true;
+                        $sendUserDefault = array_key_exists('notification_staff_checkout_send_user', $appCfg)
+                            ? !empty($appCfg['notification_staff_checkout_send_user'])
+                            : true;
+                        $sendStaffDefault = array_key_exists('notification_staff_checkout_send_staff', $appCfg)
+                            ? !empty($appCfg['notification_staff_checkout_send_staff'])
+                            : true;
+                        if ($notifyEnabled) {
+                            $defaultEmails = [];
+                            if ($sendUserDefault && $userEmail !== '') {
+                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $bodyLines, $config);
+                                $defaultEmails[] = $userEmail;
+                            }
+                            if ($sendStaffDefault && $staffEmail !== '') {
+                                layout_send_notification(
+                                    $staffEmail,
+                                    $staffName !== '' ? $staffName : $staffEmail,
+                                    'You checked out a reservation',
+                                    $bodyLines,
+                                    $config
+                                );
+                                $defaultEmails[] = $staffEmail;
+                            }
+
+                            $extraRecipients = layout_extra_notification_recipients(
+                                (string)($appCfg['notification_staff_checkout_extra_emails'] ?? ''),
+                                $defaultEmails
+                            );
+                            foreach ($extraRecipients as $recipient) {
+                                layout_send_notification(
+                                    $recipient['email'],
+                                    $recipient['name'],
+                                    'Reservation has been checked out',
+                                    $bodyLines,
+                                    $config
+                                );
+                            }
                         }
 
                         // Clear selected reservation to avoid repeat

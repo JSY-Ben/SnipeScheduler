@@ -3,6 +3,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/reservation_policy.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
@@ -190,6 +191,116 @@ try {
             'booked_for'=> $userEmail,
         ],
     ]);
+
+    $appCfg = $config['app'] ?? [];
+    $notifyEnabled = array_key_exists('notification_reservation_submitted_enabled', $appCfg)
+        ? !empty($appCfg['notification_reservation_submitted_enabled'])
+        : true;
+    if ($notifyEnabled) {
+        $sendUserDefault = array_key_exists('notification_reservation_submitted_send_user', $appCfg)
+            ? !empty($appCfg['notification_reservation_submitted_send_user'])
+            : true;
+        $legacySendStaffDefault = array_key_exists('notification_reservation_submitted_send_staff', $appCfg)
+            ? !empty($appCfg['notification_reservation_submitted_send_staff'])
+            : true;
+        $sendCheckoutUsersDefault = array_key_exists('notification_reservation_submitted_send_checkout_users', $appCfg)
+            ? !empty($appCfg['notification_reservation_submitted_send_checkout_users'])
+            : $legacySendStaffDefault;
+        $sendAdminsDefault = array_key_exists('notification_reservation_submitted_send_admins', $appCfg)
+            ? !empty($appCfg['notification_reservation_submitted_send_admins'])
+            : $legacySendStaffDefault;
+
+        $startDisplay = app_format_datetime($start, $config);
+        $endDisplay = app_format_datetime($end, $config);
+        $submittedByName = trim((string)($currentUser['first_name'] ?? '') . ' ' . (string)($currentUser['last_name'] ?? ''));
+        $submittedByEmail = trim((string)($currentUser['email'] ?? ''));
+        $submittedByDisplay = $submittedByName !== '' ? $submittedByName : ($submittedByEmail !== '' ? $submittedByEmail : 'Unknown user');
+        if ($submittedByName !== '' && $submittedByEmail !== '' && strcasecmp($submittedByName, $submittedByEmail) !== 0) {
+            $submittedByDisplay .= " ({$submittedByEmail})";
+        }
+
+        $bookedForDisplay = $userName !== '' ? $userName : ($userEmail !== '' ? $userEmail : 'Unknown user');
+        if ($userName !== '' && $userEmail !== '' && strcasecmp($userName, $userEmail) !== 0) {
+            $bookedForDisplay .= " ({$userEmail})";
+        }
+
+        $modelLabels = [];
+        foreach ($models as $entry) {
+            $modelName = trim((string)($entry['model']['name'] ?? 'Item'));
+            if ($modelName === '') {
+                $modelName = 'Item';
+            }
+            $qty = (int)($entry['qty'] ?? 0);
+            $modelLabels[] = $qty > 1 ? ($modelName . " (x{$qty})") : $modelName;
+        }
+        $itemsSummary = !empty($modelLabels)
+            ? implode(', ', $modelLabels)
+            : ((int)$totalRequestedItems . ' item(s)');
+
+        $userBody = [
+            "Reservation #{$reservationId} has been submitted.",
+            "Items: {$itemsSummary}",
+            "Start: {$startDisplay}",
+            "End: {$endDisplay}",
+        ];
+        if ($isOnBehalfBooking) {
+            $userBody[] = "Submitted by: {$submittedByDisplay}";
+        }
+
+        $adminBody = [
+            "Reservation #{$reservationId} has been submitted.",
+            "Booked for: {$bookedForDisplay}",
+            "Items: {$itemsSummary}",
+            "Start: {$startDisplay}",
+            "End: {$endDisplay}",
+            "Submitted by: {$submittedByDisplay}",
+        ];
+
+        $notifiedEmails = [];
+        if ($sendUserDefault && $userEmail !== '') {
+            layout_send_notification(
+                $userEmail,
+                $userName !== '' ? $userName : $userEmail,
+                'Reservation submitted',
+                $userBody,
+                $config
+            );
+            $notifiedEmails[] = $userEmail;
+        }
+
+        if ($sendCheckoutUsersDefault || $sendAdminsDefault) {
+            $roleRecipients = layout_role_notification_recipients(
+                $sendCheckoutUsersDefault,
+                $sendAdminsDefault,
+                $config,
+                $notifiedEmails
+            );
+            foreach ($roleRecipients as $recipient) {
+                layout_send_notification(
+                    $recipient['email'],
+                    $recipient['name'],
+                    'New reservation submitted',
+                    $adminBody,
+                    $config
+                );
+                $notifiedEmails[] = $recipient['email'];
+            }
+        }
+
+        $extraRecipients = layout_extra_notification_recipients(
+            (string)($appCfg['notification_reservation_submitted_extra_emails'] ?? ''),
+            $notifiedEmails
+        );
+        foreach ($extraRecipients as $recipient) {
+            layout_send_notification(
+                $recipient['email'],
+                $recipient['name'],
+                'New reservation submitted',
+                $adminBody,
+                $config
+            );
+        }
+    }
 
 } catch (Exception $e) {
     $pdo->rollBack();

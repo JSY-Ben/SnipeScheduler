@@ -188,19 +188,28 @@ CSS;
 
 if (!function_exists('layout_render_nav')) {
     /**
-     * Render the main app navigation. Highlights the active page and hides staff-only items for non-staff users.
+     * Render the main app navigation.
+     * Highlights the active page and hides staff-only items for non-staff users.
+     * Guests only see Dashboard and Catalogue.
      */
-    function layout_render_nav(string $active, bool $isStaff, bool $isAdmin = false): string
+    function layout_render_nav(string $active, bool $isStaff, bool $isAdmin = false, bool $isAuthenticated = true): string
     {
-        $links = [
-            ['href' => 'index.php',          'label' => 'Dashboard',           'staff' => false],
-            ['href' => 'catalogue.php',      'label' => 'Catalogue',           'staff' => false],
-            ['href' => 'my_bookings.php',    'label' => 'My Reservations',     'staff' => false],
-            ['href' => 'reservations.php',   'label' => 'Reservations',        'staff' => true],
-            ['href' => 'quick_checkout.php', 'label' => 'Quick Checkout',      'staff' => true],
-            ['href' => 'quick_checkin.php',  'label' => 'Quick Checkin',       'staff' => true],
-            ['href' => 'activity_log.php',   'label' => 'Admin',               'staff' => false, 'admin_only' => true],
-        ];
+        if (!$isAuthenticated) {
+            $links = [
+                ['href' => 'index.php',     'label' => 'Dashboard', 'staff' => false],
+                ['href' => 'catalogue.php', 'label' => 'Catalogue', 'staff' => false],
+            ];
+        } else {
+            $links = [
+                ['href' => 'index.php',          'label' => 'Dashboard',           'staff' => false],
+                ['href' => 'catalogue.php',      'label' => 'Catalogue',           'staff' => false],
+                ['href' => 'my_bookings.php',    'label' => 'My Reservations',     'staff' => false],
+                ['href' => 'reservations.php',   'label' => 'Reservations',        'staff' => true],
+                ['href' => 'quick_checkout.php', 'label' => 'Quick Checkout',      'staff' => true],
+                ['href' => 'quick_checkin.php',  'label' => 'Quick Checkin',       'staff' => true],
+                ['href' => 'activity_log.php',   'label' => 'Admin',               'staff' => false, 'admin_only' => true],
+            ];
+        }
 
         $html = '<nav class="app-nav">';
         foreach ($links as $link) {

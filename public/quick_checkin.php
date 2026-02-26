@@ -332,40 +332,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return $item !== '';
                 })));
 
-                // Notify original users
-                foreach ($userBuckets as $email => $info) {
-                    $userAssetLines = array_map(static function (string $item): string {
-                        return '- ' . $item;
-                    }, array_values(array_filter($info['assets'], static function (string $item): bool {
-                        return $item !== '';
-                    })));
-                    $bodyLines = array_merge(
-                        ['The following assets have been checked in:'],
-                        $userAssetLines,
-                        $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
-                        $note !== '' ? ["Note: {$note}"] : []
-                    );
-                    layout_send_notification($email, $info['name'], 'Assets checked in', $bodyLines);
-                }
-                // Notify staff performing check-in
-                if ($staffEmail !== '' && !empty($assetTags)) {
-                    // Build per-user summary for staff so they can see who had the assets
+                $config = load_config();
+                $appCfg = $config['app'] ?? [];
+                $notifyEnabled = array_key_exists('notification_quick_checkin_enabled', $appCfg)
+                    ? !empty($appCfg['notification_quick_checkin_enabled'])
+                    : true;
+                $sendUserDefault = array_key_exists('notification_quick_checkin_send_user', $appCfg)
+                    ? !empty($appCfg['notification_quick_checkin_send_user'])
+                    : true;
+                $sendStaffDefault = array_key_exists('notification_quick_checkin_send_staff', $appCfg)
+                    ? !empty($appCfg['notification_quick_checkin_send_staff'])
+                    : true;
+                if ($notifyEnabled) {
+                    $notifiedEmails = [];
+
+                    // Notify original users.
+                    if ($sendUserDefault) {
+                        foreach ($userBuckets as $email => $info) {
+                            $userAssetLines = array_map(static function (string $item): string {
+                                return '- ' . $item;
+                            }, array_values(array_filter($info['assets'], static function (string $item): bool {
+                                return $item !== '';
+                            })));
+                            $bodyLines = array_merge(
+                                ['The following assets have been checked in:'],
+                                $userAssetLines,
+                                $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
+                                $note !== '' ? ["Note: {$note}"] : []
+                            );
+                            layout_send_notification($email, $info['name'], 'Assets checked in', $bodyLines, $config);
+                            $notifiedEmails[] = $email;
+                        }
+                    }
+
+                    // Build per-user summary so staff and extra recipients can see who had the assets.
                     $perUserSummary = [];
                     foreach ($summaryBuckets as $label => $assets) {
                         $perUserSummary[] = '- ' . $label . ': ' . implode(', ', $assets);
                     }
 
-                    $bodyLines = [];
-                    $bodyLines[] = 'You checked in the following assets:';
+                    $staffBodyLines = [];
+                    $staffBodyLines[] = 'You checked in the following assets:';
                     if (!empty($perUserSummary)) {
-                        $bodyLines = array_merge($bodyLines, $perUserSummary);
+                        $staffBodyLines = array_merge($staffBodyLines, $perUserSummary);
                     } else {
-                        $bodyLines = array_merge($bodyLines, $assetLineItems);
+                        $staffBodyLines = array_merge($staffBodyLines, $assetLineItems);
                     }
                     if ($note !== '') {
-                        $bodyLines[] = "Note: {$note}";
+                        $staffBodyLines[] = "Note: {$note}";
                     }
-                    layout_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $bodyLines);
+
+                    // Notify staff performing check-in.
+                    if ($sendStaffDefault && $staffEmail !== '' && !empty($assetTags)) {
+                        layout_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $staffBodyLines, $config);
+                        $notifiedEmails[] = $staffEmail;
+                    }
+
+                    // Notify extra configured recipients.
+                    $extraRecipients = layout_extra_notification_recipients(
+                        (string)($appCfg['notification_quick_checkin_extra_emails'] ?? ''),
+                        $notifiedEmails
+                    );
+                    $extraBodyLines = [];
+                    $extraBodyLines[] = 'The following assets were checked in:';
+                    if (!empty($perUserSummary)) {
+                        $extraBodyLines = array_merge($extraBodyLines, $perUserSummary);
+                    } else {
+                        $extraBodyLines = array_merge($extraBodyLines, $assetLineItems);
+                    }
+                    if ($staffDisplayName !== '') {
+                        $extraBodyLines[] = "Checked in by: {$staffDisplayName}";
+                    }
+                    if ($note !== '') {
+                        $extraBodyLines[] = "Note: {$note}";
+                    }
+                    foreach ($extraRecipients as $recipient) {
+                        layout_send_notification(
+                            $recipient['email'],
+                            $recipient['name'],
+                            'Assets checked in',
+                            $extraBodyLines,
+                            $config
+                        );
+                    }
                 }
 
                 $checkedInFrom = array_keys($summaryBuckets);
