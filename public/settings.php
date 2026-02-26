@@ -482,6 +482,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     $app['notification_mark_missed_enabled'] = isset($_POST['app_notify_mark_missed_enabled']);
     $app['notification_mark_missed_send_user'] = isset($_POST['app_notify_mark_missed_send_user']);
+    $app['notification_mark_missed_send_checkout_users'] = isset($_POST['app_notify_mark_missed_send_checkout_users']);
+    $app['notification_mark_missed_send_admins'] = isset($_POST['app_notify_mark_missed_send_admins']);
     $app['notification_mark_missed_extra_emails'] = $post(
         'app_notify_mark_missed_extra_emails',
         $app['notification_mark_missed_extra_emails'] ?? ''
@@ -1949,7 +1951,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
 
                         <div class="border rounded p-3">
                             <h6 class="mb-2">Missed Reservation Notifications</h6>
-                            <p class="text-muted small mb-3">Used by `scripts/cron_mark_missed.php` cron script when a notification is marked as missed after the specified time in 'Frontend Settings'</p>
+                            <p class="text-muted small mb-3">Used by `scripts/cron_mark_missed.php` cron script when a reservation is marked as missed.</p>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1972,7 +1974,31 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             Email affected reservation user
                                         </label>
                                     </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_mark_missed_send_checkout_users"
+                                               id="app_notify_mark_missed_send_checkout_users"
+                                            <?= $cfg(['app', 'notification_mark_missed_send_checkout_users'], false) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_mark_missed_send_checkout_users">
+                                            Email All Checkout Users
+                                        </label>
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_mark_missed_send_admins"
+                                               id="app_notify_mark_missed_send_admins"
+                                            <?= $cfg(['app', 'notification_mark_missed_send_admins'], false) ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_mark_missed_send_admins">
+                                            Email all Administrators
+                                        </label>
+                                    </div>
                                     <div class="form-text">Each reservation marked missed by cron can trigger an email.</div>
+                                    <div class="form-text mt-1">
+                                        Recipients come from Access role settings (LDAP checkout/admin groups and Google/Microsoft checkout/admin emails).
+                                        If no role recipients are found, overdue staff reminder addresses above are used.
+                                    </div>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label">Additional recipient emails</label>

@@ -148,6 +148,8 @@ return [
         'notification_quick_checkin_extra_emails' => '', // extra recipients for quick check-in emails (comma/newline separated)
         'notification_mark_missed_enabled' => false, // cron_mark_missed email notifications
         'notification_mark_missed_send_user' => true, // include reservation user in missed notifications when enabled
+        'notification_mark_missed_send_checkout_users' => false, // include all configured checkout users for missed notifications
+        'notification_mark_missed_send_admins' => false, // include all configured administrators for missed notifications
         'notification_mark_missed_extra_emails' => '', // extra recipients for missed reservation emails (comma/newline separated)
         'block_catalogue_overdue' => true, // block catalogue for users with overdue checkouts
         'reservation_notice_minutes' => 0, // minimum notice before start (0 disables)

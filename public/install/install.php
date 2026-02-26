@@ -452,6 +452,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'notification_quick_checkin_extra_emails' => '',
             'notification_mark_missed_enabled' => false,
             'notification_mark_missed_send_user' => true,
+            'notification_mark_missed_send_checkout_users' => false,
+            'notification_mark_missed_send_admins' => false,
             'notification_mark_missed_extra_emails' => '',
             'reservation_notice_minutes' => 0,
             'reservation_notice_bypass_checkout_staff' => false,
