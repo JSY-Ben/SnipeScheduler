@@ -131,7 +131,8 @@ return [
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'notification_reservation_submitted_enabled' => true, // new reservation submitted email notifications
         'notification_reservation_submitted_send_user' => true, // include reservation user for submitted notifications
-        'notification_reservation_submitted_send_staff' => true, // include configured default staff recipients for submitted notifications
+        'notification_reservation_submitted_send_checkout_users' => true, // include all configured checkout users for submitted notifications
+        'notification_reservation_submitted_send_admins' => true, // include all configured administrators for submitted notifications
         'notification_reservation_submitted_extra_emails' => '', // extra recipients for reservation submitted emails (comma/newline separated)
         'notification_quick_checkout_enabled' => true, // quick checkout email notifications
         'notification_quick_checkout_send_user' => true, // include checked-out user for quick checkout notifications

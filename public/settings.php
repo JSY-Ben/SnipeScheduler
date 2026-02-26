@@ -460,7 +460,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     $app['notification_reservation_submitted_enabled'] = isset($_POST['app_notify_reservation_submitted_enabled']);
     $app['notification_reservation_submitted_send_user'] = isset($_POST['app_notify_reservation_submitted_send_user']);
-    $app['notification_reservation_submitted_send_staff'] = isset($_POST['app_notify_reservation_submitted_send_staff']);
+    $app['notification_reservation_submitted_send_checkout_users'] = isset($_POST['app_notify_reservation_submitted_send_checkout_users']);
+    $app['notification_reservation_submitted_send_admins'] = isset($_POST['app_notify_reservation_submitted_send_admins']);
     $app['notification_reservation_submitted_extra_emails'] = $post(
         'app_notify_reservation_submitted_extra_emails',
         $app['notification_reservation_submitted_extra_emails'] ?? ''
@@ -1747,6 +1748,17 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
 
                         <div class="border rounded p-3 mb-3">
                             <h6 class="mb-2">1) New reservation submitted notifications</h6>
+                            <?php
+                            $legacyReservationSubmittedSendStaff = $cfg(['app', 'notification_reservation_submitted_send_staff'], true);
+                            $reservationSubmittedSendCheckoutUsers = $cfg(
+                                ['app', 'notification_reservation_submitted_send_checkout_users'],
+                                $legacyReservationSubmittedSendStaff
+                            );
+                            $reservationSubmittedSendAdmins = $cfg(
+                                ['app', 'notification_reservation_submitted_send_admins'],
+                                $legacyReservationSubmittedSendStaff
+                            );
+                            ?>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -1772,14 +1784,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <div class="form-check mt-2">
                                         <input class="form-check-input"
                                                type="checkbox"
-                                               name="app_notify_reservation_submitted_send_staff"
-                                               id="app_notify_reservation_submitted_send_staff"
-                                            <?= $cfg(['app', 'notification_reservation_submitted_send_staff'], true) ? 'checked' : '' ?>>
-                                        <label class="form-check-label" for="app_notify_reservation_submitted_send_staff">
-                                            Email default staff recipients
+                                               name="app_notify_reservation_submitted_send_checkout_users"
+                                               id="app_notify_reservation_submitted_send_checkout_users"
+                                            <?= $reservationSubmittedSendCheckoutUsers ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_reservation_submitted_send_checkout_users">
+                                            Email All Checkout Users
                                         </label>
                                     </div>
-                                    <div class="form-text mt-1">Default staff recipients use the overdue staff reminder addresses above.</div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="app_notify_reservation_submitted_send_admins"
+                                               id="app_notify_reservation_submitted_send_admins"
+                                            <?= $reservationSubmittedSendAdmins ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="app_notify_reservation_submitted_send_admins">
+                                            Email all Administrators
+                                        </label>
+                                    </div>
+                                    <div class="form-text mt-1">
+                                        Recipients come from Access role settings (LDAP checkout/admin groups and Google/Microsoft checkout/admin emails).
+                                        If no role recipients are found, overdue staff reminder addresses above are used.
+                                    </div>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label">Additional recipient emails</label>

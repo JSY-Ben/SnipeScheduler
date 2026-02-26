@@ -139,9 +139,15 @@ if ($notifyEnabled) {
     $sendUserDefault = array_key_exists('notification_reservation_submitted_send_user', $appCfg)
         ? !empty($appCfg['notification_reservation_submitted_send_user'])
         : true;
-    $sendStaffDefault = array_key_exists('notification_reservation_submitted_send_staff', $appCfg)
+    $legacySendStaffDefault = array_key_exists('notification_reservation_submitted_send_staff', $appCfg)
         ? !empty($appCfg['notification_reservation_submitted_send_staff'])
         : true;
+    $sendCheckoutUsersDefault = array_key_exists('notification_reservation_submitted_send_checkout_users', $appCfg)
+        ? !empty($appCfg['notification_reservation_submitted_send_checkout_users'])
+        : $legacySendStaffDefault;
+    $sendAdminsDefault = array_key_exists('notification_reservation_submitted_send_admins', $appCfg)
+        ? !empty($appCfg['notification_reservation_submitted_send_admins'])
+        : $legacySendStaffDefault;
 
     $startDisplay = app_format_datetime($start, $config);
     $endDisplay = app_format_datetime($end, $config);
@@ -188,13 +194,14 @@ if ($notifyEnabled) {
         $notifiedEmails[] = $userEmail;
     }
 
-    if ($sendStaffDefault) {
-        $staffRecipients = layout_named_recipients_from_lists(
-            (string)($appCfg['overdue_staff_email'] ?? ''),
-            (string)($appCfg['overdue_staff_name'] ?? ''),
+    if ($sendCheckoutUsersDefault || $sendAdminsDefault) {
+        $roleRecipients = layout_role_notification_recipients(
+            $sendCheckoutUsersDefault,
+            $sendAdminsDefault,
+            $config,
             $notifiedEmails
         );
-        foreach ($staffRecipients as $recipient) {
+        foreach ($roleRecipients as $recipient) {
             layout_send_notification(
                 $recipient['email'],
                 $recipient['name'],

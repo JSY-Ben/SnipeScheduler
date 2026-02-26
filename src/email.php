@@ -325,6 +325,298 @@ function layout_named_recipients_from_lists(string $emailsRaw, string $namesRaw 
     return $recipients;
 }
 
+/**
+ * Escape a value for LDAP filter usage.
+ */
+function layout_ldap_escape_filter_value(string $value): string
+{
+    if (function_exists('ldap_escape')) {
+        return ldap_escape($value, '', defined('LDAP_ESCAPE_FILTER') ? LDAP_ESCAPE_FILTER : 0);
+    }
+
+    return str_replace(
+        ['\\', '*', '(', ')', "\x00"],
+        ['\5c', '\2a', '\28', '\29', '\00'],
+        $value
+    );
+}
+
+/**
+ * Build recipients from LDAP members of configured group CN values.
+ *
+ * @param string[] $groupCns
+ * @param string[] $excludeEmails
+ * @return array<int, array{email: string, name: string}>
+ */
+function layout_ldap_group_notification_recipients(array $groupCns, array $ldapCfg, array $excludeEmails = []): array
+{
+    if (empty($groupCns)) {
+        return [];
+    }
+    if (!function_exists('ldap_connect') || !function_exists('ldap_search') || !function_exists('ldap_get_entries')) {
+        return [];
+    }
+
+    $host = trim((string)($ldapCfg['host'] ?? ''));
+    $baseDn = trim((string)($ldapCfg['base_dn'] ?? ''));
+    if ($host === '' || $baseDn === '') {
+        return [];
+    }
+
+    if (!empty($ldapCfg['ignore_cert'])) {
+        putenv('LDAPTLS_REQCERT=never');
+        if (defined('LDAP_OPT_X_TLS_REQUIRE_CERT') && defined('LDAP_OPT_X_TLS_NEVER')) {
+            @ldap_set_option(null, LDAP_OPT_X_TLS_REQUIRE_CERT, LDAP_OPT_X_TLS_NEVER);
+        }
+        if (defined('LDAP_OPT_X_TLS_NEWCTX')) {
+            @ldap_set_option(null, LDAP_OPT_X_TLS_NEWCTX, 0);
+        }
+    }
+
+    $ldap = @ldap_connect($host);
+    if (!$ldap) {
+        return [];
+    }
+    @ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
+    @ldap_set_option($ldap, LDAP_OPT_REFERRALS, 0);
+    if (defined('LDAP_OPT_NETWORK_TIMEOUT')) {
+        @ldap_set_option($ldap, LDAP_OPT_NETWORK_TIMEOUT, 5);
+    }
+
+    $bindDn = trim((string)($ldapCfg['bind_dn'] ?? ''));
+    $bindPwd = (string)($ldapCfg['bind_password'] ?? '');
+    $bound = $bindDn !== ''
+        ? @ldap_bind($ldap, $bindDn, $bindPwd)
+        : @ldap_bind($ldap);
+    if (!$bound) {
+        @ldap_unbind($ldap);
+        return [];
+    }
+
+    $normalizedCns = [];
+    foreach ($groupCns as $cn) {
+        $cn = trim((string)$cn);
+        if ($cn !== '') {
+            $normalizedCns[strtolower($cn)] = $cn;
+        }
+    }
+    if (empty($normalizedCns)) {
+        @ldap_unbind($ldap);
+        return [];
+    }
+
+    $groupDns = [];
+    foreach (array_values($normalizedCns) as $cn) {
+        $groupFilter = '(&(objectClass=group)(cn=' . layout_ldap_escape_filter_value($cn) . '))';
+        $groupSearch = @ldap_search($ldap, $baseDn, $groupFilter, ['distinguishedName'], 0, 20);
+        if (!$groupSearch) {
+            continue;
+        }
+        $groupEntries = @ldap_get_entries($ldap, $groupSearch);
+        $count = (int)($groupEntries['count'] ?? 0);
+        for ($i = 0; $i < $count; $i++) {
+            $dn = trim((string)($groupEntries[$i]['distinguishedname'][0] ?? $groupEntries[$i]['dn'] ?? ''));
+            if ($dn !== '') {
+                $groupDns[strtolower($dn)] = $dn;
+            }
+        }
+    }
+
+    $memberFilters = [];
+    if (!empty($groupDns)) {
+        foreach ($groupDns as $dn) {
+            $memberFilters[] = '(memberOf=' . layout_ldap_escape_filter_value($dn) . ')';
+        }
+    } else {
+        // Fallback when group DN lookup fails: substring match on CN within memberOf.
+        foreach (array_values($normalizedCns) as $cn) {
+            $memberFilters[] = '(memberOf=*CN=' . layout_ldap_escape_filter_value($cn) . ',*)';
+        }
+    }
+
+    if (empty($memberFilters)) {
+        @ldap_unbind($ldap);
+        return [];
+    }
+
+    $memberFilter = count($memberFilters) === 1
+        ? $memberFilters[0]
+        : '(|' . implode('', $memberFilters) . ')';
+
+    $userFilter = '(&(|(objectClass=user)(objectClass=person))'
+        . $memberFilter
+        . '(|(mail=*)(userPrincipalName=*)))';
+    $userAttrs = ['mail', 'userPrincipalName', 'displayName', 'givenName', 'sn'];
+    $userSearch = @ldap_search($ldap, $baseDn, $userFilter, $userAttrs, 0, 2000);
+    $userEntries = $userSearch ? @ldap_get_entries($ldap, $userSearch) : ['count' => 0];
+
+    $exclude = [];
+    foreach ($excludeEmails as $email) {
+        $key = strtolower(trim((string)$email));
+        if ($key !== '') {
+            $exclude[$key] = true;
+        }
+    }
+
+    $recipients = [];
+    $userCount = (int)($userEntries['count'] ?? 0);
+    for ($i = 0; $i < $userCount; $i++) {
+        $mail = trim((string)($userEntries[$i]['mail'][0] ?? ''));
+        $upn = trim((string)($userEntries[$i]['userprincipalname'][0] ?? ''));
+        $email = '';
+        if ($mail !== '' && filter_var($mail, FILTER_VALIDATE_EMAIL) !== false) {
+            $email = $mail;
+        } elseif ($upn !== '' && filter_var($upn, FILTER_VALIDATE_EMAIL) !== false) {
+            $email = $upn;
+        }
+        if ($email === '') {
+            continue;
+        }
+
+        $key = strtolower($email);
+        if (isset($exclude[$key])) {
+            continue;
+        }
+
+        $displayName = trim((string)($userEntries[$i]['displayname'][0] ?? ''));
+        $givenName = trim((string)($userEntries[$i]['givenname'][0] ?? ''));
+        $surname = trim((string)($userEntries[$i]['sn'][0] ?? ''));
+        $name = $displayName !== '' ? $displayName : trim($givenName . ' ' . $surname);
+        if ($name === '') {
+            $name = $email;
+        }
+
+        $exclude[$key] = true;
+        $recipients[] = [
+            'email' => $email,
+            'name' => $name,
+        ];
+    }
+
+    @ldap_unbind($ldap);
+    return $recipients;
+}
+
+/**
+ * Build role-based recipients for reservation submitted notifications.
+ *
+ * Checkout users are sourced from auth checkout email lists and LDAP groups.
+ * Administrators are sourced from auth admin email lists and LDAP groups.
+ * If no role-based recipients are configured, this falls back to the overdue
+ * staff reminder recipient list for backward compatibility.
+ *
+ * @param string[] $excludeEmails
+ * @return array<int, array{email: string, name: string}>
+ */
+function layout_role_notification_recipients(
+    bool $includeCheckoutUsers,
+    bool $includeAdministrators,
+    ?array $cfg = null,
+    array $excludeEmails = []
+): array
+{
+    if (!$includeCheckoutUsers && !$includeAdministrators) {
+        return [];
+    }
+
+    $config = $cfg ?? load_config();
+    $authCfg = $config['auth'] ?? [];
+    $ldapCfg = $config['ldap'] ?? [];
+
+    $roleEmails = [];
+    $addEmailList = static function ($raw) use (&$roleEmails): void {
+        if (!is_array($raw)) {
+            return;
+        }
+
+        foreach ($raw as $item) {
+            foreach (layout_parse_email_list((string)$item) as $email) {
+                $key = strtolower(trim($email));
+                if ($key !== '') {
+                    $roleEmails[$key] = $email;
+                }
+            }
+        }
+    };
+    $normalizeList = static function ($raw): array {
+        if (!is_array($raw)) {
+            $raw = $raw !== '' ? [$raw] : [];
+        }
+        return array_values(array_filter(array_map('trim', $raw), static function ($value) {
+            return $value !== '';
+        }));
+    };
+    $ldapGroupCns = [];
+
+    if ($includeCheckoutUsers) {
+        $addEmailList($authCfg['google_checkout_emails'] ?? []);
+        $addEmailList($authCfg['microsoft_checkout_emails'] ?? []);
+        foreach ($normalizeList($authCfg['checkout_group_cn'] ?? []) as $cn) {
+            $ldapGroupCns[strtolower($cn)] = $cn;
+        }
+    }
+
+    if ($includeAdministrators) {
+        $addEmailList($authCfg['google_admin_emails'] ?? []);
+        $addEmailList($authCfg['microsoft_admin_emails'] ?? []);
+        foreach ($normalizeList($authCfg['admin_group_cn'] ?? []) as $cn) {
+            $ldapGroupCns[strtolower($cn)] = $cn;
+        }
+    }
+
+    $exclude = [];
+    foreach ($excludeEmails as $email) {
+        $key = strtolower(trim((string)$email));
+        if ($key !== '') {
+            $exclude[$key] = true;
+        }
+    }
+
+    $recipients = [];
+    $appendRecipients = static function (array $newRecipients) use (&$recipients, &$exclude): void {
+        foreach ($newRecipients as $recipient) {
+            $email = trim((string)($recipient['email'] ?? ''));
+            if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+            $key = strtolower($email);
+            if (isset($exclude[$key])) {
+                continue;
+            }
+            $exclude[$key] = true;
+            $name = trim((string)($recipient['name'] ?? ''));
+            $recipients[] = [
+                'email' => $email,
+                'name' => $name !== '' ? $name : $email,
+            ];
+        }
+    };
+
+    if (!empty($roleEmails)) {
+        $appendRecipients(
+            layout_extra_notification_recipients(implode("\n", array_values($roleEmails)), array_keys($exclude))
+        );
+    }
+
+    $ldapEnabled = array_key_exists('ldap_enabled', $authCfg) ? !empty($authCfg['ldap_enabled']) : true;
+    if ($ldapEnabled && !empty($ldapGroupCns)) {
+        $appendRecipients(
+            layout_ldap_group_notification_recipients(array_values($ldapGroupCns), $ldapCfg, array_keys($exclude))
+        );
+    }
+
+    if (!empty($recipients)) {
+        return $recipients;
+    }
+
+    $appCfg = $config['app'] ?? [];
+    return layout_named_recipients_from_lists(
+        (string)($appCfg['overdue_staff_email'] ?? ''),
+        (string)($appCfg['overdue_staff_name'] ?? ''),
+        $excludeEmails
+    );
+}
+
 function encode_header(string $str): string
 {
     if (preg_match('/[^\x20-\x7E]/', $str)) {
