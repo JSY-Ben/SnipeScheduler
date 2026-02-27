@@ -35,7 +35,10 @@ $logOut('info', 'email_overdue_users run started');
 
 function build_overdue_email(array $rows, string $subject, array $config): array
 {
-    $appName = $config['app']['name'] ?? 'SnipeScheduler';
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+    if ($appName === '') {
+        $appName = 'SnipeScheduler';
+    }
     $logoUrl = trim($config['app']['logo_url'] ?? '');
 
     $textLines = ["The following assets are overdue:"];
@@ -131,7 +134,10 @@ $sent = 0;
 $failed = 0;
 foreach ($buckets as $email => $info) {
     $config = load_config();
-    $appName = $config['app']['name'] ?? 'SnipeScheduler';
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+    if ($appName === '') {
+        $appName = 'SnipeScheduler';
+    }
     $subject = $appName . ' - Overdue assets reminder';
     [$textBody, $htmlBody] = build_overdue_email($info['assets'], $subject, $config);
     try {

@@ -59,7 +59,10 @@ if (empty($staffEmails)) {
 
 function build_overdue_email_staff(array $rows, string $subject, array $config): array
 {
-    $appName = $config['app']['name'] ?? 'SnipeScheduler';
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+    if ($appName === '') {
+        $appName = 'SnipeScheduler';
+    }
     $logoUrl = trim($config['app']['logo_url'] ?? '');
 
     $textLines = ["Overdue assets report:"];
@@ -147,7 +150,10 @@ usort($lines, static function (array $a, array $b): int {
 
 $logOut('info', 'Overdue staff report contains ' . count($lines) . ' overdue item(s).');
 
-$appName = $config['app']['name'] ?? 'SnipeScheduler';
+$appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+if ($appName === '') {
+    $appName = 'SnipeScheduler';
+}
 $subject = $appName . ' - Overdue assets report';
 [$textBody, $htmlBody] = build_overdue_email_staff($lines, $subject, $config);
 

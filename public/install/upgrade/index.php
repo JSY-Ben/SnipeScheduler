@@ -59,6 +59,7 @@ foreach ($upgradeFiles as $file) {
 
 $messages = [];
 $errors = [];
+$appNameEsc = htmlspecialchars(layout_app_name($config), ENT_QUOTES, 'UTF-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'run') {
     if (empty($pending)) {
@@ -124,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'run')
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Upgrade Database – SnipeScheduler</title>
+    <title>Upgrade Database – <?= $appNameEsc ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../../assets/style.css">

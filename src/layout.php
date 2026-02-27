@@ -28,6 +28,25 @@ if (!function_exists('layout_cached_config')) {
     }
 }
 
+if (!function_exists('layout_default_app_name')) {
+    function layout_default_app_name(): string
+    {
+        return 'SnipeScheduler';
+    }
+}
+
+if (!function_exists('layout_app_name')) {
+    function layout_app_name(?array $cfg = null): string
+    {
+        $config = layout_cached_config($cfg);
+        $name = trim((string)($config['app']['name'] ?? ''));
+        if ($name === '') {
+            return layout_default_app_name();
+        }
+        return $name;
+    }
+}
+
 /**
  * Normalize a hex color string to #rrggbb.
  */
@@ -513,6 +532,7 @@ if (!function_exists('layout_logo_tag')) {
     function layout_logo_tag(?array $cfg = null): string
     {
         $cfg = layout_cached_config($cfg);
+        $appName = layout_app_name($cfg);
 
         $logoUrl = '';
         if (isset($cfg['app']['logo_url']) && trim($cfg['app']['logo_url']) !== '') {
@@ -524,9 +544,10 @@ if (!function_exists('layout_logo_tag')) {
         }
 
         $urlEsc = htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
+        $altEsc = htmlspecialchars($appName . ' logo', ENT_QUOTES, 'UTF-8');
         return '<div class="app-logo text-center mb-3">'
             . '<a href="index.php" aria-label="Go to dashboard">'
-            . '<img src="' . $urlEsc . '" alt="SnipeScheduler logo" style="max-height:80px; width:auto; height:auto; max-width:100%; object-fit:contain;">'
+            . '<img src="' . $urlEsc . '" alt="' . $altEsc . '" style="max-height:80px; width:auto; height:auto; max-width:100%; object-fit:contain;">'
             . '</a>'
             . '</div>';
     }

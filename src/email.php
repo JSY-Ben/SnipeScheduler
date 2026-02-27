@@ -18,6 +18,10 @@ require_once __DIR__ . '/bootstrap.php';
 function layout_send_mail(string $toEmail, string $toName, string $subject, string $body, ?array $cfg = null, ?string $htmlBody = null): bool
 {
     $config = $cfg ?? load_config();
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+    if ($appName === '') {
+        $appName = 'SnipeScheduler';
+    }
     $smtp   = $config['smtp'] ?? [];
 
     $host   = trim($smtp['host'] ?? '');
@@ -27,7 +31,10 @@ function layout_send_mail(string $toEmail, string $toName, string $subject, stri
     $enc    = strtolower(trim($smtp['encryption'] ?? '')); // none|ssl|tls
     $auth   = strtolower(trim($smtp['auth_method'] ?? 'login')); // login|plain|none
     $from   = $smtp['from_email'] ?? '';
-    $fromNm = $smtp['from_name'] ?? 'SnipeScheduler';
+    $fromNm = trim((string)($smtp['from_name'] ?? ''));
+    if ($fromNm === '') {
+        $fromNm = $appName;
+    }
 
     if ($host === '' || $from === '') {
         error_log('SnipeScheduler SMTP not configured (host/from missing).');
@@ -178,7 +185,10 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
     if ($includeHtml) {
         $config = $cfg ?? load_config();
         $logoUrl = trim($config['app']['logo_url'] ?? '');
-        $appName = $config['app']['name'] ?? 'SnipeScheduler';
+        $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+        if ($appName === '') {
+            $appName = 'SnipeScheduler';
+        }
 
         $htmlParts = [];
         $htmlParts[] = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;line-height:1.5;color:#222;} .logo{margin-bottom:12px;} .card{border:1px solid #e5e5e5;border-radius:8px;padding:12px;background:#fafafa;} .muted{color:#666;font-size:12px;}</style></head><body>';
@@ -199,7 +209,10 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
 
     // Prefix subject with app name
     $config = $cfg ?? load_config();
-    $appName = $config['app']['name'] ?? 'SnipeScheduler';
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
+    if ($appName === '') {
+        $appName = 'SnipeScheduler';
+    }
     $prefixedSubject = $appName . ' - ' . $subject;
 
     return layout_send_mail($toEmail, $toName, $prefixedSubject, $body, $cfg, $htmlBody);

@@ -426,6 +426,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ms['allowed_domains'] = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msDomainsRaw))));
 
     $app = $config['app'] ?? [];
+    $appNameRaw = trim((string)$post('app_name', (string)($app['name'] ?? 'SnipeScheduler')));
+    $app['name'] = $appNameRaw !== '' ? $appNameRaw : 'SnipeScheduler';
     $timezoneRaw = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
     $currentTimezone = (string)($app['timezone'] ?? 'Europe/Jersey');
     if (!in_array($currentTimezone, $timezoneOptions, true)) {
@@ -592,7 +594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $smtp['encryption'] = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
     $smtp['auth_method'] = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
     $smtp['from_email'] = $post('smtp_from_email', $smtp['from_email'] ?? '');
-    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? 'SnipeScheduler');
+    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? ($app['name'] ?? 'SnipeScheduler'));
 
     $newConfig = $config;
     $newConfig['db_booking'] = $db;
@@ -649,12 +651,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $targetEmail = $smtp['from_email'];
             $targetName  = $smtp['from_name'] ?? $targetEmail;
+            $appNameForSubject = trim((string)($newConfig['app']['name'] ?? ''));
+            if ($appNameForSubject === '') {
+                $appNameForSubject = 'SnipeScheduler';
+            }
             $sent = layout_send_notification(
                 $targetEmail,
                 $targetName,
-                'SnipeScheduler SMTP test',
-                ['This is a test email from SnipeScheduler SMTP settings.'],
-                ['smtp' => $smtp] + $config
+                'SMTP test',
+                ['This is a test email from ' . $appNameForSubject . ' SMTP settings.'],
+                $newConfig
             );
             if ($sent) {
                 $messages[] = 'SMTP test email sent to ' . $targetEmail . '.';
@@ -810,6 +816,10 @@ if (!in_array($selectedTimezone, $timezoneOptions, true)) {
     $selectedTimezone = 'Europe/Jersey';
 }
 $selectedPrimaryColor = layout_normalize_hex_color((string)$cfg(['app', 'primary_color'], '#660000'), '#660000');
+$selectedAppName = trim((string)$cfg(['app', 'name'], 'SnipeScheduler'));
+if ($selectedAppName === '') {
+    $selectedAppName = 'SnipeScheduler';
+}
 $configuredLogoUrl = trim((string)$cfg(['app', 'logo_url'], ''));
 $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_default_logo_url();
 
@@ -819,7 +829,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin – SnipeScheduler</title>
+    <title>Admin – <?= h($selectedAppName) ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -1187,12 +1197,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">From name</label>
-                                <input type="text" name="smtp_from_name" class="form-control" value="<?= h($cfg(['smtp', 'from_name'], 'SnipeScheduler')) ?>">
+                                <input type="text" name="smtp_from_name" class="form-control" value="<?= h($cfg(['smtp', 'from_name'], $selectedAppName)) ?>">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="small text-muted" id="smtp-test-result"></div>
                             <button type="button" class="btn btn-outline-primary btn-sm" data-test-action="test_smtp" data-target="smtp-test-result">Test SMTP</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">App Name</h5>
+                        <p class="text-muted small mb-3">Used throughout the app UI and email notifications. The version footer remains unchanged.</p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">App Name</label>
+                                <input type="text" name="app_name" class="form-control" value="<?= h($selectedAppName) ?>" maxlength="120">
+                            </div>
                         </div>
                     </div>
                 </div>

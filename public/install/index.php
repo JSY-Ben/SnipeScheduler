@@ -5,13 +5,14 @@ require_once APP_ROOT . '/src/layout.php';
 $configPath = CONFIG_PATH . '/config.php';
 $legacyConfigPath = APP_ROOT . '/config.php';
 $installed = is_file($configPath) || is_file($legacyConfigPath);
+$appNameEsc = htmlspecialchars(layout_app_name(), ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Install – SnipeScheduler</title>
+    <title>Install – <?= $appNameEsc ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../assets/style.css">
@@ -29,7 +30,7 @@ $installed = is_file($configPath) || is_file($legacyConfigPath);
     <div class="page-shell">
         <?= str_replace('href="index.php"', 'href="../index.php"', layout_logo_tag()) ?>
         <div class="page-header">
-            <h1>SnipeScheduler Installer</h1>
+            <h1><?= $appNameEsc ?> Installer</h1>
             <div class="page-subtitle">
                 Set up a new installation or run database upgrades. Remove or protect these tools after use.
             </div>

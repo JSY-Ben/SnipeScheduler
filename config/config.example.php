@@ -119,6 +119,7 @@ return [
     ],
 
     'app' => [
+        'name' => 'SnipeScheduler',
         'timezone' => 'Europe/Jersey',
         'debug'    => true,
         'logo_url' => '', // optional: full URL or relative path to logo image

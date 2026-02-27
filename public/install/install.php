@@ -46,6 +46,12 @@ function installer_h(string $val): string
     return htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
 }
 
+function installer_app_name(array $config): string
+{
+    $name = trim((string)installer_value($config, ['app', 'name'], ''));
+    return $name !== '' ? $name : 'SnipeScheduler';
+}
+
 $existingConfig  = installer_load_array($configPath);
 $defaultConfig   = installer_load_array($examplePath);
 $prefillConfig   = $existingConfig ?: $defaultConfig;
@@ -370,6 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $msCheckoutEmails = array_values(array_filter(array_map('trim', preg_split('/[\r\n,]+/', $msCheckoutRaw))));
 
         // Defaults for omitted settings
+        $defaultAppName = installer_app_name($prefillConfig);
         $adminCns   = [];
         $checkoutCns = [];
         $timezone    = 'Europe/Jersey';
@@ -425,6 +432,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'allowed_domains' => $msAllowedDomains,
         ];
         $newConfig['app'] = [
+            'name'                  => $defaultAppName,
             'timezone'              => $timezone,
             'debug'                 => $debug,
             'logo_url'              => $logoUrl,
@@ -482,7 +490,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'encryption' => $post('smtp_encryption', 'tls'),
             'auth_method'=> $post('smtp_auth_method', 'login'),
             'from_email' => $post('smtp_from_email', ''),
-            'from_name'  => $post('smtp_from_name', 'SnipeScheduler'),
+            'from_name'  => $post('smtp_from_name', $defaultAppName),
         ];
 
         if ($isAjax && $action !== 'save') {
@@ -507,9 +515,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
                     $sent = layout_send_notification(
                         $targetEmail,
                         $targetName,
-                        'SnipeScheduler SMTP test',
-                        ['This is a test email from the installer SMTP settings.'],
-                        ['smtp' => $smtp]
+                        'SMTP test',
+                        ['This is a test email from ' . installer_app_name($newConfig) . ' installer SMTP settings.'],
+                        $newConfig
                     );
                     if ($sent) {
                         $messages[] = 'SMTP test email sent to ' . $targetEmail . '.';
@@ -643,6 +651,7 @@ $googleRedirectDefault = $host
 $msRedirectDefault = $host
     ? $scheme . '://' . $host . $dir . '/login_process.php?provider=microsoft'
     : 'https://your-app-domain/login_process.php?provider=microsoft';
+$installerAppName = installer_app_name($prefillConfig);
 
 ?>
 <!DOCTYPE html>
@@ -650,7 +659,7 @@ $msRedirectDefault = $host
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SnipeScheduler – Web Installer</title>
+    <title><?= installer_h($installerAppName) ?> – Web Installer</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../assets/style.css">
@@ -666,7 +675,7 @@ $msRedirectDefault = $host
 <div class="container installer-page">
     <div class="page-shell">
         <div class="page-header">
-            <h1>SnipeScheduler Installer</h1>
+            <h1><?= installer_h($installerAppName) ?> Installer</h1>
             <div class="page-subtitle">
                 Create config.php and initialise the database. For production security, remove or protect this file after setup.
             </div>
@@ -1027,7 +1036,7 @@ $msRedirectDefault = $host
                             </div>
                             <div class="col-md-5">
                                 <label class="form-label">From name</label>
-                                <input type="text" name="smtp_from_name" class="form-control" value="<?= installer_h($pref(['smtp', 'from_name'], 'SnipeScheduler')) ?>">
+                                <input type="text" name="smtp_from_name" class="form-control" value="<?= installer_h($pref(['smtp', 'from_name'], $installerAppName)) ?>">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
