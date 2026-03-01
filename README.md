@@ -5,6 +5,11 @@
 
 - There is also a standalone version of this app that has its own inventory database and doesn't require Snipe-IT. It is called KitGrab, and is available [here](https://github.com/JSY-Ben/KitGrab)
 
+- We'd also like to point out some forks of this software that people have made for more specialist uses:
+
+  1) https://github.com/VitorMRodovalho/SnipeScheduler-FleetManager - A Fork of SnipeScheduler designed for Managing Fleet Vehicles
+  2) https://github.com/GrainHologram/SnipeScheduler - An alternative development fork of SnipeScheduler with unique features,  used in the Education Sector.  
+
 ## Donations
 
 While i will always provide my software for free, donations are extremely helpful for allowing me to continue making these apps, so any donation would be appreciated:
