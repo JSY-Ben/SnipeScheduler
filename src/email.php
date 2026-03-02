@@ -169,6 +169,16 @@ function layout_send_mail(string $toEmail, string $toName, string $subject, stri
  */
 function layout_notification_line_to_html(string $line): string
 {
+    if (preg_match('~^\s*([^:]+):\s*(https?://[^\s<>"\']+)\s*$~u', $line, $m)) {
+        $label = trim((string)($m[1] ?? ''));
+        $url = trim((string)($m[2] ?? ''));
+        if ($label !== '' && $url !== '') {
+            $labelEsc = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+            $urlEsc = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+            return '<a href="' . $urlEsc . '">' . $labelEsc . '</a>';
+        }
+    }
+
     $parts = preg_split('~(https?://[^\s<>"\']+)~u', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
     if ($parts === false) {
         return nl2br(htmlspecialchars($line, ENT_QUOTES, 'UTF-8'));
