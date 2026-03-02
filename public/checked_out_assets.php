@@ -201,6 +201,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'Select a valid date/time for renewal.';
         }
+    } elseif (isset($_POST['bulk_checkin']) && $_POST['bulk_checkin'] === '1') {
+        $bulkIds = $_POST['bulk_asset_ids'] ?? [];
+        if (empty($bulkIds) || !is_array($bulkIds)) {
+            $error = 'Select at least one asset to check in.';
+        } else {
+            $assetIds = array_values(array_unique(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
+                return $id > 0;
+            })));
+            if (empty($assetIds)) {
+                $error = 'Select at least one valid asset to check in.';
+            } else {
+                $labels = load_asset_labels($pdo, $assetIds);
+                $checkedInLabels = [];
+                $failedLabels = [];
+                $deleteStmt = $pdo->prepare('DELETE FROM checked_out_asset_cache WHERE asset_id = :asset_id');
+
+                foreach ($assetIds as $aid) {
+                    $label = $labels[$aid] ?? ('Asset #' . $aid);
+                    try {
+                        checkin_asset($aid);
+                        $deleteStmt->execute([':asset_id' => $aid]);
+                        $checkedInLabels[] = $label;
+                    } catch (Throwable $e) {
+                        $failedLabels[] = $label . ' (' . $e->getMessage() . ')';
+                    }
+                }
+
+                if (!empty($checkedInLabels)) {
+                    $messages[] = 'Checked in ' . count($checkedInLabels) . ' asset(s).';
+                    activity_log_event('assets_checked_in', 'Checked out assets checked in', [
+                        'metadata' => [
+                            'assets' => $checkedInLabels,
+                            'count' => count($checkedInLabels),
+                        ],
+                    ]);
+                }
+
+                if (!empty($failedLabels)) {
+                    $error = 'Could not check in ' . count($failedLabels) . ' asset(s): ' . implode('; ', $failedLabels);
+                }
+            }
+        }
     } elseif (isset($_POST['bulk_renew']) && $_POST['bulk_renew'] === '1') {
         // Renew selected items
         $bulkExpected = normalize_expected_datetime($_POST['bulk_expected'] ?? '');
@@ -516,6 +558,13 @@ function layout_checked_out_url(string $base, array $params): string
                             value="1"
                             class="btn btn-outline-primary btn-sm">
                         Renew selected
+                    </button>
+                    <button type="submit"
+                            name="bulk_checkin"
+                            value="1"
+                            class="btn btn-outline-success btn-sm"
+                            onclick="return confirm('Check in all selected assets in Snipe-IT?');">
+                        Check in all selected
                     </button>
                 </div>
                 <div class="form-check mb-2">
