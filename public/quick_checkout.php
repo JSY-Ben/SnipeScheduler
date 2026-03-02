@@ -392,8 +392,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             "Return by: {$dueDisplay}",
                             $note !== '' ? "Note: {$note}" : '',
                         ];
-
                         $config = load_config();
+                        $userBodyLines = $bodyLines;
+                        $staffBodyLines = $bodyLines;
+                        $userPortalLinkLine = layout_my_reservations_link_line($config);
+                        if ($userPortalLinkLine !== null) {
+                            $userBodyLines[] = $userPortalLinkLine;
+                        }
+                        $staffPortalLinkLine = layout_staff_reservations_link_line($config);
+                        if ($staffPortalLinkLine !== null) {
+                            $staffBodyLines[] = $staffPortalLinkLine;
+                        }
                         $appCfg = $config['app'] ?? [];
                         $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_quick_checkout_enabled'])
@@ -409,7 +418,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $defaultEmails = [];
 
                             if ($sendUserDefault && $userEmail !== '') {
-                                layout_send_notification($userEmail, $userName, 'Assets checked out', $bodyLines, $config);
+                                layout_send_notification($userEmail, $userName, 'Assets checked out', $userBodyLines, $config);
                                 $defaultEmails[] = $userEmail;
                             }
 
@@ -418,7 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     [
                                         "You checked out assets for {$userName}"
                                     ],
-                                    $bodyLines
+                                    $staffBodyLines
                                 );
                                 layout_send_notification($staffEmail, $staffDisplayName, 'You checked out assets', $staffBody, $config);
                                 $defaultEmails[] = $staffEmail;
@@ -433,7 +442,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $recipient['email'],
                                     $recipient['name'],
                                     'Assets checked out',
-                                    $bodyLines,
+                                    $staffBodyLines,
                                     $config
                                 );
                             }

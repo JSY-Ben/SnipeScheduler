@@ -345,6 +345,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     : true;
                 if ($notifyEnabled) {
                     $notifiedEmails = [];
+                    $userPortalLinkLine = layout_my_reservations_link_line($config);
+                    $staffPortalLinkLine = layout_staff_reservations_link_line($config);
 
                     // Notify original users.
                     if ($sendUserDefault) {
@@ -360,6 +362,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
                                 $note !== '' ? ["Note: {$note}"] : []
                             );
+                            if ($userPortalLinkLine !== null) {
+                                $bodyLines[] = $userPortalLinkLine;
+                            }
                             layout_send_notification($email, $info['name'], 'Assets checked in', $bodyLines, $config);
                             $notifiedEmails[] = $email;
                         }
@@ -380,6 +385,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($note !== '') {
                         $staffBodyLines[] = "Note: {$note}";
+                    }
+                    if ($staffPortalLinkLine !== null) {
+                        $staffBodyLines[] = $staffPortalLinkLine;
                     }
 
                     // Notify staff performing check-in.
@@ -405,6 +413,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($note !== '') {
                         $extraBodyLines[] = "Note: {$note}";
+                    }
+                    if ($staffPortalLinkLine !== null) {
+                        $extraBodyLines[] = $staffPortalLinkLine;
                     }
                     foreach ($extraRecipients as $recipient) {
                         layout_send_notification(

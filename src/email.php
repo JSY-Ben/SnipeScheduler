@@ -237,6 +237,68 @@ function layout_app_base_url(?array $cfg = null): string
 }
 
 /**
+ * Build an absolute URL for a public app page.
+ *
+ * @param array<string, scalar|null> $query
+ */
+function layout_app_page_url(string $path, ?array $cfg = null, array $query = []): string
+{
+    $baseUrl = layout_app_base_url($cfg);
+    if ($baseUrl === '') {
+        return '';
+    }
+
+    $url = $baseUrl . '/' . ltrim($path, '/');
+    if (!empty($query)) {
+        $url .= '?' . http_build_query($query);
+    }
+
+    return $url;
+}
+
+/**
+ * Link to the end-user reservations page.
+ */
+function layout_my_reservations_url(?array $cfg = null): string
+{
+    return layout_app_page_url('my_bookings.php', $cfg);
+}
+
+/**
+ * Link to the staff/admin reservations workspace.
+ */
+function layout_staff_reservations_url(?array $cfg = null): string
+{
+    return layout_app_page_url('reservations.php', $cfg);
+}
+
+/**
+ * Return a standard end-user portal link for notifications.
+ */
+function layout_my_reservations_link_line(?array $cfg = null): ?string
+{
+    $url = layout_my_reservations_url($cfg);
+    if ($url === '') {
+        return null;
+    }
+
+    return 'My Reservations: ' . $url;
+}
+
+/**
+ * Return a standard staff/admin portal link for notifications.
+ */
+function layout_staff_reservations_link_line(?array $cfg = null): ?string
+{
+    $url = layout_staff_reservations_url($cfg);
+    if ($url === '') {
+        return null;
+    }
+
+    return 'Reservations: ' . $url;
+}
+
+/**
  * Build an absolute reservation detail URL for email notifications.
  */
 function layout_reservation_detail_url(int $reservationId, ?array $cfg = null): string
@@ -246,12 +308,9 @@ function layout_reservation_detail_url(int $reservationId, ?array $cfg = null): 
         return '';
     }
 
-    $baseUrl = layout_app_base_url($cfg);
-    if ($baseUrl === '') {
-        return '';
-    }
-
-    return $baseUrl . '/reservation_detail.php?id=' . rawurlencode((string)$reservationId);
+    return layout_app_page_url('reservation_detail.php', $cfg, [
+        'id' => $reservationId,
+    ]);
 }
 
 /**

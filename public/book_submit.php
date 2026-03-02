@@ -186,6 +186,14 @@ if ($notifyEnabled) {
         $userBody[] = $reservationLinkLine;
         $adminBody[] = $reservationLinkLine;
     }
+    $userPortalLinkLine = layout_my_reservations_link_line($config);
+    if ($userPortalLinkLine !== null) {
+        $userBody[] = $userPortalLinkLine;
+    }
+    $staffPortalLinkLine = layout_staff_reservations_link_line($config);
+    if ($staffPortalLinkLine !== null) {
+        $adminBody[] = $staffPortalLinkLine;
+    }
 
     $notifiedEmails = [];
     if ($sendUserDefault && $userEmail !== '') {

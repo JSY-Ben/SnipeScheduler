@@ -688,6 +688,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($reservationLinkLine !== null) {
                             $bodyLines[] = $reservationLinkLine;
                         }
+                        $userBodyLines = $bodyLines;
+                        $staffBodyLines = $bodyLines;
+                        $userPortalLinkLine = layout_my_reservations_link_line($config);
+                        if ($userPortalLinkLine !== null) {
+                            $userBodyLines[] = $userPortalLinkLine;
+                        }
+                        $staffPortalLinkLine = layout_staff_reservations_link_line($config);
+                        if ($staffPortalLinkLine !== null) {
+                            $staffBodyLines[] = $staffPortalLinkLine;
+                        }
                         $appCfg = $config['app'] ?? [];
                         $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_staff_checkout_enabled'])
@@ -701,7 +711,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($notifyEnabled) {
                             $defaultEmails = [];
                             if ($sendUserDefault && $userEmail !== '') {
-                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $bodyLines, $config);
+                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $userBodyLines, $config);
                                 $defaultEmails[] = $userEmail;
                             }
                             if ($sendStaffDefault && $staffEmail !== '') {
@@ -709,7 +719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $staffEmail,
                                     $staffName !== '' ? $staffName : $staffEmail,
                                     'You checked out a reservation',
-                                    $bodyLines,
+                                    $staffBodyLines,
                                     $config
                                 );
                                 $defaultEmails[] = $staffEmail;
@@ -724,7 +734,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $recipient['email'],
                                     $recipient['name'],
                                     'Reservation has been checked out',
-                                    $bodyLines,
+                                    $staffBodyLines,
                                     $config
                                 );
                             }
