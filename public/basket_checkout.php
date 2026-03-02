@@ -255,6 +255,11 @@ try {
             "End: {$endDisplay}",
             "Submitted by: {$submittedByDisplay}",
         ];
+        $reservationLinkLine = layout_reservation_link_line($reservationId, $config);
+        if ($reservationLinkLine !== null) {
+            $userBody[] = $reservationLinkLine;
+            $adminBody[] = $reservationLinkLine;
+        }
 
         $notifiedEmails = [];
         if ($sendUserDefault && $userEmail !== '') {

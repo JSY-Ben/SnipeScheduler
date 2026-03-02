@@ -684,6 +684,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $note !== '' ? "Note: {$note}" : '',
                             "Checked out by: {$staffName}",
                         ];
+                        $reservationLinkLine = layout_reservation_link_line((int)$selectedReservationId, $config);
+                        if ($reservationLinkLine !== null) {
+                            $bodyLines[] = $reservationLinkLine;
+                        }
                         $appCfg = $config['app'] ?? [];
                         $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_staff_checkout_enabled'])

@@ -8,6 +8,7 @@ require_once SRC_PATH . '/layout.php';
 
 $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
+$currentUserId = (string)($currentUser['id'] ?? '');
 
 function display_date(?string $isoDate): string
 {
@@ -17,12 +18,6 @@ function display_date(?string $isoDate): string
 function display_datetime(?string $isoDatetime): string
 {
     return app_format_datetime($isoDatetime);
-}
-
-if (!$isStaff) {
-    http_response_code(403);
-    echo 'Access denied.';
-    exit;
 }
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -49,10 +44,29 @@ if (!$reservation) {
     exit;
 }
 
+$ownsReservation = $currentUserId !== ''
+    && isset($reservation['user_id'])
+    && (string)($reservation['user_id'] ?? '') === $currentUserId;
+
+if (!$isStaff && !$ownsReservation) {
+    http_response_code(403);
+    echo 'Access denied.';
+    exit;
+}
+
 // Load items via shared helper
 $items = get_reservation_items_with_names($pdo, $id);
 
-$active  = 'staff_reservations.php'; // Treat detail view as part of booking history.
+$showStaffView = $isStaff;
+$active = $showStaffView ? 'staff_reservations.php' : 'my_bookings.php';
+$backHref = 'staff_reservations.php';
+$backLabel = 'Back to all bookings';
+if (!$showStaffView) {
+    $status = strtolower(trim((string)($reservation['status'] ?? '')));
+    $tab = $status === 'checked_out' ? 'checked_out' : 'reservations';
+    $backHref = 'my_bookings.php?tab=' . rawurlencode($tab);
+    $backLabel = 'Back to my bookings';
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -87,7 +101,7 @@ $active  = 'staff_reservations.php'; // Treat detail view as part of booking his
                 (<?= h($currentUser['email'] ?? '') ?>)
             </div>
             <div class="top-bar-actions">
-                <a href="staff_reservations.php" class="btn btn-outline-secondary btn-sm">Back to all bookings</a>
+                <a href="<?= h($backHref) ?>" class="btn btn-outline-secondary btn-sm"><?= h($backLabel) ?></a>
                 <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
             </div>
         </div>

@@ -435,6 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'name'                  => $defaultAppName,
             'timezone'              => $timezone,
             'debug'                 => $debug,
+            'base_url'              => '',
             'logo_url'              => $logoUrl,
             'primary_color'         => $primary,
             'missed_cutoff_minutes' => $missed,

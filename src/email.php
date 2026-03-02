@@ -165,6 +165,109 @@ function layout_send_mail(string $toEmail, string $toName, string $subject, stri
 }
 
 /**
+ * Render notification text as safe HTML, automatically linking absolute URLs.
+ */
+function layout_notification_line_to_html(string $line): string
+{
+    $parts = preg_split('~(https?://[^\s<>"\']+)~u', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if ($parts === false) {
+        return nl2br(htmlspecialchars($line, ENT_QUOTES, 'UTF-8'));
+    }
+
+    $html = '';
+    foreach ($parts as $part) {
+        if ($part === '') {
+            continue;
+        }
+
+        if (preg_match('~^https?://[^\s<>"\']+$~u', $part)) {
+            $url = htmlspecialchars($part, ENT_QUOTES, 'UTF-8');
+            $html .= '<a href="' . $url . '">' . $url . '</a>';
+            continue;
+        }
+
+        $html .= nl2br(htmlspecialchars($part, ENT_QUOTES, 'UTF-8'));
+    }
+
+    return $html;
+}
+
+/**
+ * Resolve the public base URL for app links in emails.
+ *
+ * Uses app.base_url when configured, otherwise falls back to the current web request.
+ */
+function layout_app_base_url(?array $cfg = null): string
+{
+    $config = $cfg ?? load_config();
+    $configured = trim((string)($config['app']['base_url'] ?? ''));
+    if ($configured !== '' && preg_match('~^https?://~i', $configured)) {
+        return rtrim($configured, '/');
+    }
+
+    $hostRaw = trim((string)($_SERVER['HTTP_X_FORWARDED_HOST'] ?? ($_SERVER['HTTP_HOST'] ?? '')));
+    if ($hostRaw === '') {
+        return '';
+    }
+    $host = trim(explode(',', $hostRaw)[0]);
+    if ($host === '') {
+        return '';
+    }
+
+    $forwardedProtoRaw = trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    if ($forwardedProtoRaw !== '') {
+        $scheme = strtolower(trim(explode(',', $forwardedProtoRaw)[0]));
+    } else {
+        $https = strtolower(trim((string)($_SERVER['HTTPS'] ?? '')));
+        $scheme = ($https !== '' && $https !== 'off') ? 'https' : 'http';
+    }
+    if ($scheme !== 'https') {
+        $scheme = 'http';
+    }
+
+    if ($configured !== '' && $configured[0] === '/') {
+        return $scheme . '://' . $host . rtrim($configured, '/');
+    }
+
+    $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    $dir = rtrim(dirname($scriptName), '/');
+    $dir = ($dir === '' || $dir === '.') ? '' : $dir;
+
+    return $scheme . '://' . $host . $dir;
+}
+
+/**
+ * Build an absolute reservation detail URL for email notifications.
+ */
+function layout_reservation_detail_url(int $reservationId, ?array $cfg = null): string
+{
+    $reservationId = (int)$reservationId;
+    if ($reservationId <= 0) {
+        return '';
+    }
+
+    $baseUrl = layout_app_base_url($cfg);
+    if ($baseUrl === '') {
+        return '';
+    }
+
+    return $baseUrl . '/reservation_detail.php?id=' . rawurlencode((string)$reservationId);
+}
+
+/**
+ * Return a standard reservation detail line for notifications.
+ */
+function layout_reservation_link_line(int $reservationId, ?array $cfg = null): ?string
+{
+    $url = layout_reservation_detail_url($reservationId, $cfg);
+    if ($url === '') {
+        return null;
+    }
+
+    return 'View reservation: ' . $url;
+}
+
+/**
  * Convenience wrapper for sending a plaintext notification with multiple lines.
  *
  * @param string     $toEmail
@@ -199,7 +302,7 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
         $htmlParts[] = '<div class="card">';
         $htmlParts[] = '<h2 style="margin:0 0 10px 0; font-size:18px;">' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</h2>';
         foreach ($bodyLines as $line) {
-            $htmlParts[] = '<p style="margin:6px 0;">' . nl2br(htmlspecialchars($line, ENT_QUOTES, 'UTF-8')) . '</p>';
+            $htmlParts[] = '<p style="margin:6px 0;">' . layout_notification_line_to_html((string)$line) . '</p>';
         }
         $htmlParts[] = '</div>';
         $htmlParts[] = '<div class="muted" style="margin-top:12px;">This message was sent by ' . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . '.</div>';

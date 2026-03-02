@@ -161,6 +161,11 @@ foreach ($missedReservations as $reservation) {
         "Missed cutoff: {$cutoffMinutes} minute(s) after the start time.",
     ];
     $adminBody = array_merge($bodyBase, ["Reserved for: {$userDisplay}"]);
+    $reservationLinkLine = layout_reservation_link_line($resId, $config);
+    if ($reservationLinkLine !== null) {
+        $bodyBase[] = $reservationLinkLine;
+        $adminBody[] = $reservationLinkLine;
+    }
     $notifiedEmails = [];
     $notifiedEmailKeys = [];
 

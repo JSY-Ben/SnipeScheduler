@@ -435,6 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $app['timezone']              = in_array($timezoneRaw, $timezoneOptions, true) ? $timezoneRaw : $currentTimezone;
     $app['debug']                 = isset($_POST['app_debug']);
+    $app['base_url']              = trim((string)$post('app_base_url', $app['base_url'] ?? ''));
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
     if ($action === 'save' && isset($_FILES['app_logo_file']) && is_array($_FILES['app_logo_file'])) {
         $uploadedLogoPath = layout_upload_logo_file($_FILES['app_logo_file'], $errors);
@@ -1728,7 +1729,15 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-text">Use the picker or type a hex value like <code>#660000</code>.</div>
                             </div>
                             <div class="col-md-8">
-                                <label class="form-label">Logo URL</label>
+                                <label class="form-label">App base URL</label>
+                                <input type="text"
+                                       name="app_base_url"
+                                       class="form-control"
+                                       value="<?= h($cfg(['app', 'base_url'], '')) ?>"
+                                       placeholder="https://example.com/snipe-scheduler">
+                                <div class="form-text">Optional, but recommended for links in notification emails generated outside a browser request.</div>
+
+                                <label class="form-label mt-3">Logo URL</label>
                                 <input type="text"
                                        name="app_logo_url"
                                        id="app_logo_url"

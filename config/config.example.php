@@ -122,6 +122,7 @@ return [
         'name' => 'SnipeScheduler',
         'timezone' => 'Europe/Jersey',
         'debug'    => true,
+        'base_url' => '', // optional public app base URL (used for email links, especially cron emails)
         'logo_url' => '', // optional: full URL or relative path to logo image
         'primary_color' => '#660000', // main UI colour for gradients/buttons
         'date_format' => 'd/m/Y', // display format for dates (see settings for options)
