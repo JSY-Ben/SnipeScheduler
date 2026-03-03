@@ -39,12 +39,23 @@ $timeFormatOptions = app_time_format_options();
 $timezoneOptions = timezone_identifiers_list();
 
 $categoryOptions    = [];
+$categoryFetchNotice = '';
 $categoryFetchError = '';
+// Use a live category list here so admins can still manage categories excluded from the cache.
 try {
-    $categoryOptions = get_model_categories();
+    $categoryOptions = fetch_model_categories_from_snipeit();
 } catch (Throwable $e) {
-    $categoryOptions    = [];
-    $categoryFetchError = $e->getMessage();
+    try {
+        $categoryOptions = get_model_categories();
+        if (!empty($categoryOptions)) {
+            $categoryFetchNotice = 'Could not load live categories from Snipe-IT; showing cached categories only.';
+        } else {
+            $categoryFetchError = $e->getMessage();
+        }
+    } catch (Throwable $cachedError) {
+        $categoryOptions    = [];
+        $categoryFetchError = $e->getMessage();
+    }
 }
 
 $definedValues = [
@@ -1279,7 +1290,12 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
-                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue. Leave everything unticked to show all categories.</p>
+                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue and skipped by the catalogue cache sync. Leave everything unticked to show all categories.</p>
+                        <?php if ($categoryFetchNotice): ?>
+                            <div class="alert alert-warning small mb-3">
+                                <?= h($categoryFetchNotice) ?>
+                            </div>
+                        <?php endif; ?>
                         <?php if ($categoryFetchError): ?>
                             <div class="alert alert-warning small mb-3">
                                 Could not load categories from Snipe-IT: <?= h($categoryFetchError) ?>

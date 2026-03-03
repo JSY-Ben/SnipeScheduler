@@ -37,6 +37,23 @@ if ($catalogueCacheRequested && !$catalogueCacheEnabled) {
     $logOut('info', 'Catalogue cache sync skipped until the v1.4.0 schema upgrade is applied.');
 }
 
+$allowedCategoryMap = [];
+$allowedCfg = $config['catalogue']['allowed_categories'] ?? [];
+if (is_array($allowedCfg)) {
+    foreach ($allowedCfg as $cid) {
+        if (ctype_digit((string)$cid) || is_int($cid)) {
+            $cid = (int)$cid;
+            if ($cid > 0) {
+                $allowedCategoryMap[$cid] = true;
+            }
+        }
+    }
+}
+
+if ($catalogueCacheEnabled && !empty($allowedCategoryMap)) {
+    $logOut('info', 'Catalogue cache limited to configured allowed categories (' . count($allowedCategoryMap) . ').');
+}
+
 if ($catalogueCacheEnabled) {
     try {
         $allModels = fetch_all_models_from_snipeit();
@@ -61,6 +78,11 @@ foreach ($allModels as $model) {
         continue;
     }
 
+    $categoryId = isset($model['category']['id']) ? (int)$model['category']['id'] : 0;
+    if (!empty($allowedCategoryMap) && ($categoryId <= 0 || !isset($allowedCategoryMap[$categoryId]))) {
+        continue;
+    }
+
     $modelId = (int)($model['id'] ?? 0);
     if ($modelId <= 0) {
         continue;
@@ -75,7 +97,7 @@ foreach ($allModels as $model) {
         'model_id' => $modelId,
         'model_name' => (string)($model['name'] ?? ''),
         'manufacturer_name' => (string)($model['manufacturer']['name'] ?? ''),
-        'category_id' => isset($model['category']['id']) ? (int)$model['category']['id'] : 0,
+        'category_id' => $categoryId,
         'category_name' => (string)($model['category']['name'] ?? ''),
         'image_path' => (string)($model['image'] ?? ''),
         'notes_text' => (string)$notes,

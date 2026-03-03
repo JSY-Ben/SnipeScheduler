@@ -187,7 +187,7 @@ return [
     ],
 
     'catalogue' => [
-        // Restrict which categories appear in the catalogue filter.
+        // Restrict which categories are stored in the catalogue cache and appear in the catalogue filter.
         // Leave empty to show all categories returned by Snipe-IT.
         'allowed_categories' => [],
         // Show grouped default location availability on catalogue model cards.
