@@ -56,7 +56,7 @@ if ($catalogueCacheEnabled && !empty($allowedCategoryMap)) {
 
 if ($catalogueCacheEnabled) {
     try {
-        $allModels = fetch_all_models_from_snipeit();
+        $allModels = fetch_all_models_from_snipeit('', null, false);
     } catch (Throwable $e) {
         $logErr('Failed to load models: ' . $e->getMessage());
         exit(1);
@@ -66,7 +66,7 @@ if ($catalogueCacheEnabled) {
 }
 
 try {
-    $allHardware = fetch_all_hardware_from_snipeit(0);
+    $allHardware = fetch_all_hardware_from_snipeit(0, false);
 } catch (Throwable $e) {
     $logErr('Failed to load hardware assets: ' . $e->getMessage());
     exit(1);

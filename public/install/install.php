@@ -384,7 +384,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $logoUrl     = '';
         $primary     = '#660000';
         $missed      = 60;
-        $apiCacheTtl = 60;
         $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
         $cataloguePP = $definedValues['CATALOGUE_ITEMS_PER_PAGE'];
 
@@ -439,7 +438,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'logo_url'              => $logoUrl,
             'primary_color'         => $primary,
             'missed_cutoff_minutes' => $missed,
-            'api_cache_ttl_seconds' => $apiCacheTtl,
             'overdue_staff_email'   => '',
             'overdue_staff_name'    => '',
             'notification_reservation_submitted_enabled' => true,

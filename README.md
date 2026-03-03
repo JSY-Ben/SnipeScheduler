@@ -47,7 +47,7 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 
 ## Installation
 1. Clone or copy this repository to your web root.
-2. Ensure the web server user can write to `config/` (for `config.php`) and create `config/cache/` if needed.
+2. Ensure the web server user can write to `config/` (for `config.php`).
 3. Point your web server at the `public/` directory.
 4. Visit https://www.yourinstallation.com/install/ in your browser:
    - Fill in database, Snipe-IT API, and at least one of the authentication (LDAP/Google/Entra) methods (tests are available inline).

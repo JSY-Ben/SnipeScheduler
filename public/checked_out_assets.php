@@ -136,13 +136,6 @@ $sortOptions = [
 ];
 $sort = in_array($sortRaw, $sortOptions, true) ? $sortRaw : 'expected_asc';
 $forceRefresh = isset($_REQUEST['refresh']) && $_REQUEST['refresh'] === '1';
-if ($forceRefresh) {
-    // Disable cached Snipe-IT responses for this request
-    if (isset($cacheTtl)) {
-        $GLOBALS['_layout_prev_cache_ttl'] = $cacheTtl;
-    }
-    $cacheTtl = 0;
-}
 
 // Handle row and bulk actions (all/overdue tabs)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -284,7 +277,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 try {
-    $assets = list_checked_out_assets(false);
+    $assets = $forceRefresh
+        ? fetch_checked_out_assets_from_snipeit(false, 0, false)
+        : list_checked_out_assets(false);
     if ($view === 'overdue') {
         $now = time();
         $assets = array_values(array_filter($assets, function ($row) use ($now) {
@@ -404,11 +399,6 @@ try {
     $totalPages = 1;
 }
 
-// Restore cache TTL if we temporarily disabled it
-if ($forceRefresh && isset($GLOBALS['_layout_prev_cache_ttl'])) {
-    $cacheTtl = $GLOBALS['_layout_prev_cache_ttl'];
-    unset($GLOBALS['_layout_prev_cache_ttl']);
-}
 ?>
 <?php
 function layout_checked_out_url(string $base, array $params): string
@@ -748,13 +738,12 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php endif; ?>
 <?php if (!empty($messages)): ?>
 <script>
-    // After showing renew success, refresh overdue list to bust any cached data.
+    // After showing renew success, reload the overdue list with a fresh Snipe-IT fetch.
     setTimeout(() => {
         const url = new URL(window.location.href);
         url.searchParams.set('view', '<?= h($view) ?>');
         url.searchParams.set('_', Date.now().toString());
         url.searchParams.set('refresh', '1');
-        // Force no-cache reload with refresh flag
         window.location.replace(url.toString());
     }, 4000);
 </script>

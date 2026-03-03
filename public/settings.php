@@ -41,20 +41,29 @@ $timezoneOptions = timezone_identifiers_list();
 $categoryOptions    = [];
 $categoryFetchNotice = '';
 $categoryFetchError = '';
-// Use a live category list here so admins can still manage categories excluded from the cache.
+// Bypass the generic response cache here so admins can refresh the full category list from Snipe-IT.
 try {
-    $categoryOptions = fetch_model_categories_from_snipeit();
+    $categoryOptions = fetch_model_categories_from_snipeit(false);
 } catch (Throwable $e) {
     try {
-        $categoryOptions = get_model_categories();
+        $categoryOptions = fetch_model_categories_from_snipeit();
         if (!empty($categoryOptions)) {
-            $categoryFetchNotice = 'Could not load live categories from Snipe-IT; showing cached categories only.';
+            $categoryFetchNotice = 'Could not refresh live categories from Snipe-IT; showing the last cached API results.';
         } else {
             $categoryFetchError = $e->getMessage();
         }
-    } catch (Throwable $cachedError) {
-        $categoryOptions    = [];
-        $categoryFetchError = $e->getMessage();
+    } catch (Throwable $cachedApiError) {
+        try {
+            $categoryOptions = get_model_categories();
+            if (!empty($categoryOptions)) {
+                $categoryFetchNotice = 'Could not refresh live categories from Snipe-IT; showing locally cached categories only.';
+            } else {
+                $categoryFetchError = $e->getMessage();
+            }
+        } catch (Throwable $cachedError) {
+            $categoryOptions    = [];
+            $categoryFetchError = $e->getMessage();
+        }
     }
 }
 
@@ -461,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $timeFormatRaw = $post('app_time_format', $app['time_format'] ?? 'H:i');
     $app['time_format']           = array_key_exists($timeFormatRaw, $timeFormatOptions) ? $timeFormatRaw : 'H:i';
     $app['missed_cutoff_minutes'] = max(0, (int)$post('app_missed_cutoff', $app['missed_cutoff_minutes'] ?? 60));
-    $app['api_cache_ttl_seconds'] = max(0, (int)$post('app_api_cache_ttl', $app['api_cache_ttl_seconds'] ?? 60));
+    unset($app['api_cache_ttl_seconds']);
     $app['overdue_staff_email']   = $post('app_overdue_staff_email', $app['overdue_staff_email'] ?? '');
     $app['overdue_staff_name']    = $post('app_overdue_staff_name', $app['overdue_staff_name'] ?? '');
     $app['block_catalogue_overdue'] = isset($_POST['app_block_catalogue_overdue']);
@@ -1239,17 +1248,12 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
-                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue, fallback Snipe-IT cache behavior, and guest visibility.</p>
+                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue and whether guests can browse it.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
                                 <input type="number" name="catalogue_items_per_page" min="1" class="form-control" value="<?= (int)$definedValues['CATALOGUE_ITEMS_PER_PAGE'] ?>">
                                 <div class="form-text">Adjust to show more or fewer items on each catalogue page.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Snipe-IT fallback cache TTL (seconds)</label>
-                                <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
-                                <div class="form-text">Caches direct Snipe-IT GET responses as a fallback when the <code>snipeit_asset_cache_update.php</code> cron has not run, or when the catalogue DB cache is unavailable. Set 0 to disable.</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-check form-switch">

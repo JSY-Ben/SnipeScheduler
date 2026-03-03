@@ -18,45 +18,112 @@ $snipeConfig  = $config['snipeit'] ?? [];
 $snipeBaseUrl   = rtrim($snipeConfig['base_url'] ?? '', '/');
 $snipeApiToken  = $snipeConfig['api_token'] ?? '';
 $snipeVerifySsl = !empty($snipeConfig['verify_ssl']);
-$cacheTtl       = isset($config['app']['api_cache_ttl_seconds'])
-    ? max(0, (int)$config['app']['api_cache_ttl_seconds'])
-    : 60;
-$cacheDir       = CONFIG_PATH . '/cache';
 
 $limit = 200;
 
-function snipeit_cache_path(string $key): string
+function snipeit_api_response_cache_table_exists(bool $refresh = false): bool
 {
-    global $cacheDir;
-    return rtrim($cacheDir, '/\\') . '/' . $key . '.json';
+    static $exists = null;
+
+    if ($exists !== null && !$refresh) {
+        return $exists;
+    }
+
+    $exists = false;
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $pdo->query('SELECT 1 FROM snipeit_api_response_cache LIMIT 1');
+        $exists = true;
+    } catch (Throwable $e) {
+        $exists = false;
+    }
+
+    return $exists;
 }
 
-function snipeit_cache_get(string $key, int $ttl)
+function snipeit_api_response_cache_get(string $cacheKey): ?array
 {
-    $path = snipeit_cache_path($key);
-    if ($ttl <= 0 || !is_file($path)) {
+    if (!snipeit_api_response_cache_table_exists()) {
         return null;
     }
-    $age = time() - (int)@filemtime($path);
-    if ($age > $ttl) {
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare('SELECT response_payload FROM snipeit_api_response_cache WHERE cache_key = :cache_key LIMIT 1');
+        $stmt->execute([':cache_key' => $cacheKey]);
+        $raw = $stmt->fetchColumn();
+    } catch (Throwable $e) {
         return null;
     }
-    $raw = @file_get_contents($path);
-    if ($raw === false) {
+
+    if (!is_string($raw) || $raw === '') {
         return null;
     }
+
     $decoded = json_decode($raw, true);
     return is_array($decoded) ? $decoded : null;
 }
 
-function snipeit_cache_set(string $key, array $data): void
+function snipeit_api_response_cache_set(string $cacheKey, string $endpoint, array $params, array $data): void
 {
-    global $cacheDir;
-    if (!is_dir($cacheDir)) {
-        @mkdir($cacheDir, 0755, true);
+    if (!snipeit_api_response_cache_table_exists()) {
+        return;
     }
-    $path = snipeit_cache_path($key);
-    @file_put_contents($path, json_encode($data), LOCK_EX);
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare("
+            INSERT INTO snipeit_api_response_cache (
+                cache_key,
+                endpoint,
+                request_params,
+                response_payload,
+                updated_at
+            ) VALUES (
+                :cache_key,
+                :endpoint,
+                :request_params,
+                :response_payload,
+                NOW()
+            )
+            ON DUPLICATE KEY UPDATE
+                endpoint = VALUES(endpoint),
+                request_params = VALUES(request_params),
+                response_payload = VALUES(response_payload),
+                updated_at = VALUES(updated_at)
+        ");
+        $stmt->execute([
+            ':cache_key' => $cacheKey,
+            ':endpoint' => ltrim($endpoint, '/'),
+            ':request_params' => snipeit_json_encode_payload($params),
+            ':response_payload' => snipeit_json_encode_payload($data),
+        ]);
+    } catch (Throwable $e) {
+        return;
+    }
+}
+
+function snipeit_api_response_cache_clear(): void
+{
+    if (!snipeit_api_response_cache_table_exists()) {
+        return;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $pdo->exec('DELETE FROM snipeit_api_response_cache');
+    } catch (Throwable $e) {
+        return;
+    }
 }
 
 /**
@@ -65,12 +132,13 @@ function snipeit_cache_set(string $key, array $data): void
  * @param string $method   HTTP method (GET, POST, etc.)
  * @param string $endpoint Relative endpoint, e.g. "models" or "models/5"
  * @param array  $params   Query/body params
+ * @param bool   $allowResponseCache Read GET responses from the DB response cache before calling Snipe-IT.
  * @return array           Decoded JSON response
  * @throws Exception       On HTTP or decode errors
  */
-function snipeit_request(string $method, string $endpoint, array $params = []): array
+function snipeit_request(string $method, string $endpoint, array $params = [], bool $allowResponseCache = true): array
 {
-    global $snipeBaseUrl, $snipeApiToken, $snipeVerifySsl, $cacheTtl;
+    global $snipeBaseUrl, $snipeApiToken, $snipeVerifySsl;
 
     if ($snipeBaseUrl === '' || $snipeApiToken === '') {
         throw new Exception('Snipe-IT API is not configured (missing base_url or api_token).');
@@ -79,12 +147,13 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
     $url = $snipeBaseUrl . '/api/v1/' . ltrim($endpoint, '/');
 
     $method = strtoupper($method);
+    $requestParamsJson = snipeit_json_encode_payload($params);
     $cacheKey = null;
 
-    // Simple GET cache to reduce repeated hits
-    if ($method === 'GET' && $cacheTtl > 0) {
-        $cacheKey = sha1($url . '|' . json_encode($params));
-        $cached = snipeit_cache_get($cacheKey, $cacheTtl);
+    // DB-backed GET response cache for endpoints that do not have dedicated cache tables.
+    if ($method === 'GET') {
+        $cacheKey = sha1($url . '|' . $requestParamsJson);
+        $cached = $allowResponseCache ? snipeit_api_response_cache_get($cacheKey) : null;
         if ($cached !== null) {
             return $cached;
         }
@@ -136,8 +205,10 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
         throw new Exception('Invalid JSON from Snipe-IT API');
     }
 
-    if ($cacheKey !== null && $cacheTtl > 0) {
-        snipeit_cache_set($cacheKey, $decoded);
+    if ($cacheKey !== null) {
+        snipeit_api_response_cache_set($cacheKey, $endpoint, $params, $decoded);
+    } elseif ($method !== 'GET') {
+        snipeit_api_response_cache_clear();
     }
 
     return $decoded;
@@ -705,7 +776,7 @@ function snipeit_get_cached_requestable_asset_count(int $modelId): ?int
  * @return array
  * @throws Exception
  */
-function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = null): array
+function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = null, bool $allowResponseCache = true): array
 {
     $limit  = 200;
     $allRows = [];
@@ -725,7 +796,7 @@ function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = n
             $params['category_id'] = $categoryId;
         }
 
-        $chunk = snipeit_request('GET', 'models', $params);
+        $chunk = snipeit_request('GET', 'models', $params, $allowResponseCache);
         $rows = isset($chunk['rows']) && is_array($chunk['rows']) ? $chunk['rows'] : [];
         if (empty($rows)) {
             break;
@@ -749,13 +820,13 @@ function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = n
  * @return array
  * @throws Exception
  */
-function fetch_model_categories_from_snipeit(): array
+function fetch_model_categories_from_snipeit(bool $allowResponseCache = true): array
 {
     $params = [
         'limit' => 500,
     ];
 
-    $data = snipeit_request('GET', 'categories', $params);
+    $data = snipeit_request('GET', 'categories', $params, $allowResponseCache);
 
     if (!isset($data['rows']) || !is_array($data['rows'])) {
         return [];
@@ -785,7 +856,7 @@ function fetch_model_categories_from_snipeit(): array
  * @return array
  * @throws Exception
  */
-function fetch_all_hardware_from_snipeit(int $maxResults = 0): array
+function fetch_all_hardware_from_snipeit(int $maxResults = 0, bool $allowResponseCache = true): array
 {
     if ($maxResults <= 0) {
         $maxResults = PHP_INT_MAX;
@@ -801,7 +872,7 @@ function fetch_all_hardware_from_snipeit(int $maxResults = 0): array
             'offset' => $offset,
         ];
 
-        $data = snipeit_request('GET', 'hardware', $params);
+        $data = snipeit_request('GET', 'hardware', $params, $allowResponseCache);
         $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
         if (empty($rows)) {
             break;
@@ -1477,9 +1548,9 @@ function checkin_asset(int $assetId, string $note = ''): void
  * @return array
  * @throws Exception
  */
-function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $maxResults = 0): array
+function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $maxResults = 0, bool $allowResponseCache = true): array
 {
-    $all = fetch_all_hardware_from_snipeit($maxResults);
+    $all = fetch_all_hardware_from_snipeit($maxResults, $allowResponseCache);
 
     $now = time();
     $filtered = [];
