@@ -128,7 +128,7 @@ return [
         'date_format' => 'd/m/Y', // display format for dates (see settings for options)
         'time_format' => 'H:i', // display format for times (12/24-hour options in settings)
         'missed_cutoff_minutes' => 60, // minutes after start time before marking reservation as missed
-        'api_cache_ttl_seconds' => 60, // cache Snipe-IT GET responses for this many seconds
+        'api_cache_ttl_seconds' => 60, // cache direct Snipe-IT GET responses for fallback use when the asset-cache cron has not populated DB cache
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'notification_reservation_submitted_enabled' => true, // new reservation submitted email notifications

@@ -1228,7 +1228,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue display</h5>
-                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue, API cache behavior, and guest visibility.</p>
+                        <p class="text-muted small mb-3">Control how many items appear per page in the catalogue, fallback Snipe-IT cache behavior, and guest visibility.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
@@ -1236,9 +1236,9 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-text">Adjust to show more or fewer items on each catalogue page.</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">API cache TTL (seconds)</label>
+                                <label class="form-label">Snipe-IT fallback cache TTL (seconds)</label>
                                 <input type="number" name="app_api_cache_ttl" class="form-control" min="0" value="<?= (int)$cfg(['app', 'api_cache_ttl_seconds'], 60) ?>">
-                                <div class="form-text">Cache Snipe-IT GET responses. Set 0 to disable.</div>
+                                <div class="form-text">Caches direct Snipe-IT GET responses as a fallback when the <code>snipeit_asset_cache_update.php</code> cron has not run, or when the catalogue DB cache is unavailable. Set 0 to disable.</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-check form-switch">

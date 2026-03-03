@@ -143,6 +143,686 @@ function snipeit_request(string $method, string $endpoint, array $params = []): 
     return $decoded;
 }
 
+function app_version_string(): string
+{
+    static $version = null;
+
+    if ($version !== null) {
+        return $version;
+    }
+
+    $versionFile = APP_ROOT . '/version.txt';
+    $raw = is_file($versionFile) ? @file_get_contents($versionFile) : false;
+    $version = $raw !== false ? trim((string)$raw) : '';
+
+    return $version;
+}
+
+function app_version_is_at_least(string $minimumVersion): bool
+{
+    $current = ltrim(trim(app_version_string()), "vV");
+    $minimum = ltrim(trim($minimumVersion), "vV");
+
+    if ($current === '' || $minimum === '') {
+        return false;
+    }
+
+    return version_compare($current, $minimum, '>=');
+}
+
+function snipeit_catalogue_cache_tables_exist(bool $refresh = false): bool
+{
+    static $exists = null;
+
+    if ($exists !== null && !$refresh) {
+        return $exists;
+    }
+
+    $exists = false;
+    if (!app_version_is_at_least('1.4.0')) {
+        return $exists;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $pdo->query('SELECT 1 FROM catalogue_model_cache LIMIT 1');
+        $pdo->query('SELECT 1 FROM catalogue_asset_cache LIMIT 1');
+        $pdo->query('SELECT 1 FROM catalogue_cache_meta LIMIT 1');
+        $exists = true;
+    } catch (Throwable $e) {
+        $exists = false;
+    }
+
+    return $exists;
+}
+
+/**
+ * Check whether the local catalogue cache is available and has been populated.
+ *
+ * @return array{tables:bool,synced:bool}
+ */
+function snipeit_catalogue_cache_status(bool $refresh = false): array
+{
+    static $status = null;
+
+    if ($status !== null && !$refresh) {
+        return $status;
+    }
+
+    $status = [
+        'tables' => false,
+        'synced' => false,
+    ];
+
+    if (!snipeit_catalogue_cache_tables_exist($refresh)) {
+        return $status;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare('SELECT synced_at FROM catalogue_cache_meta WHERE cache_key = :cache_key LIMIT 1');
+        $stmt->execute([':cache_key' => 'catalogue']);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        $status['tables'] = true;
+        $status['synced'] = !empty($row['synced_at']);
+    } catch (Throwable $e) {
+        $status = [
+            'tables' => false,
+            'synced' => false,
+        ];
+    }
+
+    return $status;
+}
+
+function snipeit_catalogue_cache_is_synced(): bool
+{
+    $status = snipeit_catalogue_cache_status();
+    return !empty($status['tables']) && !empty($status['synced']);
+}
+
+function snipeit_json_encode_payload(array $payload): string
+{
+    $encoded = json_encode($payload);
+    return is_string($encoded) ? $encoded : '{}';
+}
+
+function snipeit_extract_display_name($value): string
+{
+    if (is_array($value)) {
+        $name = $value['name'] ?? ($value['label'] ?? ($value['text'] ?? ''));
+        return trim((string)$name);
+    }
+
+    return trim((string)$value);
+}
+
+function snipeit_normalize_status_label($statusLabel): string
+{
+    if (is_array($statusLabel)) {
+        $statusLabel = $statusLabel['name'] ?? ($statusLabel['status_meta'] ?? ($statusLabel['label'] ?? ''));
+    }
+
+    return trim((string)$statusLabel);
+}
+
+/**
+ * @return array{id:int,name:string,email:string,username:string}
+ */
+function snipeit_extract_assigned_user_fields($assigned): array
+{
+    $result = [
+        'id' => 0,
+        'name' => '',
+        'email' => '',
+        'username' => '',
+    ];
+
+    if (is_array($assigned)) {
+        $result['id'] = (int)($assigned['id'] ?? 0);
+        $result['name'] = trim((string)($assigned['name'] ?? ($assigned['username'] ?? '')));
+        $result['email'] = trim((string)($assigned['email'] ?? ''));
+        $result['username'] = trim((string)($assigned['username'] ?? ''));
+        return $result;
+    }
+
+    $name = trim((string)$assigned);
+    if ($name !== '') {
+        $result['name'] = $name;
+    }
+
+    return $result;
+}
+
+function snipeit_extract_default_location_name(array $asset): string
+{
+    $candidates = [
+        $asset['rtd_location'] ?? null,
+        $asset['default_location'] ?? null,
+        $asset['location'] ?? null,
+        $asset['default_loc'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $name = snipeit_extract_display_name($candidate);
+        if ($name !== '') {
+            return $name;
+        }
+    }
+
+    return 'No default location';
+}
+
+function snipeit_build_cached_model_payload(array $row): array
+{
+    $payload = [];
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    $modelId = (int)($row['model_id'] ?? 0);
+    $categoryId = isset($row['category_id']) ? (int)$row['category_id'] : 0;
+    $categoryName = trim((string)($row['category_name'] ?? ''));
+    $manufacturerName = trim((string)($row['manufacturer_name'] ?? ''));
+
+    $payload['id'] = $modelId;
+    $payload['name'] = $payload['name'] ?? ($row['model_name'] ?? '');
+    $payload['image'] = $payload['image'] ?? ($row['image_path'] ?? '');
+    $payload['notes'] = $payload['notes'] ?? ($row['notes_text'] ?? '');
+    $payload['assets_count'] = isset($payload['assets_count']) && is_numeric($payload['assets_count'])
+        ? (int)$payload['assets_count']
+        : (int)($row['total_asset_count'] ?? 0);
+    $payload['assets_count_total'] = isset($payload['assets_count_total']) && is_numeric($payload['assets_count_total'])
+        ? (int)$payload['assets_count_total']
+        : (int)($row['total_asset_count'] ?? 0);
+    $payload['requestable'] = true;
+    $payload['requestable_asset_count'] = (int)($row['requestable_asset_count'] ?? 0);
+
+    if (!isset($payload['manufacturer']) || !is_array($payload['manufacturer'])) {
+        $payload['manufacturer'] = [];
+    }
+    if ($manufacturerName !== '') {
+        $payload['manufacturer']['name'] = $manufacturerName;
+    }
+
+    if (!isset($payload['category']) || !is_array($payload['category'])) {
+        $payload['category'] = [];
+    }
+    if ($categoryId > 0) {
+        $payload['category']['id'] = $categoryId;
+    }
+    if ($categoryName !== '') {
+        $payload['category']['name'] = $categoryName;
+    }
+
+    return $payload;
+}
+
+function snipeit_build_cached_asset_payload(array $row): array
+{
+    $payload = [];
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    $assetId = (int)($row['asset_id'] ?? 0);
+    $modelId = (int)($row['model_id'] ?? 0);
+    $assigned = [
+        'id' => (int)($row['assigned_to_id'] ?? 0),
+        'name' => trim((string)($row['assigned_to_name'] ?? '')),
+        'email' => trim((string)($row['assigned_to_email'] ?? '')),
+        'username' => trim((string)($row['assigned_to_username'] ?? '')),
+    ];
+    $assigned = array_filter($assigned, static function ($value): bool {
+        if (is_int($value)) {
+            return $value > 0;
+        }
+        return trim((string)$value) !== '';
+    });
+
+    $payload['id'] = $assetId;
+    $payload['asset_tag'] = $payload['asset_tag'] ?? ($row['asset_tag'] ?? '');
+    $payload['name'] = $payload['name'] ?? ($row['asset_name'] ?? '');
+    $payload['requestable'] = !empty($row['requestable']);
+
+    if (!isset($payload['model']) || !is_array($payload['model'])) {
+        $payload['model'] = [];
+    }
+    if ($modelId > 0) {
+        $payload['model']['id'] = $modelId;
+    }
+    if (trim((string)($row['model_name'] ?? '')) !== '') {
+        $payload['model']['name'] = $row['model_name'];
+    }
+
+    if (!isset($payload['status_label']) || $payload['status_label'] === '') {
+        $payload['status_label'] = (string)($row['status_label'] ?? '');
+    }
+
+    if (!empty($assigned)) {
+        $payload['assigned_to'] = $assigned;
+    } elseif (!isset($payload['assigned_to']) && trim((string)($row['assigned_to_name'] ?? '')) !== '') {
+        $payload['assigned_to_fullname'] = $row['assigned_to_name'];
+    }
+
+    $locationName = trim((string)($row['default_location_name'] ?? ''));
+    if (
+        $locationName !== ''
+        && empty($payload['rtd_location'])
+        && empty($payload['default_location'])
+        && empty($payload['location'])
+        && empty($payload['default_loc'])
+    ) {
+        $payload['default_location'] = ['name' => $locationName];
+    }
+
+    return $payload;
+}
+
+function snipeit_get_cached_model_row(int $modelId): ?array
+{
+    static $rowCache = [];
+
+    if ($modelId <= 0 || !snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    if (array_key_exists($modelId, $rowCache)) {
+        return $rowCache[$modelId];
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare("
+            SELECT
+                model_id,
+                model_name,
+                manufacturer_name,
+                category_id,
+                category_name,
+                image_path,
+                notes_text,
+                total_asset_count,
+                requestable_asset_count,
+                raw_payload
+            FROM catalogue_model_cache
+            WHERE model_id = :model_id
+            LIMIT 1
+        ");
+        $stmt->execute([':model_id' => $modelId]);
+        $rowCache[$modelId] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        $rowCache[$modelId] = null;
+    }
+
+    return $rowCache[$modelId];
+}
+
+function snipeit_get_cached_bookable_models(
+    int $page = 1,
+    string $search = '',
+    ?int $categoryId = null,
+    ?string $sort = null,
+    int $perPage = 50,
+    array $allowedCategoryIds = []
+): ?array {
+    if (!snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    $page = max(1, $page);
+    $perPage = max(1, $perPage);
+    $allowedIds = [];
+    foreach ($allowedCategoryIds as $cid) {
+        if (ctype_digit((string)$cid) || is_int($cid)) {
+            $allowedIds[] = (int)$cid;
+        }
+    }
+    $allowedIds = array_values(array_unique($allowedIds));
+
+    $effectiveCategory = $categoryId;
+    if (!empty($allowedIds) && $effectiveCategory !== null && !in_array($effectiveCategory, $allowedIds, true)) {
+        $effectiveCategory = null;
+    }
+
+    $where = [];
+    $params = [];
+
+    if ($search !== '') {
+        $like = '%' . $search . '%';
+        $where[] = '(model_name LIKE ? OR manufacturer_name LIKE ?)';
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    if ($effectiveCategory !== null) {
+        $where[] = 'category_id = ?';
+        $params[] = $effectiveCategory;
+    }
+
+    if (!empty($allowedIds)) {
+        $placeholders = implode(',', array_fill(0, count($allowedIds), '?'));
+        $where[] = "category_id IN ({$placeholders})";
+        foreach ($allowedIds as $cid) {
+            $params[] = $cid;
+        }
+    }
+
+    $whereSql = empty($where) ? '' : (' WHERE ' . implode(' AND ', $where));
+    $sortKey = (string)($sort ?? '');
+    switch ($sortKey) {
+        case 'manu_asc':
+            $orderBy = ' ORDER BY manufacturer_name ASC, model_name ASC';
+            break;
+        case 'manu_desc':
+            $orderBy = ' ORDER BY manufacturer_name DESC, model_name ASC';
+            break;
+        case 'name_desc':
+            $orderBy = ' ORDER BY model_name DESC';
+            break;
+        case 'units_asc':
+            $orderBy = ' ORDER BY total_asset_count ASC, model_name ASC';
+            break;
+        case 'units_desc':
+            $orderBy = ' ORDER BY total_asset_count DESC, model_name ASC';
+            break;
+        case 'name_asc':
+        default:
+            $orderBy = ' ORDER BY model_name ASC';
+            break;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM catalogue_model_cache' . $whereSql);
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $sql = "
+            SELECT
+                model_id,
+                model_name,
+                manufacturer_name,
+                category_id,
+                category_name,
+                image_path,
+                notes_text,
+                total_asset_count,
+                requestable_asset_count,
+                raw_payload
+            FROM catalogue_model_cache
+            {$whereSql}
+            {$orderBy}
+            LIMIT " . (int)$perPage . ' OFFSET ' . (int)$offset;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $models = [];
+        foreach ($rows as $row) {
+            $models[] = snipeit_build_cached_model_payload($row);
+        }
+
+        return [
+            'total' => $total,
+            'rows' => $models,
+        ];
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function snipeit_get_cached_model_categories(): ?array
+{
+    if (!snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->query("
+            SELECT
+                category_id AS id,
+                category_name AS name,
+                COUNT(*) AS requestable_count
+            FROM catalogue_model_cache
+            WHERE category_id IS NOT NULL
+              AND category_id > 0
+              AND category_name IS NOT NULL
+              AND category_name <> ''
+            GROUP BY category_id, category_name
+            ORDER BY category_name ASC
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $categories = [];
+        foreach ($rows as $row) {
+            $categories[] = [
+                'id' => (int)($row['id'] ?? 0),
+                'name' => (string)($row['name'] ?? ''),
+                'requestable_count' => (int)($row['requestable_count'] ?? 0),
+            ];
+        }
+
+        return $categories;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function snipeit_get_cached_model(int $modelId): ?array
+{
+    $row = snipeit_get_cached_model_row($modelId);
+    return $row !== null ? snipeit_build_cached_model_payload($row) : null;
+}
+
+function snipeit_get_cached_assets_by_model(int $modelId, int $maxResults = 300): ?array
+{
+    if ($modelId <= 0 || !snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    if (snipeit_get_cached_model_row($modelId) === null) {
+        return null;
+    }
+
+    $maxResults = max(1, $maxResults);
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $sql = "
+            SELECT
+                asset_id,
+                model_id,
+                model_name,
+                asset_tag,
+                asset_name,
+                requestable,
+                status_label,
+                assigned_to_id,
+                assigned_to_name,
+                assigned_to_email,
+                assigned_to_username,
+                default_location_name,
+                raw_payload
+            FROM catalogue_asset_cache
+            WHERE model_id = :model_id
+            ORDER BY requestable DESC, asset_tag ASC, asset_id ASC
+            LIMIT " . (int)$maxResults;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':model_id' => $modelId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $assets = [];
+        foreach ($rows as $row) {
+            $assets[] = snipeit_build_cached_asset_payload($row);
+        }
+
+        return $assets;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function snipeit_get_cached_requestable_asset_count(int $modelId): ?int
+{
+    if ($modelId <= 0 || !snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    $row = snipeit_get_cached_model_row($modelId);
+    if ($row === null) {
+        return null;
+    }
+
+    return (int)($row['requestable_asset_count'] ?? 0);
+}
+
+/**
+ * Fetch all matching model rows directly from Snipe-IT.
+ *
+ * @return array
+ * @throws Exception
+ */
+function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = null): array
+{
+    $limit  = 200;
+    $allRows = [];
+    $offset = 0;
+
+    do {
+        $params = [
+            'limit'  => $limit,
+            'offset' => $offset,
+        ];
+
+        if ($search !== '') {
+            $params['search'] = $search;
+        }
+
+        if ($categoryId !== null && $categoryId > 0) {
+            $params['category_id'] = $categoryId;
+        }
+
+        $chunk = snipeit_request('GET', 'models', $params);
+        $rows = isset($chunk['rows']) && is_array($chunk['rows']) ? $chunk['rows'] : [];
+        if (empty($rows)) {
+            break;
+        }
+
+        $allRows = array_merge($allRows, $rows);
+        $fetchedThisCall = count($rows);
+        $offset += $limit;
+
+        if ($fetchedThisCall < $limit) {
+            break;
+        }
+    } while (true);
+
+    return $allRows;
+}
+
+/**
+ * Fetch model categories directly from Snipe-IT.
+ *
+ * @return array
+ * @throws Exception
+ */
+function fetch_model_categories_from_snipeit(): array
+{
+    $params = [
+        'limit' => 500,
+    ];
+
+    $data = snipeit_request('GET', 'categories', $params);
+
+    if (!isset($data['rows']) || !is_array($data['rows'])) {
+        return [];
+    }
+
+    $rows = $data['rows'];
+    $rows = array_values(array_filter($rows, function ($row) {
+        if (isset($row['requestable_count']) && is_numeric($row['requestable_count'])) {
+            return (int)$row['requestable_count'] > 0;
+        }
+        return true;
+    }));
+
+    usort($rows, function ($a, $b) {
+        $na = $a['name'] ?? '';
+        $nb = $b['name'] ?? '';
+        return strcasecmp($na, $nb);
+    });
+
+    return $rows;
+}
+
+/**
+ * Fetch all hardware rows directly from Snipe-IT.
+ *
+ * @param int $maxResults
+ * @return array
+ * @throws Exception
+ */
+function fetch_all_hardware_from_snipeit(int $maxResults = 0): array
+{
+    if ($maxResults <= 0) {
+        $maxResults = PHP_INT_MAX;
+    }
+
+    $all = [];
+    $limit = min(200, $maxResults);
+    $offset = 0;
+
+    do {
+        $params = [
+            'limit'  => $limit,
+            'offset' => $offset,
+        ];
+
+        $data = snipeit_request('GET', 'hardware', $params);
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if (empty($rows)) {
+            break;
+        }
+
+        $all = array_merge($all, $rows);
+        $count = count($rows);
+        $offset += $limit;
+
+        if ($count < $limit || count($all) >= $maxResults) {
+            break;
+        }
+    } while (true);
+
+    if (count($all) > $maxResults) {
+        $all = array_slice($all, 0, $maxResults);
+    }
+
+    return $all;
+}
+
 /**
  * Fetch **all** matching models from Snipe-IT,
  * then sort them as requested, then paginate locally.
@@ -169,6 +849,11 @@ function get_bookable_models(
     int $perPage = 50,
     array $allowedCategoryIds = []
 ): array {
+    $cached = snipeit_get_cached_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds);
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $page    = max(1, $page);
     $perPage = max(1, $perPage);
     $allowedMap = [];
@@ -184,42 +869,7 @@ function get_bookable_models(
         $effectiveCategory = null;
     }
 
-    $limit  = 200; // per-API-call limit
-    $allRows = [];
-
-    $offset = 0;
-    // Pull pages from Snipe-IT until we have everything.
-    do {
-        $params = [
-            'limit'  => $limit,
-            'offset' => $offset,
-        ];
-
-        if ($search !== '') {
-            $params['search'] = $search;
-        }
-
-        if (!empty($effectiveCategory)) {
-            $params['category_id'] = $effectiveCategory;
-        }
-
-        $chunk = snipeit_request('GET', 'models', $params);
-
-        if (!isset($chunk['rows']) || !is_array($chunk['rows'])) {
-            break;
-        }
-
-        $rows    = $chunk['rows'];
-        $allRows = array_merge($allRows, $rows);
-
-        $fetchedThisCall = count($rows);
-        $offset += $limit;
-
-        // Stop if we didn't get a full page (end of data).
-        if ($fetchedThisCall < $limit) {
-            break;
-        }
-    } while (true);
+    $allRows = fetch_all_models_from_snipeit($search, $effectiveCategory);
 
     // Filter by requestable flag (Snipe-IT uses 'requestable' on models)
     $allRows = array_values(array_filter($allRows, function ($row) {
@@ -296,32 +946,12 @@ function get_bookable_models(
  */
 function get_model_categories(): array
 {
-    $params = [
-        'limit' => 500,
-    ];
-
-    $data = snipeit_request('GET', 'categories', $params);
-
-    if (!isset($data['rows']) || !is_array($data['rows'])) {
-        return [];
+    $cached = snipeit_get_cached_model_categories();
+    if ($cached !== null) {
+        return $cached;
     }
 
-    $rows = $data['rows'];
-    // Keep only categories that have at least one requestable model if API returns requestable_count
-    $rows = array_values(array_filter($rows, function ($row) {
-        if (isset($row['requestable_count']) && is_numeric($row['requestable_count'])) {
-            return (int)$row['requestable_count'] > 0;
-        }
-        return true;
-    }));
-
-    usort($rows, function ($a, $b) {
-        $na = $a['name'] ?? '';
-        $nb = $b['name'] ?? '';
-        return strcasecmp($na, $nb);
-    });
-
-    return $rows;
+    return fetch_model_categories_from_snipeit();
 }
 
 /**
@@ -335,6 +965,11 @@ function get_model(int $modelId): array
 {
     if ($modelId <= 0) {
         throw new InvalidArgumentException('Invalid model ID');
+    }
+
+    $cached = snipeit_get_cached_model($modelId);
+    if ($cached !== null) {
+        return $cached;
     }
 
     return snipeit_request('GET', 'models/' . $modelId);
@@ -467,6 +1102,11 @@ function list_assets_by_model(int $modelId, int $maxResults = 300): array
         throw new InvalidArgumentException('Model ID must be positive.');
     }
 
+    $cached = snipeit_get_cached_assets_by_model($modelId, $maxResults);
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $all    = [];
     $limit  = min(200, max(1, $maxResults));
     $offset = 0;
@@ -507,6 +1147,12 @@ function count_requestable_assets_by_model(int $modelId): int
         throw new InvalidArgumentException('Model ID must be positive.');
     }
     if (isset($cache[$modelId])) {
+        return $cache[$modelId];
+    }
+
+    $cachedCount = snipeit_get_cached_requestable_asset_count($modelId);
+    if ($cachedCount !== null) {
+        $cache[$modelId] = $cachedCount;
         return $cache[$modelId];
     }
 
@@ -833,32 +1479,7 @@ function checkin_asset(int $assetId, string $note = ''): void
  */
 function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $maxResults = 0): array
 {
-    if ($maxResults <= 0) {
-        $maxResults = PHP_INT_MAX;
-    }
-    $all = [];
-    $limit = min(200, $maxResults);
-    $offset = 0;
-
-    do {
-        $params = [
-            'limit'  => $limit,
-            'offset' => $offset,
-        ];
-
-        $data = snipeit_request('GET', 'hardware', $params);
-        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        if (empty($rows)) {
-            break;
-        }
-        $all = array_merge($all, $rows);
-        $count = count($rows);
-        $offset += $limit;
-
-        if ($count < $limit || count($all) >= $maxResults) {
-            break;
-        }
-    } while (true);
+    $all = fetch_all_hardware_from_snipeit($maxResults);
 
     $now = time();
     $filtered = [];
@@ -870,7 +1491,12 @@ function fetch_checked_out_assets_from_snipeit(bool $overdueOnly = false, int $m
 
         // Consider "checked out" if assigned_to/user is present
         $assigned = $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? '');
-        if ($assigned === '') {
+        $assignedFields = snipeit_extract_assigned_user_fields($assigned);
+        $hasAssignment = $assignedFields['id'] > 0
+            || $assignedFields['name'] !== ''
+            || $assignedFields['email'] !== ''
+            || $assignedFields['username'] !== '';
+        if (!$hasAssignment) {
             continue;
         }
 
