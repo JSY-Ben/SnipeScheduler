@@ -478,6 +478,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         ];
         $newConfig['catalogue'] = [
             'allowed_categories' => [],
+            'allowed_status_labels' => [],
             'show_available_default_locations' => true,
             'allow_public_view' => false,
         ];

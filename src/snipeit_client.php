@@ -342,6 +342,78 @@ function snipeit_normalize_status_label($statusLabel): string
     return trim((string)$statusLabel);
 }
 
+function snipeit_status_label_key(string $statusLabel): string
+{
+    $statusLabel = trim($statusLabel);
+    if ($statusLabel === '') {
+        return '';
+    }
+
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($statusLabel, 'UTF-8');
+    }
+
+    return strtolower($statusLabel);
+}
+
+/**
+ * @return array<string,string> Case-folded status label => original status label
+ */
+function snipeit_catalogue_allowed_status_labels(?array $cfg = null): array
+{
+    if ($cfg === null) {
+        global $config;
+        $cfg = is_array($config ?? null) ? $config : [];
+    }
+
+    $raw = $cfg['catalogue']['allowed_status_labels'] ?? [];
+    if (!is_array($raw) || empty($raw)) {
+        return [];
+    }
+
+    $allowed = [];
+    foreach ($raw as $labelRaw) {
+        $label = snipeit_normalize_status_label($labelRaw);
+        if ($label === '') {
+            continue;
+        }
+
+        $allowed[snipeit_status_label_key($label)] = $label;
+    }
+
+    return $allowed;
+}
+
+/**
+ * @param array<string,string>|null $allowedStatusLabels
+ */
+function snipeit_status_label_is_allowed($statusLabel, ?array $allowedStatusLabels = null): bool
+{
+    $allowedMap = $allowedStatusLabels ?? snipeit_catalogue_allowed_status_labels();
+    if (empty($allowedMap)) {
+        return true;
+    }
+
+    $normalized = snipeit_normalize_status_label($statusLabel);
+    if ($normalized === '') {
+        return false;
+    }
+
+    return isset($allowedMap[snipeit_status_label_key($normalized)]);
+}
+
+/**
+ * @param array<string,string>|null $allowedStatusLabels
+ */
+function snipeit_asset_allowed_for_catalogue_availability(array $asset, ?array $allowedStatusLabels = null): bool
+{
+    if (empty($asset['requestable'])) {
+        return false;
+    }
+
+    return snipeit_status_label_is_allowed($asset['status_label'] ?? '', $allowedStatusLabels);
+}
+
 /**
  * @return array{id:int,name:string,email:string,username:string}
  */
@@ -700,6 +772,46 @@ function snipeit_get_cached_model_categories(): ?array
     }
 }
 
+function snipeit_get_cached_asset_status_labels(): ?array
+{
+    if (!snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->query("
+            SELECT
+                status_label AS name,
+                COUNT(*) AS asset_count
+            FROM catalogue_asset_cache
+            WHERE status_label IS NOT NULL
+              AND status_label <> ''
+            GROUP BY status_label
+            ORDER BY status_label ASC
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $statuses = [];
+        foreach ($rows as $row) {
+            $name = snipeit_normalize_status_label($row['name'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $statuses[] = [
+                'id' => 0,
+                'name' => $name,
+                'asset_count' => (int)($row['asset_count'] ?? 0),
+            ];
+        }
+
+        return $statuses;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 function snipeit_get_cached_model(int $modelId): ?array
 {
     $row = snipeit_get_cached_model_row($modelId);
@@ -847,6 +959,60 @@ function fetch_model_categories_from_snipeit(bool $allowResponseCache = true): a
     });
 
     return $rows;
+}
+
+/**
+ * Fetch asset status labels from Snipe-IT.
+ *
+ * @return array
+ * @throws Exception
+ */
+function fetch_status_labels_from_snipeit(bool $allowResponseCache = true): array
+{
+    $limit = 200;
+    $offset = 0;
+    $statusByKey = [];
+
+    do {
+        $params = [
+            'limit' => $limit,
+            'offset' => $offset,
+        ];
+        $data = snipeit_request('GET', 'statuslabels', $params, $allowResponseCache);
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if (empty($rows)) {
+            break;
+        }
+
+        foreach ($rows as $row) {
+            $name = snipeit_normalize_status_label($row['name'] ?? ($row['label'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $key = snipeit_status_label_key($name);
+            if ($key === '' || isset($statusByKey[$key])) {
+                continue;
+            }
+
+            $statusByKey[$key] = [
+                'id' => (int)($row['id'] ?? 0),
+                'name' => $name,
+            ];
+        }
+
+        if (count($rows) < $limit) {
+            break;
+        }
+        $offset += $limit;
+    } while (true);
+
+    $result = array_values($statusByKey);
+    usort($result, static function (array $a, array $b): int {
+        return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+    });
+
+    return $result;
 }
 
 /**
@@ -1217,26 +1383,33 @@ function count_requestable_assets_by_model(int $modelId): int
     if ($modelId <= 0) {
         throw new InvalidArgumentException('Model ID must be positive.');
     }
-    if (isset($cache[$modelId])) {
-        return $cache[$modelId];
+    $allowedStatusMap = snipeit_catalogue_allowed_status_labels();
+    $statusCacheKey = empty($allowedStatusMap)
+        ? 'all'
+        : implode('|', array_keys($allowedStatusMap));
+    $cacheKey = $modelId . '|' . $statusCacheKey;
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
     }
 
-    $cachedCount = snipeit_get_cached_requestable_asset_count($modelId);
-    if ($cachedCount !== null) {
-        $cache[$modelId] = $cachedCount;
-        return $cache[$modelId];
+    if (empty($allowedStatusMap)) {
+        $cachedCount = snipeit_get_cached_requestable_asset_count($modelId);
+        if ($cachedCount !== null) {
+            $cache[$cacheKey] = $cachedCount;
+            return $cache[$cacheKey];
+        }
     }
 
     $assets = list_assets_by_model($modelId, 500);
     $count  = 0;
 
     foreach ($assets as $a) {
-        if (!empty($a['requestable'])) {
+        if (snipeit_asset_allowed_for_catalogue_availability($a, $allowedStatusMap)) {
             $count++;
         }
     }
 
-    $cache[$modelId] = $count;
+    $cache[$cacheKey] = $count;
     return $count;
 }
 
@@ -1256,12 +1429,29 @@ function count_checked_out_assets_by_model(int $modelId): int
     global $pdo;
     require_once SRC_PATH . '/db.php';
 
-    $stmt = $pdo->prepare("
+    $allowedStatusMap = snipeit_catalogue_allowed_status_labels();
+    $params = [':model_id' => $modelId];
+    $sql = "
         SELECT COUNT(*)
           FROM checked_out_asset_cache
          WHERE model_id = :model_id
-    ");
-    $stmt->execute([':model_id' => $modelId]);
+    ";
+    if (!empty($allowedStatusMap)) {
+        $labels = array_values($allowedStatusMap);
+        $placeholders = [];
+        foreach ($labels as $idx => $label) {
+            $key = ':status_' . $idx;
+            $placeholders[] = $key;
+            $params[$key] = $label;
+        }
+
+        if (!empty($placeholders)) {
+            $sql .= ' AND status_label IN (' . implode(', ', $placeholders) . ')';
+        }
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     return (int)$stmt->fetchColumn();
 }
 

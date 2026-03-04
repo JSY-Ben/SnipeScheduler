@@ -41,6 +41,9 @@ $timezoneOptions = timezone_identifiers_list();
 $categoryOptions    = [];
 $categoryFetchNotice = '';
 $categoryFetchError = '';
+$statusOptions = [];
+$statusFetchNotice = '';
+$statusFetchError = '';
 // Bypass the generic response cache here so admins can refresh the full category list from Snipe-IT.
 try {
     $categoryOptions = fetch_model_categories_from_snipeit(false);
@@ -63,6 +66,30 @@ try {
         } catch (Throwable $cachedError) {
             $categoryOptions    = [];
             $categoryFetchError = $e->getMessage();
+        }
+    }
+}
+try {
+    $statusOptions = fetch_status_labels_from_snipeit(false);
+} catch (Throwable $e) {
+    try {
+        $statusOptions = fetch_status_labels_from_snipeit();
+        if (!empty($statusOptions)) {
+            $statusFetchNotice = 'Could not refresh live status labels from Snipe-IT; showing the last cached API results.';
+        } else {
+            $statusFetchError = $e->getMessage();
+        }
+    } catch (Throwable $cachedApiError) {
+        try {
+            $statusOptions = snipeit_get_cached_asset_status_labels();
+            if (!empty($statusOptions)) {
+                $statusFetchNotice = 'Could not refresh live status labels from Snipe-IT; showing locally cached status labels only.';
+            } else {
+                $statusFetchError = $e->getMessage();
+            }
+        } catch (Throwable $cachedError) {
+            $statusOptions = [];
+            $statusFetchError = $e->getMessage();
         }
     }
 }
@@ -610,6 +637,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $catalogue['allowed_categories'] = $allowedCategories;
+    if (isset($_POST['catalogue_allowed_status_labels_present'])) {
+        $statusRaw = $_POST['catalogue_allowed_status_labels'] ?? [];
+        $allowedStatuses = [];
+        if (is_array($statusRaw)) {
+            foreach ($statusRaw as $statusLabelRaw) {
+                $statusLabel = snipeit_normalize_status_label($statusLabelRaw);
+                if ($statusLabel === '') {
+                    continue;
+                }
+
+                $allowedStatuses[snipeit_status_label_key($statusLabel)] = $statusLabel;
+            }
+        }
+        $catalogue['allowed_status_labels'] = array_values($allowedStatuses);
+    } elseif (!array_key_exists('allowed_status_labels', $catalogue) || !is_array($catalogue['allowed_status_labels'])) {
+        $catalogue['allowed_status_labels'] = [];
+    }
 
     $smtp = $config['smtp'] ?? [];
     $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
@@ -805,6 +849,19 @@ if (!is_array($allowedCategoryIds)) {
     $allowedCategoryIds = [];
 }
 $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
+
+$allowedStatusLabels = $cfg(['catalogue', 'allowed_status_labels'], []);
+if (!is_array($allowedStatusLabels)) {
+    $allowedStatusLabels = [];
+}
+$allowedStatusLabelMap = [];
+foreach ($allowedStatusLabels as $statusLabelRaw) {
+    $statusLabel = snipeit_normalize_status_label($statusLabelRaw);
+    if ($statusLabel === '') {
+        continue;
+    }
+    $allowedStatusLabelMap[snipeit_status_label_key($statusLabel)] = $statusLabel;
+}
 
 $reservationPolicy = reservation_policy_get($config);
 $reservationNoticeParts = reservation_policy_minutes_to_parts($reservationPolicy['notice_minutes'] ?? 0);
@@ -1352,6 +1409,55 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <?php endforeach; ?>
                             </div>
                             <div class="form-text mt-2">Tip: leave all unchecked to allow every category to show in the dropdown.</div>
+                        <?php endif; ?>
+
+                        <hr class="my-4">
+                        <h6 class="mb-1">Catalogue availability statuses</h6>
+                        <p class="text-muted small mb-3">
+                            Choose which Snipe-IT asset statuses count toward catalogue and basket availability. Leave everything unticked to include all statuses.
+                        </p>
+                        <?php if ($statusFetchNotice): ?>
+                            <div class="alert alert-warning small mb-3">
+                                <?= h($statusFetchNotice) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($statusFetchError): ?>
+                            <div class="alert alert-warning small mb-3">
+                                Could not load status labels from Snipe-IT: <?= h($statusFetchError) ?>
+                            </div>
+                        <?php elseif (!empty($statusOptions)): ?>
+                            <input type="hidden" name="catalogue_allowed_status_labels_present" value="1">
+                        <?php endif; ?>
+                        <?php if (empty($statusFetchError) && empty($statusOptions)): ?>
+                            <div class="text-muted small">No status labels available.</div>
+                        <?php elseif (!empty($statusOptions)): ?>
+                            <div class="row g-2">
+                                <?php foreach ($statusOptions as $statusOption): ?>
+                                    <?php
+                                    $statusLabel = snipeit_normalize_status_label($statusOption['name'] ?? '');
+                                    if ($statusLabel === '') {
+                                        continue;
+                                    }
+                                    $statusKey = snipeit_status_label_key($statusLabel);
+                                    $statusId = (int)($statusOption['id'] ?? 0);
+                                    $statusInputId = 'status_filter_' . ($statusId > 0 ? (string)$statusId : md5($statusLabel));
+                                    ?>
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="catalogue_allowed_status_labels[]"
+                                                   id="<?= h($statusInputId) ?>"
+                                                   value="<?= h($statusLabel) ?>"
+                                                <?= isset($allowedStatusLabelMap[$statusKey]) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="<?= h($statusInputId) ?>">
+                                                <?= h($statusLabel) ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text mt-2">Tip: leave all unchecked to include every status in availability counts.</div>
                         <?php endif; ?>
                     </div>
                 </div>

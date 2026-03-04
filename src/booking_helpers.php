@@ -74,15 +74,19 @@ function booking_count_effective_checked_out_assets(int $modelId, array $config,
     require_once SRC_PATH . '/db.php';
 
     $stmt = $pdo->prepare("
-        SELECT expected_checkin
+        SELECT expected_checkin, status_label
           FROM checked_out_asset_cache
          WHERE model_id = :model_id
     ");
     $stmt->execute([':model_id' => $modelId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    $allowedStatusMap = snipeit_catalogue_allowed_status_labels($config);
     $count = 0;
     foreach ($rows as $row) {
+        if (!snipeit_status_label_is_allowed($row['status_label'] ?? '', $allowedStatusMap)) {
+            continue;
+        }
         if (booking_should_count_checked_out_asset($config, $row['expected_checkin'] ?? '', $windowStartTs)) {
             $count++;
         }

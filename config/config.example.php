@@ -193,6 +193,9 @@ return [
         // Restrict which categories are stored in the catalogue cache and appear in the catalogue filter.
         // Leave empty to show all categories returned by Snipe-IT.
         'allowed_categories' => [],
+        // Restrict which Snipe-IT asset statuses count toward catalogue and basket availability.
+        // Leave empty to include all statuses.
+        'allowed_status_labels' => [],
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
         // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.

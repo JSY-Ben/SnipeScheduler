@@ -1200,6 +1200,7 @@ $categories   = [];
 $categoryErr  = '';
 $allowedCategoryMap = [];
 $allowedCategoryIds = [];
+$allowedStatusLabels = snipeit_catalogue_allowed_status_labels($config);
 $models      = [];
 $modelErr    = '';
 $totalModels = 0;
@@ -1304,7 +1305,7 @@ if (!empty($models)) {
             foreach ($modelIdChunks as $chunk) {
                 $placeholders = implode(',', array_fill(0, count($chunk), '?'));
                 $stmt = $pdo->prepare("
-                    SELECT model_id, asset_id, expected_checkin
+                    SELECT model_id, asset_id, expected_checkin, status_label
                       FROM checked_out_asset_cache
                      WHERE model_id IN ({$placeholders})
                 ");
@@ -1318,6 +1319,9 @@ if (!empty($models)) {
                         continue;
                     }
                     if (!booking_should_count_checked_out_asset($config, $row['expected_checkin'] ?? '', $windowActive ? (int)$windowStartTs : null)) {
+                        continue;
+                    }
+                    if (!snipeit_status_label_is_allowed($row['status_label'] ?? '', $allowedStatusLabels)) {
                         continue;
                     }
 
@@ -1592,7 +1596,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                             $assetCount = 0;
 
                             foreach ($assets as $asset) {
-                                if (empty($asset['requestable'])) {
+                                if (!snipeit_asset_allowed_for_catalogue_availability($asset, $allowedStatusLabels)) {
                                     continue;
                                 }
 
