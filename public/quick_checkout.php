@@ -11,11 +11,8 @@ require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/reservation_policy.php';
 
-$now = new DateTime();
-$defaultStart = $now->format('Y-m-d\TH:i');
 $defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
 
-$startRaw = $_POST['start_datetime'] ?? $defaultStart;
 $endRaw   = $_POST['end_datetime'] ?? $defaultEnd;
 
 $reservationConflicts = [];
@@ -27,15 +24,14 @@ function display_datetime(?string $iso): string
 }
 
 /**
- * Return current reservations (pending/confirmed) for a given model that overlap "now".
+ * Return reservations (pending/confirmed) for a given model that overlap the checkout period.
  */
-function qc_current_reservations_for_model(PDO $pdo, int $modelId): array
+function qc_reservations_for_model_window(PDO $pdo, int $modelId, string $startIso, string $endIso): array
 {
-    if ($modelId <= 0) {
+    if ($modelId <= 0 || $startIso === '' || $endIso === '') {
         return [];
     }
 
-    $now = (new DateTime())->format('Y-m-d H:i:s');
     $sql = "
         SELECT r.id,
                r.user_name,
@@ -48,14 +44,14 @@ function qc_current_reservations_for_model(PDO $pdo, int $modelId): array
           JOIN reservations r ON r.id = ri.reservation_id
          WHERE ri.model_id = :model_id
            AND r.status IN ('pending','confirmed')
-           AND r.start_datetime <= :now
-           AND r.end_datetime   >= :now
+           AND (r.start_datetime < :end AND r.end_datetime > :start)
          ORDER BY r.start_datetime ASC
     ";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
         ':model_id' => $modelId,
-        ':now'      => $now,
+        ':start'    => $startIso,
+        ':end'      => $endIso,
     ]);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -171,20 +167,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkoutToValue = $checkoutTo;
         $noteValue       = $note;
         $overrideValue   = $overrideAllowed;
-        $startRaw        = trim($_POST['start_datetime'] ?? $startRaw);
         $endRaw          = trim($_POST['end_datetime'] ?? $endRaw);
 
-        $startTs = strtotime($startRaw);
+        $startTs = time();
         $endTs   = strtotime($endRaw);
 
         if ($checkoutTo === '') {
             $errors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
         } elseif (empty($checkoutAssets)) {
             $errors[] = 'There are no assets in the checkout list.';
-        } elseif ($startTs === false || $endTs === false) {
-            $errors[] = 'Invalid start or end date/time.';
+        } elseif ($endTs === false) {
+            $errors[] = 'Invalid return date/time.';
         } elseif ($endTs <= $startTs) {
-            $errors[] = 'End date/time must be after start date/time.';
+            $errors[] = 'Return date/time must be after the current time.';
         } else {
             try {
                 $user = null;
@@ -227,6 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_staff' => $isStaff,
                         // Quick checkout is a staff/admin acting for another user.
                         'is_on_behalf' => true,
+                        'is_quick_checkout' => true,
                     ]);
                     if (!empty($policyViolations)) {
                         foreach ($policyViolations as $violation) {
@@ -235,8 +231,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (empty($policyViolations)) {
-                        // Check for active reservations on these models right now, but only warn when
+                        // Check for overlapping reservations in the checkout period, and only warn when
                         // reserved qty would exceed available stock after this checkout.
+                        $windowStartIso = date('Y-m-d H:i:s', $startTs);
+                        $windowEndIso = date('Y-m-d H:i:s', $endTs);
                         $reservationConflicts = [];
                         $checkoutModelCounts = [];
                         foreach ($checkoutAssets as $asset) {
@@ -246,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                         foreach ($checkoutModelCounts as $mid => $checkoutQty) {
-                            $conf = qc_current_reservations_for_model($pdo, (int)$mid);
+                            $conf = qc_reservations_for_model_window($pdo, (int)$mid, $windowStartIso, $windowEndIso);
                             if (empty($conf)) {
                                 continue;
                             }
@@ -279,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
 
                         if (!empty($reservationConflicts) && !$overrideAllowed) {
-                            $errors[] = 'Some assets are reserved for this time. Review who reserved them below or tick "Override" to proceed anyway.';
+                            $errors[] = 'Some assets are reserved during this checkout period. Review who reserved them below or tick "Override" to proceed anyway.';
                         } else {
                             $expectedCheckinIso = date('Y-m-d H:i:s', $endTs);
 
@@ -586,8 +584,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <?php if (!empty($reservationConflicts)): ?>
                         <div class="alert alert-warning">
-                            <div class="fw-semibold mb-1">Some assets are reserved right now.</div>
-                            <div class="small mb-2">Review who has them reserved for the current window before overriding.</div>
+                            <div class="fw-semibold mb-1">Some assets are reserved before the selected return time.</div>
+                            <div class="small mb-2">Review who has them reserved during this checkout period before overriding.</div>
                             <ul class="mb-0">
                                 <?php foreach ($checkoutAssets as $asset): ?>
                                     <?php if (empty($reservationConflicts[$asset['id']])) continue; ?>
@@ -666,19 +664,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Start date &amp; time</label>
-                                <input type="datetime-local"
-                                       name="start_datetime"
-                                       class="form-control"
-                                       value="<?= h($startRaw) ?>">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">End date &amp; time</label>
+                                <label class="form-label fw-semibold">Return date &amp; time</label>
                                 <input type="datetime-local"
                                        name="end_datetime"
                                        class="form-control"
                                        value="<?= h($endRaw) ?>">
-                                <div class="form-text">Defaults to tomorrow at 09:00.</div>
+                                <div class="form-text">Checkout happens immediately. Defaults to tomorrow at 09:00.</div>
                             </div>
                         </div>
 
@@ -691,7 +682,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                        name="override_conflicts"
                                        <?= $overrideValue ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="override_conflicts">
-                                    Override current reservations and check out anyway
+                                    Override reservations during this checkout period and check out anyway
                                 </label>
                             </div>
                         <?php endif; ?>

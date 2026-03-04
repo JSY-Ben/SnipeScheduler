@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
+require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
 
 // Only allow POST
@@ -13,11 +14,13 @@ $modelId      = isset($_POST['model_id']) ? (int)$_POST['model_id'] : 0;
 $qtyRequested = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
 $startRaw     = trim($_POST['start_datetime'] ?? '');
 $endRaw       = trim($_POST['end_datetime'] ?? '');
+$availabilityWindowStartTs = null;
 
 if ($startRaw !== '' && $endRaw !== '') {
     $startTs = strtotime($startRaw);
     $endTs   = strtotime($endRaw);
     if ($startTs !== false && $endTs !== false && $endTs > $startTs) {
+        $availabilityWindowStartTs = (int)$startTs;
         $_SESSION['reservation_window_start'] = $startRaw;
         $_SESSION['reservation_window_end']   = $endRaw;
     }
@@ -37,7 +40,7 @@ if ($qtyRequested > 100) {
 // Enforce hardware limits from Snipe-IT (if available)
 try {
     $requestableTotal = count_requestable_assets_by_model($modelId);
-    $activeCheckedOut = count_checked_out_assets_by_model($modelId);
+    $activeCheckedOut = booking_count_effective_checked_out_assets($modelId, $config, $availabilityWindowStartTs);
     $maxQty = $requestableTotal > 0 ? max(0, $requestableTotal - $activeCheckedOut) : 0;
 } catch (Throwable $e) {
     $maxQty = 0; // treat as unknown (no hard cap)

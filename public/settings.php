@@ -523,6 +523,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_notice_minutes'] = reservation_policy_parts_to_minutes($noticeDays, $noticeHours, $noticeMinutes);
     $app['reservation_notice_bypass_checkout_staff'] = isset($_POST['app_res_notice_bypass_staff']);
     $app['reservation_notice_bypass_admins'] = isset($_POST['app_res_notice_bypass_admin']);
+    $app['reservation_notice_bypass_quick_checkout'] = isset($_POST['app_res_notice_bypass_quick_checkout']);
 
     $minDurationDays = max(0, (int)$post('app_res_duration_min_days', $existingMinDurationParts['days'] ?? 0));
     $minDurationHours = max(0, (int)$post('app_res_duration_min_hours', $existingMinDurationParts['hours'] ?? 0));
@@ -550,6 +551,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $app['reservation_duration_bypass_checkout_staff'] = isset($_POST['app_res_duration_bypass_staff']);
     $app['reservation_duration_bypass_admins'] = isset($_POST['app_res_duration_bypass_admin']);
+    $app['reservation_duration_bypass_quick_checkout'] = isset($_POST['app_res_duration_bypass_quick_checkout']);
 
     $app['reservation_max_concurrent_reservations'] = max(
         0,
@@ -557,6 +559,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     $app['reservation_concurrent_bypass_checkout_staff'] = isset($_POST['app_res_concurrent_bypass_staff']);
     $app['reservation_concurrent_bypass_admins'] = isset($_POST['app_res_concurrent_bypass_admin']);
+    $app['reservation_concurrent_bypass_quick_checkout'] = isset($_POST['app_res_concurrent_bypass_quick_checkout']);
 
     $blackoutStartsRaw = $_POST['app_res_blackout_start'] ?? [];
     $blackoutEndsRaw   = $_POST['app_res_blackout_end'] ?? [];
@@ -591,9 +594,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $app['reservation_blackout_bypass_checkout_staff'] = isset($_POST['app_res_blackout_bypass_staff']);
     $app['reservation_blackout_bypass_admins'] = isset($_POST['app_res_blackout_bypass_admin']);
+    $app['reservation_blackout_bypass_quick_checkout'] = isset($_POST['app_res_blackout_bypass_quick_checkout']);
 
     $catalogue = $config['catalogue'] ?? [];
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
+    $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
@@ -1259,6 +1264,21 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-check form-switch">
                                     <input class="form-check-input"
                                            type="checkbox"
+                                           name="catalogue_checked_out_affects_future_availability"
+                                           id="catalogue_checked_out_affects_future_availability"
+                                        <?= $cfg(['catalogue', 'checked_out_affects_future_availability'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_checked_out_affects_future_availability">
+                                        Keep checked out items unavailable for future date windows
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    When enabled, currently checked out assets still reduce future catalogue and basket availability even if their expected check-in is before the requested start time.
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
                                            name="catalogue_show_available_default_locations"
                                            id="catalogue_show_available_default_locations"
                                         <?= $cfg(['catalogue', 'show_available_default_locations'], true) ? 'checked' : '' ?>>
@@ -1342,7 +1362,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                     <div class="card-body">
                         <h5 class="card-title mb-1">Reservation Controls</h5>
                         <p class="text-muted small mb-3">
-                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it for their own bookings and when booking on a user's behalf via Catalogue "Booking for" or Quick Checkout.
+                            These rules apply to reservations. For each rule, you can allow checkout staff and/or admins to bypass it for reservation bookings, and optionally disable that rule entirely for Quick Checkout.
                         </p>
                         <div class="row g-3">
 
@@ -1379,7 +1399,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         </div>
                                     </div>
                                     <div class="row g-2 mt-1">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1391,7 +1411,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 </label>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1400,6 +1420,18 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                     <?= $cfg(['app', 'reservation_notice_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_notice_bypass_admin">
                                                     Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_notice_bypass_quick_checkout"
+                                                       id="app_res_notice_bypass_quick_checkout"
+                                                    <?= $cfg(['app', 'reservation_notice_bypass_quick_checkout'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_notice_bypass_quick_checkout">
+                                                    Disable this rule for Quick Checkout
                                                 </label>
                                             </div>
                                         </div>
@@ -1471,7 +1503,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         </div>
                                     </div>
                                     <div class="row g-2 mt-1">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1483,7 +1515,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 </label>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1492,6 +1524,18 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                     <?= $cfg(['app', 'reservation_duration_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_duration_bypass_admin">
                                                     Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_duration_bypass_quick_checkout"
+                                                       id="app_res_duration_bypass_quick_checkout"
+                                                    <?= $cfg(['app', 'reservation_duration_bypass_quick_checkout'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_duration_bypass_quick_checkout">
+                                                    Disable this rule for Quick Checkout
                                                 </label>
                                             </div>
                                         </div>
@@ -1514,7 +1558,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         </div>
                                     </div>
                                     <div class="row g-2 mt-1">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1526,7 +1570,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 </label>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1535,6 +1579,18 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                     <?= $cfg(['app', 'reservation_concurrent_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_concurrent_bypass_admin">
                                                     Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_concurrent_bypass_quick_checkout"
+                                                       id="app_res_concurrent_bypass_quick_checkout"
+                                                    <?= $cfg(['app', 'reservation_concurrent_bypass_quick_checkout'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_concurrent_bypass_quick_checkout">
+                                                    Disable this rule for Quick Checkout
                                                 </label>
                                             </div>
                                         </div>
@@ -1622,7 +1678,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         Use the date/time pickers to add blackout windows. Reasons are shown to users when a blackout blocks a booking.
                                     </div>
                                     <div class="row g-2 mt-1">
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1634,7 +1690,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 </label>
                                             </div>
                                         </div>
-                                        <div class="col-md-6">
+                                        <div class="col-md-4">
                                             <div class="form-check">
                                                 <input class="form-check-input"
                                                        type="checkbox"
@@ -1643,6 +1699,18 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                     <?= $cfg(['app', 'reservation_blackout_bypass_admins'], false) ? 'checked' : '' ?>>
                                                 <label class="form-check-label" for="app_res_blackout_bypass_admin">
                                                     Admins can bypass this rule
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       name="app_res_blackout_bypass_quick_checkout"
+                                                       id="app_res_blackout_bypass_quick_checkout"
+                                                    <?= $cfg(['app', 'reservation_blackout_bypass_quick_checkout'], false) ? 'checked' : '' ?>>
+                                                <label class="form-check-label" for="app_res_blackout_bypass_quick_checkout">
+                                                    Disable this rule for Quick Checkout
                                                 </label>
                                             </div>
                                         </div>

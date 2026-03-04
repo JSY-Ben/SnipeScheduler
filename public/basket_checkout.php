@@ -4,6 +4,7 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
+require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/reservation_policy.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
@@ -104,7 +105,7 @@ try {
 
         // Total requestable units in Snipe-IT
         $totalRequestable = count_requestable_assets_by_model($modelId);
-        $activeCheckedOut = count_checked_out_assets_by_model($modelId);
+        $activeCheckedOut = booking_count_effective_checked_out_assets($modelId, $config, (int)$startTs);
         $availableNow = $totalRequestable > 0 ? max(0, $totalRequestable - $activeCheckedOut) : 0;
 
         if ($totalRequestable > 0 && $existingBooked + $qty > $availableNow) {

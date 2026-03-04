@@ -314,18 +314,22 @@ if (!function_exists('reservation_policy_get')) {
                 'notice' => [
                     'checkout_staff' => !empty($app['reservation_notice_bypass_checkout_staff']),
                     'admins' => !empty($app['reservation_notice_bypass_admins']),
+                    'quick_checkout' => !empty($app['reservation_notice_bypass_quick_checkout']),
                 ],
                 'duration' => [
                     'checkout_staff' => !empty($app['reservation_duration_bypass_checkout_staff']),
                     'admins' => !empty($app['reservation_duration_bypass_admins']),
+                    'quick_checkout' => !empty($app['reservation_duration_bypass_quick_checkout']),
                 ],
                 'concurrent' => [
                     'checkout_staff' => !empty($app['reservation_concurrent_bypass_checkout_staff']),
                     'admins' => !empty($app['reservation_concurrent_bypass_admins']),
+                    'quick_checkout' => !empty($app['reservation_concurrent_bypass_quick_checkout']),
                 ],
                 'blackout' => [
                     'checkout_staff' => !empty($app['reservation_blackout_bypass_checkout_staff']),
                     'admins' => !empty($app['reservation_blackout_bypass_admins']),
+                    'quick_checkout' => !empty($app['reservation_blackout_bypass_quick_checkout']),
                 ],
             ],
         ];
@@ -338,12 +342,16 @@ if (!function_exists('reservation_policy_rule_can_bypass')) {
         string $ruleKey,
         bool $isAdmin,
         bool $isStaff,
-        bool $_isOnBehalf
+        bool $_isOnBehalf,
+        bool $isQuickCheckout = false
     ): bool {
-        // Bypass applies to privileged users for both self-booking and
-        // booking on behalf of others.
+        // Standard bypass applies to privileged users for both self-booking and
+        // booking on behalf of others. Quick checkout has its own explicit toggle.
 
         $ruleCfg = $policy['bypass'][$ruleKey] ?? [];
+        if ($isQuickCheckout) {
+            return !empty($ruleCfg['quick_checkout']);
+        }
         if ($isAdmin) {
             return !empty($ruleCfg['admins']);
         }
@@ -369,12 +377,13 @@ if (!function_exists('reservation_policy_validate_booking')) {
         $isAdmin = !empty($context['is_admin']);
         $isStaff = !empty($context['is_staff']) || $isAdmin;
         $isOnBehalf = !empty($context['is_on_behalf']);
+        $isQuickCheckout = !empty($context['is_quick_checkout']);
         $excludeReservationId = max(0, (int)($context['exclude_reservation_id'] ?? 0));
 
         $noticeMinutes = max(0, (int)($policy['notice_minutes'] ?? 0));
         if (
             $noticeMinutes > 0
-            && !reservation_policy_rule_can_bypass($policy, 'notice', $isAdmin, $isStaff, $isOnBehalf)
+            && !reservation_policy_rule_can_bypass($policy, 'notice', $isAdmin, $isStaff, $isOnBehalf, $isQuickCheckout)
         ) {
             $minAllowedStartTs = time() + ($noticeMinutes * 60);
             if ($startTs < $minAllowedStartTs) {
@@ -384,7 +393,7 @@ if (!function_exists('reservation_policy_validate_booking')) {
             }
         }
 
-        if (!reservation_policy_rule_can_bypass($policy, 'duration', $isAdmin, $isStaff, $isOnBehalf)) {
+        if (!reservation_policy_rule_can_bypass($policy, 'duration', $isAdmin, $isStaff, $isOnBehalf, $isQuickCheckout)) {
             $durationMinutes = (int)floor(($endTs - $startTs) / 60);
             $minDurationMinutes = max(0, (int)($policy['min_duration_minutes'] ?? 0));
             $maxDurationMinutes = max(0, (int)($policy['max_duration_minutes'] ?? 0));
@@ -404,7 +413,7 @@ if (!function_exists('reservation_policy_validate_booking')) {
         $maxConcurrent = max(0, (int)($policy['max_concurrent_reservations'] ?? 0));
         if (
             $maxConcurrent > 0
-            && !reservation_policy_rule_can_bypass($policy, 'concurrent', $isAdmin, $isStaff, $isOnBehalf)
+            && !reservation_policy_rule_can_bypass($policy, 'concurrent', $isAdmin, $isStaff, $isOnBehalf, $isQuickCheckout)
         ) {
             $rawUserId = trim((string)($context['target_user_id'] ?? ''));
             $targetUserId = (ctype_digit($rawUserId) && (int)$rawUserId > 0)
@@ -458,7 +467,7 @@ if (!function_exists('reservation_policy_validate_booking')) {
             }
         }
 
-        if (!reservation_policy_rule_can_bypass($policy, 'blackout', $isAdmin, $isStaff, $isOnBehalf)) {
+        if (!reservation_policy_rule_can_bypass($policy, 'blackout', $isAdmin, $isStaff, $isOnBehalf, $isQuickCheckout)) {
             $blackoutSlots = is_array($policy['blackout_slots'] ?? null) ? $policy['blackout_slots'] : [];
             foreach ($blackoutSlots as $slot) {
                 $slotStartTs = strtotime((string)($slot['start'] ?? ''));
