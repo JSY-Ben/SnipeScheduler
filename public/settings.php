@@ -1411,8 +1411,14 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             <div class="form-text mt-2">Tip: leave all unchecked to allow every category to show in the dropdown.</div>
                         <?php endif; ?>
 
-                        <hr class="my-4">
-                        <h6 class="mb-1">Catalogue availability statuses</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Catalogue availability statuses</h5>
                         <p class="text-muted small mb-3">
                             Choose which Snipe-IT asset statuses count toward catalogue and basket availability. Leave everything unticked to include all statuses.
                         </p>
