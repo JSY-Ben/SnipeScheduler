@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS checked_out_asset_cache (
     KEY idx_checked_out_updated (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS checked_out_asset_cache_build LIKE checked_out_asset_cache;
+
 -- ------------------------------------------------------
 -- Cached catalogue models/assets (from Snipe-IT sync)
 -- ------------------------------------------------------
@@ -119,6 +121,8 @@ CREATE TABLE IF NOT EXISTS catalogue_model_cache (
     KEY idx_catalogue_model_name (model_name),
     KEY idx_catalogue_model_updated (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS catalogue_model_cache_build LIKE catalogue_model_cache;
 
 CREATE TABLE IF NOT EXISTS catalogue_asset_cache (
     asset_id INT UNSIGNED NOT NULL,
@@ -142,6 +146,8 @@ CREATE TABLE IF NOT EXISTS catalogue_asset_cache (
     KEY idx_catalogue_asset_model_requestable (model_id, requestable),
     KEY idx_catalogue_asset_updated (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS catalogue_asset_cache_build LIKE catalogue_asset_cache;
 
 CREATE TABLE IF NOT EXISTS catalogue_cache_meta (
     cache_key VARCHAR(64) NOT NULL,

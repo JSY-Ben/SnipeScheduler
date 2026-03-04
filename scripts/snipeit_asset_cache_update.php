@@ -187,162 +187,199 @@ foreach ($allHardware as $asset) {
     ];
 }
 
+$checkedOutLiveTable = 'checked_out_asset_cache';
+$checkedOutStageTable = 'checked_out_asset_cache_build';
+$catalogueModelLiveTable = 'catalogue_model_cache';
+$catalogueModelStageTable = 'catalogue_model_cache_build';
+$catalogueAssetLiveTable = 'catalogue_asset_cache';
+$catalogueAssetStageTable = 'catalogue_asset_cache_build';
+$syncTimestamp = date('Y-m-d H:i:s');
+
+// Build replacement tables off to the side, then swap them in to keep live reads responsive during sync.
+$stageTableExists = static function (string $stageTable) use ($pdo): bool {
+    try {
+        $pdo->query("SELECT 1 FROM `{$stageTable}` LIMIT 1");
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
+};
+
+$resetStageTable = static function (string $liveTable, string $stageTable) use ($pdo, $stageTableExists): void {
+    if (!$stageTableExists($stageTable)) {
+        $pdo->exec("CREATE TABLE `{$stageTable}` LIKE `{$liveTable}`");
+    }
+    $pdo->exec("TRUNCATE TABLE `{$stageTable}`");
+};
+
+$swapTables = static function (array $pairs) use ($pdo): void {
+    if (empty($pairs)) {
+        return;
+    }
+
+    $renames = [];
+    foreach ($pairs as $pair) {
+        $liveTable = (string)($pair['live'] ?? '');
+        $stageTable = (string)($pair['stage'] ?? '');
+        if ($liveTable === '' || $stageTable === '') {
+            continue;
+        }
+
+        $swapTable = $liveTable . '_swap';
+        $renames[] = "`{$liveTable}` TO `{$swapTable}`";
+        $renames[] = "`{$stageTable}` TO `{$liveTable}`";
+        $renames[] = "`{$swapTable}` TO `{$stageTable}`";
+    }
+
+    if (!empty($renames)) {
+        $pdo->exec('RENAME TABLE ' . implode(', ', $renames));
+    }
+};
+
+$bulkInsertRows = static function (string $table, array $columns, array $rows, int $chunkSize = 50) use ($pdo): void {
+    if (empty($rows) || empty($columns)) {
+        return;
+    }
+
+    $columnList = implode(', ', array_map(static function (string $column): string {
+        return "`{$column}`";
+    }, $columns));
+    $rowPlaceholders = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+
+    foreach (array_chunk($rows, max(1, $chunkSize)) as $chunk) {
+        $valuesSql = implode(', ', array_fill(0, count($chunk), $rowPlaceholders));
+        $params = [];
+
+        foreach ($chunk as $row) {
+            foreach ($columns as $column) {
+                $params[] = $row[$column] ?? null;
+            }
+        }
+
+        $stmt = $pdo->prepare("INSERT INTO `{$table}` ({$columnList}) VALUES {$valuesSql}");
+        $stmt->execute($params);
+    }
+};
+
 try {
-    if (!$pdo->beginTransaction()) {
-        throw new RuntimeException('Could not start database transaction.');
-    }
-
-    $pdo->exec('DELETE FROM checked_out_asset_cache');
+    $resetStageTable($checkedOutLiveTable, $checkedOutStageTable);
     if ($catalogueCacheEnabled) {
-        $pdo->exec('DELETE FROM catalogue_model_cache');
-        $pdo->exec('DELETE FROM catalogue_asset_cache');
+        $resetStageTable($catalogueModelLiveTable, $catalogueModelStageTable);
+        $resetStageTable($catalogueAssetLiveTable, $catalogueAssetStageTable);
     }
 
-    $checkedOutStmt = $pdo->prepare("
-        INSERT INTO checked_out_asset_cache (
-            asset_id,
-            asset_tag,
-            asset_name,
-            model_id,
-            model_name,
-            assigned_to_id,
-            assigned_to_name,
-            assigned_to_email,
-            assigned_to_username,
-            status_label,
-            last_checkout,
-            expected_checkin,
-            updated_at
-        ) VALUES (
-            :asset_id,
-            :asset_tag,
-            :asset_name,
-            :model_id,
-            :model_name,
-            :assigned_to_id,
-            :assigned_to_name,
-            :assigned_to_email,
-            :assigned_to_username,
-            :status_label,
-            :last_checkout,
-            :expected_checkin,
-            NOW()
-        )
-    ");
-
+    $checkedOutRows = [];
     foreach ($checkedOutAssets as $asset) {
-        $checkedOutStmt->execute([
-            ':asset_id' => $asset['asset_id'],
-            ':asset_tag' => $asset['asset_tag'],
-            ':asset_name' => $asset['asset_name'],
-            ':model_id' => $asset['model_id'],
-            ':model_name' => $asset['model_name'],
-            ':assigned_to_id' => $asset['assigned_to_id'],
-            ':assigned_to_name' => $asset['assigned_to_name'],
-            ':assigned_to_email' => $asset['assigned_to_email'],
-            ':assigned_to_username' => $asset['assigned_to_username'],
-            ':status_label' => $asset['status_label'],
-            ':last_checkout' => $asset['last_checkout'],
-            ':expected_checkin' => $asset['expected_checkin'],
-        ]);
+        $checkedOutRows[] = [
+            'asset_id' => $asset['asset_id'],
+            'asset_tag' => $asset['asset_tag'],
+            'asset_name' => $asset['asset_name'],
+            'model_id' => $asset['model_id'],
+            'model_name' => $asset['model_name'],
+            'assigned_to_id' => $asset['assigned_to_id'],
+            'assigned_to_name' => $asset['assigned_to_name'],
+            'assigned_to_email' => $asset['assigned_to_email'],
+            'assigned_to_username' => $asset['assigned_to_username'],
+            'status_label' => $asset['status_label'],
+            'last_checkout' => $asset['last_checkout'],
+            'expected_checkin' => $asset['expected_checkin'],
+            'updated_at' => $syncTimestamp,
+        ];
     }
+    $bulkInsertRows($checkedOutStageTable, [
+        'asset_id',
+        'asset_tag',
+        'asset_name',
+        'model_id',
+        'model_name',
+        'assigned_to_id',
+        'assigned_to_name',
+        'assigned_to_email',
+        'assigned_to_username',
+        'status_label',
+        'last_checkout',
+        'expected_checkin',
+        'updated_at',
+    ], $checkedOutRows);
 
     if ($catalogueCacheEnabled) {
-        $catalogueModelStmt = $pdo->prepare("
-            INSERT INTO catalogue_model_cache (
-                model_id,
-                model_name,
-                manufacturer_name,
-                category_id,
-                category_name,
-                image_path,
-                notes_text,
-                total_asset_count,
-                requestable_asset_count,
-                raw_payload,
-                updated_at
-            ) VALUES (
-                :model_id,
-                :model_name,
-                :manufacturer_name,
-                :category_id,
-                :category_name,
-                :image_path,
-                :notes_text,
-                :total_asset_count,
-                :requestable_asset_count,
-                :raw_payload,
-                NOW()
-            )
-        ");
-
+        $catalogueModelRows = [];
         foreach ($catalogueModels as $model) {
-            $catalogueModelStmt->execute([
-                ':model_id' => $model['model_id'],
-                ':model_name' => $model['model_name'],
-                ':manufacturer_name' => $model['manufacturer_name'] !== '' ? $model['manufacturer_name'] : null,
-                ':category_id' => $model['category_id'] > 0 ? $model['category_id'] : null,
-                ':category_name' => $model['category_name'] !== '' ? $model['category_name'] : null,
-                ':image_path' => $model['image_path'] !== '' ? $model['image_path'] : null,
-                ':notes_text' => $model['notes_text'] !== '' ? $model['notes_text'] : null,
-                ':total_asset_count' => $model['total_asset_count'],
-                ':requestable_asset_count' => $model['requestable_asset_count'],
-                ':raw_payload' => $model['raw_payload'],
-            ]);
+            $catalogueModelRows[] = [
+                'model_id' => $model['model_id'],
+                'model_name' => $model['model_name'],
+                'manufacturer_name' => $model['manufacturer_name'] !== '' ? $model['manufacturer_name'] : null,
+                'category_id' => $model['category_id'] > 0 ? $model['category_id'] : null,
+                'category_name' => $model['category_name'] !== '' ? $model['category_name'] : null,
+                'image_path' => $model['image_path'] !== '' ? $model['image_path'] : null,
+                'notes_text' => $model['notes_text'] !== '' ? $model['notes_text'] : null,
+                'total_asset_count' => $model['total_asset_count'],
+                'requestable_asset_count' => $model['requestable_asset_count'],
+                'raw_payload' => $model['raw_payload'],
+                'updated_at' => $syncTimestamp,
+            ];
         }
+        $bulkInsertRows($catalogueModelStageTable, [
+            'model_id',
+            'model_name',
+            'manufacturer_name',
+            'category_id',
+            'category_name',
+            'image_path',
+            'notes_text',
+            'total_asset_count',
+            'requestable_asset_count',
+            'raw_payload',
+            'updated_at',
+        ], $catalogueModelRows);
 
-        $catalogueAssetStmt = $pdo->prepare("
-            INSERT INTO catalogue_asset_cache (
-                asset_id,
-                model_id,
-                model_name,
-                asset_tag,
-                asset_name,
-                requestable,
-                status_label,
-                assigned_to_id,
-                assigned_to_name,
-                assigned_to_email,
-                assigned_to_username,
-                default_location_name,
-                raw_payload,
-                updated_at
-            ) VALUES (
-                :asset_id,
-                :model_id,
-                :model_name,
-                :asset_tag,
-                :asset_name,
-                :requestable,
-                :status_label,
-                :assigned_to_id,
-                :assigned_to_name,
-                :assigned_to_email,
-                :assigned_to_username,
-                :default_location_name,
-                :raw_payload,
-                NOW()
-            )
-        ");
-
+        $catalogueAssetRows = [];
         foreach ($catalogueAssets as $asset) {
-            $catalogueAssetStmt->execute([
-                ':asset_id' => $asset['asset_id'],
-                ':model_id' => $asset['model_id'],
-                ':model_name' => $asset['model_name'],
-                ':asset_tag' => $asset['asset_tag'],
-                ':asset_name' => $asset['asset_name'],
-                ':requestable' => $asset['requestable'],
-                ':status_label' => $asset['status_label'] !== '' ? $asset['status_label'] : null,
-                ':assigned_to_id' => $asset['assigned_to_id'],
-                ':assigned_to_name' => $asset['assigned_to_name'],
-                ':assigned_to_email' => $asset['assigned_to_email'],
-                ':assigned_to_username' => $asset['assigned_to_username'],
-                ':default_location_name' => $asset['default_location_name'] !== '' ? $asset['default_location_name'] : null,
-                ':raw_payload' => $asset['raw_payload'],
-            ]);
+            $catalogueAssetRows[] = [
+                'asset_id' => $asset['asset_id'],
+                'model_id' => $asset['model_id'],
+                'model_name' => $asset['model_name'],
+                'asset_tag' => $asset['asset_tag'],
+                'asset_name' => $asset['asset_name'],
+                'requestable' => $asset['requestable'],
+                'status_label' => $asset['status_label'] !== '' ? $asset['status_label'] : null,
+                'assigned_to_id' => $asset['assigned_to_id'],
+                'assigned_to_name' => $asset['assigned_to_name'],
+                'assigned_to_email' => $asset['assigned_to_email'],
+                'assigned_to_username' => $asset['assigned_to_username'],
+                'default_location_name' => $asset['default_location_name'] !== '' ? $asset['default_location_name'] : null,
+                'raw_payload' => $asset['raw_payload'],
+                'updated_at' => $syncTimestamp,
+            ];
         }
+        $bulkInsertRows($catalogueAssetStageTable, [
+            'asset_id',
+            'model_id',
+            'model_name',
+            'asset_tag',
+            'asset_name',
+            'requestable',
+            'status_label',
+            'assigned_to_id',
+            'assigned_to_name',
+            'assigned_to_email',
+            'assigned_to_username',
+            'default_location_name',
+            'raw_payload',
+            'updated_at',
+        ], $catalogueAssetRows);
+    }
 
+    $swapPairs = [
+        ['live' => $checkedOutLiveTable, 'stage' => $checkedOutStageTable],
+    ];
+    if ($catalogueCacheEnabled) {
+        $swapPairs[] = ['live' => $catalogueModelLiveTable, 'stage' => $catalogueModelStageTable];
+        $swapPairs[] = ['live' => $catalogueAssetLiveTable, 'stage' => $catalogueAssetStageTable];
+    }
+    $swapTables($swapPairs);
+
+    if ($catalogueCacheEnabled) {
         $metaStmt = $pdo->prepare("
             INSERT INTO catalogue_cache_meta (
                 cache_key,
@@ -371,10 +408,6 @@ try {
         ]);
     }
 
-    if ($pdo->inTransaction()) {
-        $pdo->commit();
-    }
-
     if ($catalogueCacheEnabled) {
         $logOut(
             'done',
@@ -387,9 +420,6 @@ try {
         $logOut('done', 'Synced ' . count($checkedOutAssets) . ' checked-out asset(s).');
     }
 } catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
     $logErr('Failed to sync caches: ' . $e->getMessage());
     exit(1);
 }
