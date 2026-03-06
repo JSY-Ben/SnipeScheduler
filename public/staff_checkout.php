@@ -2,7 +2,7 @@
 // staff_checkout.php
 //
 // Staff-only page that:
-// 1) Shows today's bookings from the booking app.
+// 1) Shows reservations for staff checkout.
 // 2) Provides a bulk checkout panel that uses the Snipe-IT API to
 //    check out scanned asset tags to a Snipe-IT user.
 
@@ -31,6 +31,7 @@ $isStaff    = !empty($currentUser['is_staff']) || $isAdmin;
 $tz       = new DateTimeZone($timezone);
 $now      = new DateTime('now', $tz);
 $todayStr = $now->format('Y-m-d');
+$todayStartStr = $now->format('Y-m-d 00:00:00');
 
 // Only staff/admin allowed
 if (!$isStaff) {
@@ -88,6 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 }
+
+if (!isset($_SESSION['staff_checkout_show_all_upcoming'])) {
+    $_SESSION['staff_checkout_show_all_upcoming'] = 0;
+}
+$showAllUpcoming = !empty($_SESSION['staff_checkout_show_all_upcoming']);
 
 // ---------------------------------------------------------------------
 // Helper: app-configured date/time display
@@ -161,22 +167,76 @@ function model_booked_elsewhere(PDO $pdo, int $modelId, string $start, string $e
     return ((int)($row['booked_qty'] ?? 0)) > 0;
 }
 
+/**
+ * Return reservations for a model that overlap a date window.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function reservation_model_overlaps(PDO $pdo, int $modelId, string $start, string $end, ?int $excludeReservationId = null): array
+{
+    if ($modelId <= 0 || $start === '' || $end === '') {
+        return [];
+    }
+
+    $sql = "
+        SELECT r.id,
+               r.user_name,
+               r.user_email,
+               r.start_datetime,
+               r.end_datetime,
+               ri.quantity
+          FROM reservation_items ri
+          JOIN reservations r ON r.id = ri.reservation_id
+         WHERE ri.model_id = :model_id
+           AND r.status IN ('pending', 'confirmed')
+           AND r.start_datetime < :end
+           AND r.end_datetime > :start
+    ";
+    $params = [
+        ':model_id' => $modelId,
+        ':start'    => $start,
+        ':end'      => $end,
+    ];
+    if ($excludeReservationId) {
+        $sql .= " AND r.id <> :exclude_id";
+        $params[':exclude_id'] = $excludeReservationId;
+    }
+    $sql .= " ORDER BY r.start_datetime ASC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 // ---------------------------------------------------------------------
-// Load today's bookings from reservations table
+// Load reservation options
 // ---------------------------------------------------------------------
 $todayBookings = [];
 $todayError    = '';
 
 try {
-    $sql = "
-        SELECT *
-        FROM reservations
-        WHERE DATE(start_datetime) = :today
-          AND status IN ('pending','confirmed')
-        ORDER BY start_datetime ASC
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':today' => $todayStr]);
+    if ($showAllUpcoming) {
+        $sql = "
+            SELECT *
+            FROM reservations
+            WHERE start_datetime >= :today_start
+              AND status IN ('pending','confirmed')
+            ORDER BY start_datetime ASC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':today_start' => $todayStartStr]);
+    } else {
+        $sql = "
+            SELECT *
+            FROM reservations
+            WHERE DATE(start_datetime) = :today
+              AND status IN ('pending','confirmed')
+            ORDER BY start_datetime ASC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':today' => $todayStr]);
+    }
+
     $todayBookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
     $todayBookings = [];
@@ -194,7 +254,7 @@ if (!isset($_SESSION['reservation_selected_assets'])) {
     $_SESSION['reservation_selected_assets'] = [];
 }
 
-// Selected reservation for checkout (today only)
+// Selected reservation for checkout
 $selectedReservationId = isset($_SESSION['selected_reservation_id'])
     ? (int)$_SESSION['selected_reservation_id']
     : null;
@@ -222,6 +282,9 @@ foreach ($checkoutAssets as $existing) {
 
 // Handle reservation selection (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') === 'select_reservation') {
+    $showAllUpcoming = !empty($_POST['show_all_upcoming']);
+    $_SESSION['staff_checkout_show_all_upcoming'] = $showAllUpcoming ? 1 : 0;
+
     $selectedReservationId = (int)($_POST['reservation_id'] ?? 0);
     if ($selectedReservationId > 0) {
         $_SESSION['selected_reservation_id'] = $selectedReservationId;
@@ -248,7 +311,7 @@ if (isset($_GET['remove'])) {
 }
 
 // ---------------------------------------------------------------------
-// Selected reservation details (today only)
+// Selected reservation details
 // ---------------------------------------------------------------------
 $selectedReservation = null;
 $selectedItems       = [];
@@ -258,18 +321,27 @@ $selectedEnd         = '';
 $modelAssets         = [];
 $presetSelections    = [];
 $selectedTotalQty    = 0;
+$futureReservationEarlyConflicts = [];
 
 if ($selectedReservationId) {
-    $stmt = $pdo->prepare("
+    $sql = "
         SELECT *
         FROM reservations
         WHERE id = :id
-          AND DATE(start_datetime) = :today
-    ");
-    $stmt->execute([
-        ':id'    => $selectedReservationId,
-        ':today' => $todayStr,
-    ]);
+          AND status IN ('pending', 'confirmed')
+    ";
+    $params = [
+        ':id' => $selectedReservationId,
+    ];
+    if ($showAllUpcoming) {
+        $sql .= " AND start_datetime >= :today_start";
+        $params[':today_start'] = $todayStartStr;
+    } else {
+        $sql .= " AND DATE(start_datetime) = :today";
+        $params[':today'] = $todayStr;
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $selectedReservation = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if ($selectedReservation) {
@@ -330,6 +402,63 @@ if ($selectedReservationId) {
                 }
             }
         }
+
+        $selectedStartDt = null;
+        if ($selectedStart !== '') {
+            try {
+                $selectedStartDt = new DateTimeImmutable($selectedStart, $tz);
+            } catch (Throwable $e) {
+                $selectedStartDt = null;
+            }
+        }
+
+        if ($selectedStartDt && $selectedStartDt->getTimestamp() > $now->getTimestamp()) {
+            $windowStart = $now->format('Y-m-d H:i:s');
+            $windowEnd = $selectedStartDt->format('Y-m-d H:i:s');
+
+            foreach ($selectedItems as $item) {
+                $mid = (int)($item['model_id'] ?? 0);
+                $qty = (int)($item['qty'] ?? 0);
+                if ($mid <= 0 || $qty <= 0) {
+                    continue;
+                }
+
+                $overlaps = reservation_model_overlaps($pdo, $mid, $windowStart, $windowEnd, $selectedReservationId);
+                if (empty($overlaps)) {
+                    continue;
+                }
+
+                $overlapQty = 0;
+                foreach ($overlaps as $overlap) {
+                    $overlapQty += (int)($overlap['quantity'] ?? 0);
+                }
+
+                $availabilityUnknown = false;
+                $availableNow = 0;
+                try {
+                    $requestableTotal = count_requestable_assets_by_model($mid);
+                    $checkedOut = count_checked_out_assets_by_model($mid);
+                    $availableNow = max(0, $requestableTotal - $checkedOut);
+                } catch (Throwable $e) {
+                    $availabilityUnknown = true;
+                }
+
+                if ($availabilityUnknown || ($overlapQty + $qty) > $availableNow) {
+                    $futureReservationEarlyConflicts[] = [
+                        'model_name'           => (string)($item['name'] ?? ('Model #' . $mid)),
+                        'selected_qty'         => $qty,
+                        'overlap_qty'          => $overlapQty,
+                        'available_now'        => $availableNow,
+                        'availability_unknown' => $availabilityUnknown,
+                        'overlaps'             => $overlaps,
+                    ];
+                }
+            }
+
+            if (!empty($futureReservationEarlyConflicts)) {
+                $checkoutWarnings[] = 'This reservation starts in the future. Early checkout may cause model clashes before the reservation start time.';
+            }
+        }
     } else {
         unset($_SESSION['selected_reservation_id']);
         $selectedReservationId = null;
@@ -356,7 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if (!$selectedReservation) {
-            $checkoutErrors[] = 'Please select a reservation for today before removing items.';
+            $checkoutErrors[] = 'Please select a reservation before removing items.';
         } elseif ($removeModelId <= 0) {
             $checkoutErrors[] = 'Invalid model to remove.';
         } else {
@@ -478,7 +607,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($mode === 'add_asset') {
         $tag = trim($_POST['asset_tag'] ?? '');
         if (!$selectedReservation) {
-            $checkoutErrors[] = 'Please select a reservation for today before adding assets.';
+            $checkoutErrors[] = 'Please select a reservation before adding assets.';
         } elseif ($tag === '') {
             $checkoutErrors[] = 'Please scan or enter an asset tag.';
         } else {
@@ -542,7 +671,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($mode === 'reservation_checkout') {
         if (!$selectedReservation) {
-            $checkoutErrors[] = 'Please select a reservation for today before checking out.';
+            $checkoutErrors[] = 'Please select a reservation before checking out.';
         } else {
             $checkoutTo = trim($selectedReservation['user_email'] ?? '');
             if ($checkoutTo === '') {
@@ -765,7 +894,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bulkNoteValue = $note;
 
         if (!$selectedReservation) {
-            $checkoutErrors[] = 'Please select a reservation for today before checking out.';
+            $checkoutErrors[] = 'Please select a reservation before checking out.';
         } elseif ($checkoutTo === '') {
             $checkoutErrors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
         } elseif (empty($checkoutAssets)) {
@@ -888,7 +1017,7 @@ $active  = basename($_SERVER['PHP_SELF']);
         <div class="page-header">
             <h1>Today’s Reservations (Checkout)</h1>
             <div class="page-subtitle">
-                View today’s reservations and perform bulk checkouts via Snipe-IT.
+                View today’s or upcoming reservations and perform reservation checkouts via Snipe-IT.
             </div>
         </div>
 
@@ -911,7 +1040,7 @@ $active  = basename($_SERVER['PHP_SELF']);
             </div>
         <?php endif; ?>
 
-        <!-- Reservation selector (today only) -->
+        <!-- Reservation selector -->
         <div class="card mb-3">
             <div class="card-body">
                 <form method="post" class="row g-3 align-items-end" action="<?= h($selfUrl) ?>">
@@ -920,7 +1049,9 @@ $active  = basename($_SERVER['PHP_SELF']);
                     <?php endforeach; ?>
                     <input type="hidden" name="mode" value="select_reservation">
                     <div class="col-md-8">
-                        <label class="form-label">Select today’s reservation to check out</label>
+                        <label class="form-label">
+                            <?= $showAllUpcoming ? 'Select reservation to check out' : 'Select today’s reservation to check out' ?>
+                        </label>
                         <select name="reservation_id" class="form-select">
                             <option value="0">-- No reservation selected --</option>
                             <?php foreach ($todayBookings as $res): ?>
@@ -936,10 +1067,26 @@ $active  = basename($_SERVER['PHP_SELF']);
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <div class="form-text">
+                            <?= $showAllUpcoming ? 'Showing reservations that start today or later.' : 'Showing only reservations that start today.' ?>
+                        </div>
                     </div>
-                    <div class="col-md-4 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">Use reservation</button>
-                        <button type="submit" name="reservation_id" value="0" class="btn btn-outline-secondary">Clear</button>
+                    <div class="col-md-4">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="show_all_upcoming"
+                                   name="show_all_upcoming"
+                                   value="1"
+                                   <?= $showAllUpcoming ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="show_all_upcoming">
+                                Show all upcoming reservations
+                            </label>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Use reservation</button>
+                            <button type="submit" name="reservation_id" value="0" class="btn btn-outline-secondary">Clear</button>
+                        </div>
                     </div>
                 </form>
 
@@ -952,6 +1099,40 @@ $active  = basename($_SERVER['PHP_SELF']);
                         <?php else: ?>
                             <div>This reservation has no items recorded.</div>
                         <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($futureReservationEarlyConflicts)): ?>
+                    <div class="mt-3 alert alert-warning mb-0">
+                        <div class="fw-semibold mb-1">Potential clashes if checked out early</div>
+                        <div class="small mb-2">
+                            This reservation starts in the future. Checking it out now may reduce model availability before the scheduled start.
+                        </div>
+                        <ul class="mb-0">
+                            <?php foreach ($futureReservationEarlyConflicts as $conflict): ?>
+                                <li class="mb-2">
+                                    <strong><?= h($conflict['model_name'] ?? 'Model') ?></strong>
+                                    <div class="small text-muted">
+                                        <?php if (!empty($conflict['availability_unknown'])): ?>
+                                            Could not confirm current availability for this model; possible clash.
+                                        <?php else: ?>
+                                            Needed by selected reservation: <?= (int)($conflict['selected_qty'] ?? 0) ?>.
+                                            Other reserved quantity before start: <?= (int)($conflict['overlap_qty'] ?? 0) ?>.
+                                            Available right now: <?= (int)($conflict['available_now'] ?? 0) ?>.
+                                        <?php endif; ?>
+                                        <?php foreach (($conflict['overlaps'] ?? []) as $overlap): ?>
+                                            <br>
+                                            Reservation #<?= (int)($overlap['id'] ?? 0) ?>:
+                                            <?= h((string)($overlap['user_name'] ?? 'Unknown user')) ?>
+                                            (<?= h((string)($overlap['user_email'] ?? '')) ?>),
+                                            <?= h(display_datetime($overlap['start_datetime'] ?? '')) ?>
+                                            → <?= h(display_datetime($overlap['end_datetime'] ?? '')) ?>,
+                                            qty <?= (int)($overlap['quantity'] ?? 0) ?>.
+                                        <?php endforeach; ?>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 <?php endif; ?>
             </div>
@@ -1277,8 +1458,14 @@ $active  = basename($_SERVER['PHP_SELF']);
     if (reservationSelectForm) {
         const form = reservationSelectForm.closest('form');
         const select = form ? form.querySelector('select[name="reservation_id"]') : null;
+        const showAllToggle = form ? form.querySelector('input[name="show_all_upcoming"]') : null;
         if (form && select) {
             select.addEventListener('change', () => {
+                form.submit();
+            });
+        }
+        if (form && showAllToggle) {
+            showAllToggle.addEventListener('change', () => {
                 form.submit();
             });
         }
