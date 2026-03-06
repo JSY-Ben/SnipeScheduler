@@ -128,7 +128,6 @@ return [
         'date_format' => 'd/m/Y', // display format for dates (see settings for options)
         'time_format' => 'H:i', // display format for times (12/24-hour options in settings)
         'missed_cutoff_minutes' => 60, // minutes after start time before marking reservation as missed
-        'api_cache_ttl_seconds' => 60, // cache Snipe-IT GET responses for this many seconds
         'overdue_staff_email' => '', // overdue report recipients (comma/newline separated)
         'overdue_staff_name'  => '', // optional names for recipients (comma/newline separated)
         'notification_reservation_submitted_enabled' => true, // new reservation submitted email notifications
@@ -157,18 +156,22 @@ return [
         'reservation_notice_minutes' => 0, // minimum notice before start (0 disables)
         'reservation_notice_bypass_checkout_staff' => false, // allow checkout staff bypass when booking on behalf
         'reservation_notice_bypass_admins' => false, // allow admin bypass when booking on behalf
+        'reservation_notice_bypass_quick_checkout' => false, // ignore notice rules for quick checkout
         'reservation_min_duration_minutes' => 0, // minimum allowed reservation duration (0 disables)
         'reservation_max_duration_minutes' => 0, // maximum allowed reservation duration (0 disables)
         'reservation_duration_bypass_checkout_staff' => false, // allow checkout staff duration bypass on behalf bookings
         'reservation_duration_bypass_admins' => false, // allow admin duration bypass on behalf bookings
+        'reservation_duration_bypass_quick_checkout' => false, // ignore duration rules for quick checkout
         'reservation_max_concurrent_reservations' => 0, // max overlapping reservations per user (0 disables)
         'reservation_concurrent_bypass_checkout_staff' => false, // allow checkout staff concurrent bypass on behalf bookings
         'reservation_concurrent_bypass_admins' => false, // allow admin concurrent bypass on behalf bookings
+        'reservation_concurrent_bypass_quick_checkout' => false, // ignore concurrent limits for quick checkout
         'reservation_blackout_slots' => [
             // ['start' => '2026-03-01 09:00:00', 'end' => '2026-03-01 17:00:00', 'reason' => 'Scheduled maintenance'],
         ],
         'reservation_blackout_bypass_checkout_staff' => false, // allow checkout staff blackout bypass on behalf bookings
         'reservation_blackout_bypass_admins' => false, // allow admin blackout bypass on behalf bookings
+        'reservation_blackout_bypass_quick_checkout' => false, // ignore blackout slots for quick checkout
         'announcements' => [
             // [
             //     'message' => 'Maintenance window this afternoon.',
@@ -187,11 +190,16 @@ return [
     ],
 
     'catalogue' => [
-        // Restrict which categories appear in the catalogue filter.
+        // Restrict which categories are stored in the catalogue cache and appear in the catalogue filter.
         // Leave empty to show all categories returned by Snipe-IT.
         'allowed_categories' => [],
+        // Restrict which Snipe-IT asset statuses count toward catalogue and basket availability.
+        // Leave empty to include all statuses.
+        'allowed_status_labels' => [],
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
+        // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.
+        'checked_out_affects_future_availability' => true,
         // Allow non-logged-in users to view Dashboard/Catalogue (booking actions still require login).
         'allow_public_view' => false,
     ],

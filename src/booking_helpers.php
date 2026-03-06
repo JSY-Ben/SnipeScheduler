@@ -4,6 +4,97 @@
 
 require_once __DIR__ . '/snipeit_client.php';
 
+function booking_catalogue_checked_out_affects_future_availability(array $config): bool
+{
+    $catalogueCfg = $config['catalogue'] ?? [];
+
+    return array_key_exists('checked_out_affects_future_availability', $catalogueCfg)
+        ? !empty($catalogueCfg['checked_out_affects_future_availability'])
+        : true;
+}
+
+function booking_expected_checkin_to_timestamp($value): ?int
+{
+    if (is_array($value)) {
+        $value = $value['datetime'] ?? ($value['date'] ?? '');
+    }
+
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        $value .= ' 23:59:59';
+    }
+
+    $ts = strtotime($value);
+    if ($ts === false) {
+        return null;
+    }
+
+    return $ts;
+}
+
+function booking_should_count_checked_out_asset(array $config, $expectedCheckin, ?int $windowStartTs = null): bool
+{
+    $nowTs = time();
+    if ($windowStartTs === null || $windowStartTs <= $nowTs) {
+        return true;
+    }
+
+    if (booking_catalogue_checked_out_affects_future_availability($config)) {
+        return true;
+    }
+
+    $expectedCheckinTs = booking_expected_checkin_to_timestamp($expectedCheckin);
+    if ($expectedCheckinTs === null) {
+        return true;
+    }
+
+    return $expectedCheckinTs > $windowStartTs;
+}
+
+function booking_count_effective_checked_out_assets(int $modelId, array $config, ?int $windowStartTs = null): int
+{
+    if ($modelId <= 0) {
+        throw new InvalidArgumentException('Model ID must be positive.');
+    }
+
+    $nowTs = time();
+    if (
+        $windowStartTs === null
+        || $windowStartTs <= $nowTs
+        || booking_catalogue_checked_out_affects_future_availability($config)
+    ) {
+        return count_checked_out_assets_by_model($modelId);
+    }
+
+    global $pdo;
+    require_once SRC_PATH . '/db.php';
+
+    $stmt = $pdo->prepare("
+        SELECT expected_checkin, status_label
+          FROM checked_out_asset_cache
+         WHERE model_id = :model_id
+    ");
+    $stmt->execute([':model_id' => $modelId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $allowedStatusMap = snipeit_catalogue_allowed_status_labels($config);
+    $count = 0;
+    foreach ($rows as $row) {
+        if (!snipeit_status_label_is_allowed($row['status_label'] ?? '', $allowedStatusMap)) {
+            continue;
+        }
+        if (booking_should_count_checked_out_asset($config, $row['expected_checkin'] ?? '', $windowStartTs)) {
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
 /**
  * Fetch all items for a reservation, with human-readable names.
  *

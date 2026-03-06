@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
+require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
@@ -1199,6 +1200,7 @@ $categories   = [];
 $categoryErr  = '';
 $allowedCategoryMap = [];
 $allowedCategoryIds = [];
+$allowedStatusLabels = snipeit_catalogue_allowed_status_labels($config);
 $models      = [];
 $modelErr    = '';
 $totalModels = 0;
@@ -1302,43 +1304,30 @@ if (!empty($models)) {
             $modelIdChunks = array_chunk($modelIdList, 250);
             foreach ($modelIdChunks as $chunk) {
                 $placeholders = implode(',', array_fill(0, count($chunk), '?'));
-                if ($showAvailableDefaultLocations) {
-                    $stmt = $pdo->prepare("
-                        SELECT model_id, asset_id
-                          FROM checked_out_asset_cache
-                         WHERE model_id IN ({$placeholders})
-                    ");
-                    $stmt->execute($chunk);
-                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $stmt = $pdo->prepare("
+                    SELECT model_id, asset_id, expected_checkin, status_label
+                      FROM checked_out_asset_cache
+                     WHERE model_id IN ({$placeholders})
+                ");
+                $stmt->execute($chunk);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                    foreach ($rows as $row) {
-                        $mid = (int)($row['model_id'] ?? 0);
-                        $assetId = (int)($row['asset_id'] ?? 0);
-                        if ($mid <= 0) {
-                            continue;
-                        }
-
-                        $checkedOutCounts[$mid] = ($checkedOutCounts[$mid] ?? 0) + 1;
-                        if ($assetId > 0) {
-                            $checkedOutAssetIdsByModel[$mid][$assetId] = true;
-                        }
+                foreach ($rows as $row) {
+                    $mid = (int)($row['model_id'] ?? 0);
+                    $assetId = (int)($row['asset_id'] ?? 0);
+                    if ($mid <= 0) {
+                        continue;
                     }
-                } else {
-                    $stmt = $pdo->prepare("
-                        SELECT model_id, COUNT(*) AS cnt
-                          FROM checked_out_asset_cache
-                         WHERE model_id IN ({$placeholders})
-                         GROUP BY model_id
-                    ");
-                    $stmt->execute($chunk);
-                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    if (!booking_should_count_checked_out_asset($config, $row['expected_checkin'] ?? '', $windowActive ? (int)$windowStartTs : null)) {
+                        continue;
+                    }
+                    if (!snipeit_status_label_is_allowed($row['status_label'] ?? '', $allowedStatusLabels)) {
+                        continue;
+                    }
 
-                    foreach ($rows as $row) {
-                        $mid = (int)($row['model_id'] ?? 0);
-                        if ($mid <= 0) {
-                            continue;
-                        }
-                        $checkedOutCounts[$mid] = (int)($row['cnt'] ?? 0);
+                    $checkedOutCounts[$mid] = ($checkedOutCounts[$mid] ?? 0) + 1;
+                    if ($showAvailableDefaultLocations && $assetId > 0) {
+                        $checkedOutAssetIdsByModel[$mid][$assetId] = true;
                     }
                 }
             }
@@ -1607,7 +1596,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                             $assetCount = 0;
 
                             foreach ($assets as $asset) {
-                                if (empty($asset['requestable'])) {
+                                if (!snipeit_asset_allowed_for_catalogue_availability($asset, $allowedStatusLabels)) {
                                     continue;
                                 }
 
@@ -1665,7 +1654,11 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         if (array_key_exists($modelId, $checkedOutCounts)) {
                             $activeCheckedOut = $checkedOutCounts[$modelId];
                         } else {
-                            $activeCheckedOut = count_checked_out_assets_by_model($modelId);
+                            $activeCheckedOut = booking_count_effective_checked_out_assets(
+                                $modelId,
+                                $config,
+                                $windowActive ? (int)$windowStartTs : null
+                            );
                         }
 
                         $booked = $pendingQty + $activeCheckedOut;

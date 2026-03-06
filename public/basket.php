@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
+require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
@@ -152,7 +153,7 @@ if (!empty($basket)) {
                 $pendingQty   = $row ? (int)$row['pending_qty'] : 0;
 
                 // Checked-out assets from local cache
-                $activeCheckedOut = count_checked_out_assets_by_model($mid);
+                $activeCheckedOut = booking_count_effective_checked_out_assets($mid, $config, (int)$previewStartTs);
                 $booked = $pendingQty + $activeCheckedOut;
 
                 // Total requestable units in Snipe-IT

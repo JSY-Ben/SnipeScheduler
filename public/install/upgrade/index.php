@@ -89,7 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'run')
                 $pdo->exec($sql);
                 $stmt = $pdo->prepare('INSERT IGNORE INTO schema_version (version) VALUES (:version)');
                 $stmt->execute([':version' => $version]);
-                $pdo->commit();
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
                 $messages[] = "Applied upgrade {$version}.";
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
