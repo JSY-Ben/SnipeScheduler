@@ -1049,16 +1049,18 @@ $active  = basename($_SERVER['PHP_SELF']);
                     <?php endforeach; ?>
                     <input type="hidden" name="mode" value="select_reservation">
                     <div class="col-md-8">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="show_all_upcoming"
-                                   name="show_all_upcoming"
-                                   value="1"
-                                   <?= $showAllUpcoming ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="show_all_upcoming">
-                                Show all upcoming reservations
-                            </label>
+                        <div class="border rounded p-2 mb-2 bg-light-subtle">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="show_all_upcoming"
+                                       name="show_all_upcoming"
+                                       value="1"
+                                       <?= $showAllUpcoming ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="show_all_upcoming">
+                                    Show all upcoming reservations
+                                </label>
+                            </div>
                         </div>
                         <label class="form-label">
                             <?= $showAllUpcoming ? 'Select reservation to check out' : 'Select today’s reservation to check out' ?>
