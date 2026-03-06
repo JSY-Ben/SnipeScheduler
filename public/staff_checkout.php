@@ -1056,7 +1056,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                    name="show_all_upcoming"
                                    value="1"
                                    <?= $showAllUpcoming ? 'checked' : '' ?>>
-                            <label class="form-check-label fw-semibold text-primary" for="show_all_upcoming">
+                            <label class="form-check-label fw-semibold" style="color: var(--primary);" for="show_all_upcoming">
                                 Show all upcoming reservations
                             </label>
                         </div>
