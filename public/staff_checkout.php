@@ -1049,7 +1049,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                     <?php endforeach; ?>
                     <input type="hidden" name="mode" value="select_reservation">
                     <div class="col-md-8">
-                        <div class="form-check form-switch mb-2">
+                        <div class="form-check form-switch mb-3 pb-2 border-bottom">
                             <input class="form-check-input"
                                    type="checkbox"
                                    id="show_all_upcoming"
