@@ -312,7 +312,32 @@ if (!empty($basket)) {
                             <td><?= h($model['name'] ?? 'Model') ?></td>
                             <td><?= h($model['manufacturer']['name'] ?? '') ?></td>
                             <td><?= h($model['category']['name'] ?? '') ?></td>
-                            <td><?= $qty ?></td>
+                            <td>
+                                <form method="post"
+                                      action="basket_quantity.php"
+                                      class="basket-qty-form"
+                                      aria-label="Adjust quantity for <?= h($model['name'] ?? 'model') ?>">
+                                    <input type="hidden" name="model_id" value="<?= $mid ?>">
+                                    <span class="basket-qty-value" aria-live="polite"><?= $qty ?></span>
+                                    <div class="basket-qty-stepper">
+                                        <button type="submit"
+                                                name="direction"
+                                                value="up"
+                                                class="btn btn-sm btn-outline-secondary basket-qty-btn"
+                                                aria-label="Increase requested quantity">
+                                            +
+                                        </button>
+                                        <button type="submit"
+                                                name="direction"
+                                                value="down"
+                                                class="btn btn-sm btn-outline-secondary basket-qty-btn"
+                                                aria-label="Decrease requested quantity"
+                                                <?= $qty <= 1 ? 'disabled' : '' ?>>
+                                            -
+                                        </button>
+                                    </div>
+                                </form>
+                            </td>
                             <td class="<?= $warnClass ?>"><?= htmlspecialchars($availText) ?></td>
                             <td>
                                 <a href="basket_remove.php?model_id=<?= (int)$model['id'] ?>"

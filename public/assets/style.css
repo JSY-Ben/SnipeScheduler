@@ -286,6 +286,34 @@ input[type="checkbox"] {
     background: rgba(var(--primary-rgb), 0.04);
 }
 
+.basket-qty-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.basket-qty-stepper {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.basket-qty-btn {
+    width: 1.7rem;
+    height: 1rem;
+    padding: 0;
+    line-height: 1;
+    font-weight: 700;
+    font-size: 0.75rem;
+    border-radius: 0.35rem;
+}
+
+.basket-qty-value {
+    min-width: 2.2ch;
+    text-align: center;
+    font-weight: 700;
+}
+
 .badge-summary {
     display: inline-block;
     padding: 0.25rem 0.75rem;
