@@ -318,24 +318,22 @@ if (!empty($basket)) {
                                       class="basket-qty-form"
                                       aria-label="Adjust quantity for <?= h($model['name'] ?? 'model') ?>">
                                     <input type="hidden" name="model_id" value="<?= $mid ?>">
+                                    <button type="submit"
+                                            name="direction"
+                                            value="down"
+                                            class="btn btn-sm btn-outline-secondary basket-qty-btn"
+                                            aria-label="Decrease requested quantity"
+                                            <?= $qty <= 1 ? 'disabled' : '' ?>>
+                                        -
+                                    </button>
                                     <span class="basket-qty-value" aria-live="polite"><?= $qty ?></span>
-                                    <div class="basket-qty-stepper">
-                                        <button type="submit"
-                                                name="direction"
-                                                value="up"
-                                                class="btn btn-sm btn-outline-secondary basket-qty-btn"
-                                                aria-label="Increase requested quantity">
-                                            +
-                                        </button>
-                                        <button type="submit"
-                                                name="direction"
-                                                value="down"
-                                                class="btn btn-sm btn-outline-secondary basket-qty-btn"
-                                                aria-label="Decrease requested quantity"
-                                                <?= $qty <= 1 ? 'disabled' : '' ?>>
-                                            -
-                                        </button>
-                                    </div>
+                                    <button type="submit"
+                                            name="direction"
+                                            value="up"
+                                            class="btn btn-sm btn-outline-secondary basket-qty-btn"
+                                            aria-label="Increase requested quantity">
+                                        +
+                                    </button>
                                 </form>
                             </td>
                             <td class="<?= $warnClass ?>"><?= htmlspecialchars($availText) ?></td>
