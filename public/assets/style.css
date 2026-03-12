@@ -434,10 +434,6 @@ input[type="checkbox"] {
     z-index: 4;
 }
 
-.model-favourite-inline--aligned {
-    padding-top: 1.35rem;
-}
-
 /* Consistent, non-cropping image area for catalogue cards */
 .model-image-wrapper,
 .model-image-wrapper--placeholder {

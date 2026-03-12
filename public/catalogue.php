@@ -1575,11 +1575,18 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     </select>
                 </div>
 
-                <?php if ($canUseFavourites): ?>
-                    <div class="col-12 col-lg-2">
-                        <div class="form-check mt-2 mt-lg-0">
+                <div class="col-12 col-lg-2 d-grid">
+                    <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
+                </div>
+            </div>
+
+            <?php if ($canUseFavourites): ?>
+                <div class="row g-2 mt-1">
+                    <div class="col-12">
+                        <div class="form-check form-switch">
                             <input class="form-check-input"
                                    type="checkbox"
+                                   role="switch"
                                    value="1"
                                    id="show_favourites_only"
                                    name="favourites_only"
@@ -1589,12 +1596,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                             </label>
                         </div>
                     </div>
-                <?php endif; ?>
-
-                <div class="col-12 col-lg-2 d-grid">
-                    <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
                 </div>
-            </div>
+            <?php endif; ?>
         </form>
 
         <form class="filter-panel filter-panel--compact mb-4" method="get" action="catalogue.php" id="catalogue-window-form">
@@ -1865,7 +1868,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                         <?php endif; ?>
 
                                         <?php if ($isRequestable && $freeNow > 0): ?>
-                                            <div class="row g-2 align-items-end mb-2">
+                                            <div class="row g-2 align-items-center mb-3">
                                                 <div class="<?= $canUseFavourites ? 'col-6' : 'col-12 col-sm-6' ?>">
                                                     <label class="form-label mb-0 small">Quantity</label>
                                                     <input type="number"
@@ -1876,8 +1879,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                                            max="<?= $maxQty ?>">
                                                 </div>
                                                 <?php if ($canUseFavourites): ?>
-                                                    <div class="col-6">
-                                                        <div class="form-check model-favourite-inline model-favourite-inline--aligned mb-0">
+                                                    <div class="col-6 d-flex align-items-center">
+                                                        <div class="form-check model-favourite-inline mb-0">
                                                             <input class="form-check-input model-favourite-checkbox"
                                                                    type="checkbox"
                                                                    id="model_favourite_<?= $modelId ?>"
