@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 12/03/2026
+
+### A Minor new feature release
+
+1) You can now change the quantity of booked items in the basket with a new +/- toggle, without going back to the catalogue.
+
+## [v1.4.3](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 06/03/2026
+
+### A Minor new feature release
+
+1) In the 'Today's Reservations (Checkout)' tab, you can now press a toggle that will allow you to check out any upcoming reservation, even if it isn't for today. You will be warned if doing this will clash with any upcoming bookings.
+
 ## [v1.4.2](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.4.2) - 06/03/2026
 
 ### Please Read before Installing

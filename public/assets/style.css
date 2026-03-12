@@ -429,6 +429,11 @@ input[type="checkbox"] {
     z-index: 4;
 }
 
+.model-card--details .model-favourite-form {
+    position: relative;
+    z-index: 4;
+}
+
 /* Consistent, non-cropping image area for catalogue cards */
 .model-image-wrapper,
 .model-image-wrapper--placeholder {

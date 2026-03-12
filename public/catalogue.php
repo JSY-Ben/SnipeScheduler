@@ -5,6 +5,7 @@ require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/favourites.php';
 
 $config   = load_config();
 $authCfg  = $config['auth'] ?? [];
@@ -1146,6 +1147,7 @@ if (!$skipOverdueCheck && !$catalogueBlocked && empty($overdueAssets)) {
 $searchRaw    = trim($_GET['q'] ?? '');
 $categoryRaw  = trim($_GET['category'] ?? '');
 $sortRaw      = trim($_GET['sort'] ?? '');
+$favouritesOnlyRaw = trim((string)($_GET['favourites_only'] ?? ''));
 $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $windowStartRaw = trim($_GET['start_datetime'] ?? '');
 $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
@@ -1154,6 +1156,8 @@ $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
 $search   = $searchRaw !== '' ? $searchRaw : null;
 $category = ctype_digit($categoryRaw) ? (int)$categoryRaw : null;
 $sort     = $sortRaw !== '' ? $sortRaw : null;
+$favouritesOnlyRequested = in_array(strtolower($favouritesOnlyRaw), ['1', 'true', 'on', 'yes'], true);
+$favouritesOnly = $isAuthenticated && $favouritesOnlyRequested;
 
 if ($windowStartRaw === '' && $windowEndRaw === '') {
     $sessionStart = trim((string)($_SESSION['reservation_window_start'] ?? ''));
@@ -1210,6 +1214,29 @@ $windowStartIso = $windowActive ? date('Y-m-d H:i:s', $windowStartTs) : '';
 $windowEndIso   = $windowActive ? date('Y-m-d H:i:s', $windowEndTs) : '';
 $checkedOutCounts = [];
 $checkedOutAssetIdsByModel = [];
+$favouritesAvailable = false;
+$favouriteModelIds = [];
+$favouriteModelMap = [];
+$favouritesUserEmail = '';
+$canUseFavourites = false;
+$catalogueReturnUrl = 'catalogue.php';
+
+if ($isAuthenticated) {
+    $favouritesUserEmail = favourites_normalize_user_email((string)($activeUser['email'] ?? ''));
+    $favouritesAvailable = favourites_storage_available($pdo);
+
+    if ($favouritesAvailable && $favouritesUserEmail !== '') {
+        $favouriteModelIds = favourites_get_model_ids($pdo, $favouritesUserEmail);
+        foreach ($favouriteModelIds as $favouriteModelId) {
+            $favouriteModelMap[(int)$favouriteModelId] = true;
+        }
+        $canUseFavourites = true;
+    }
+}
+
+if (!$canUseFavourites) {
+    $favouritesOnly = false;
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -1267,7 +1294,16 @@ if (is_array($allowedCfg)) {
 // Load models from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
 try {
-    $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds);
+    $modelAllowlist = [];
+    if ($favouritesOnly) {
+        $modelAllowlist = $favouriteModelIds;
+    }
+
+    if ($favouritesOnly && empty($modelAllowlist)) {
+        $data = ['rows' => [], 'total' => 0];
+    } else {
+        $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist);
+    }
 
     if (isset($data['rows']) && is_array($data['rows'])) {
         $models = $data['rows'];
@@ -1288,6 +1324,24 @@ try {
     $models   = [];
     $modelErr = $e->getMessage();
 }
+
+$catalogueReturnQuery = [
+    'q' => $searchRaw,
+    'category' => $categoryRaw,
+    'sort' => $sortRaw,
+    'favourites_only' => $favouritesOnly ? '1' : '',
+    'start_datetime' => $windowStartRaw,
+    'end_datetime' => $windowEndRaw,
+    'prefetch' => '1',
+    'page' => (string)$page,
+];
+$catalogueReturnQuery = array_filter(
+    $catalogueReturnQuery,
+    static function ($value): bool {
+        return trim((string)$value) !== '';
+    }
+);
+$catalogueReturnUrl = 'catalogue.php' . (empty($catalogueReturnQuery) ? '' : ('?' . http_build_query($catalogueReturnQuery)));
 
 if (!empty($models)) {
     try {
@@ -1521,6 +1575,22 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     </select>
                 </div>
 
+                <?php if ($canUseFavourites): ?>
+                    <div class="col-12 col-lg-2">
+                        <div class="form-check mt-2 mt-lg-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   value="1"
+                                   id="show_favourites_only"
+                                   name="favourites_only"
+                                   <?= $favouritesOnly ? 'checked' : '' ?>>
+                            <label class="form-check-label fw-semibold small" for="show_favourites_only">
+                                Show Favourites Only
+                            </label>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <div class="col-12 col-lg-2 d-grid">
                     <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
                 </div>
@@ -1535,6 +1605,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <input type="hidden" name="q" value="<?= h($searchRaw) ?>">
             <input type="hidden" name="category" value="<?= h($categoryRaw) ?>">
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
+            <?php if ($favouritesOnly): ?>
+                <input type="hidden" name="favourites_only" value="1">
+            <?php endif; ?>
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
                 <div class="col-md-5">
@@ -1566,7 +1639,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
 
         <?php if (empty($models) && !$modelErr): ?>
             <div class="alert alert-info">
-                No models found. Try adjusting your filters.
+                <?= $favouritesOnly ? 'No favourite models found for the selected filters.' : 'No models found. Try adjusting your filters.' ?>
             </div>
         <?php endif; ?>
 
@@ -1733,6 +1806,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     if ($imagePath !== '') {
                         $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                     }
+                    $isFavourite = $isAuthenticated && isset($favouriteModelMap[$modelId]);
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card model-card--details"
@@ -1779,6 +1853,27 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                         </div>
                                     <?php endif; ?>
                                 </p>
+
+                                <?php if ($canUseFavourites): ?>
+                                    <form method="post"
+                                          action="favourite_toggle.php"
+                                          class="model-favourite-form mb-2"
+                                          data-favourite-form="1">
+                                        <input type="hidden" name="model_id" value="<?= $modelId ?>">
+                                        <input type="hidden" name="is_favourite" value="<?= $isFavourite ? '1' : '0' ?>">
+                                        <input type="hidden" name="return_url" value="<?= h($catalogueReturnUrl) ?>">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input model-favourite-checkbox"
+                                                   type="checkbox"
+                                                   id="model_favourite_<?= $modelId ?>"
+                                                   <?= $isFavourite ? 'checked' : '' ?>>
+                                            <label class="form-check-label small fw-semibold"
+                                                   for="model_favourite_<?= $modelId ?>">
+                                                Add to Favourites
+                                            </label>
+                                        </div>
+                                    </form>
+                                <?php endif; ?>
 
                                 <?php if ($isAuthenticated): ?>
                                     <form method="post"
@@ -1867,10 +1962,14 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                             'q'        => $searchRaw,
                             'category' => $categoryRaw,
                             'sort'     => $sortRaw,
+                            'favourites_only' => $favouritesOnly ? '1' : '',
                             'start_datetime' => $windowStartRaw,
                             'end_datetime' => $windowEndRaw,
                             'prefetch' => 1,
                         ];
+                        $baseQuery = array_filter($baseQuery, static function ($value): bool {
+                            return trim((string)$value) !== '';
+                        });
                         ?>
                         <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                             <?php $q = http_build_query(array_merge($baseQuery, ['page' => $p])); ?>
@@ -2021,6 +2120,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterForm = document.getElementById('catalogue-filter-form');
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
     const sortSelect = filterForm ? filterForm.querySelector('select[name="sort"]') : null;
+    const favouritesOnlyCheckbox = filterForm ? filterForm.querySelector('input[name="favourites_only"]') : null;
     const windowStartInput = document.getElementById('catalogue_start_datetime');
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
@@ -2716,7 +2816,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return false;
         }
 
-        return Boolean(target.closest('.add-to-basket-form, button, input, select, textarea, a, label'));
+        return Boolean(target.closest('.add-to-basket-form, .model-favourite-form, button, input, select, textarea, a, label'));
     }
 
     if (filterForm) {
@@ -2734,6 +2834,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (sortSelect) {
         sortSelect.addEventListener('change', function () {
+            showLoadingOverlay();
+            filterForm.submit();
+        });
+    }
+
+    if (favouritesOnlyCheckbox) {
+        favouritesOnlyCheckbox.addEventListener('change', function () {
             showLoadingOverlay();
             filterForm.submit();
         });
@@ -2868,6 +2975,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Fallback: if AJAX fails for any reason, do normal form submit
                 form.submit();
             });
+        });
+    });
+
+    const favouriteForms = document.querySelectorAll('form[data-favourite-form="1"]');
+    favouriteForms.forEach(function (form) {
+        const checkbox = form.querySelector('.model-favourite-checkbox');
+        const valueInput = form.querySelector('input[name="is_favourite"]');
+        if (!checkbox || !valueInput) {
+            return;
+        }
+
+        checkbox.addEventListener('change', function () {
+            valueInput.value = checkbox.checked ? '1' : '0';
+            showLoadingOverlay();
+            form.submit();
         });
     });
 

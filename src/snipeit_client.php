@@ -5,7 +5,7 @@
 // Uses config.php for base URL, API token and SSL verification settings.
 //
 // Exposes:
-//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds)
+//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds, $modelIdAllowlist)
 //   - get_model_categories()
 //   - get_model($id)
 //   - get_model_hardware_count($modelId)
@@ -622,7 +622,8 @@ function snipeit_get_cached_bookable_models(
     ?int $categoryId = null,
     ?string $sort = null,
     int $perPage = 50,
-    array $allowedCategoryIds = []
+    array $allowedCategoryIds = [],
+    array $modelIdAllowlist = []
 ): ?array {
     if (!snipeit_catalogue_cache_is_synced()) {
         return null;
@@ -637,6 +638,17 @@ function snipeit_get_cached_bookable_models(
         }
     }
     $allowedIds = array_values(array_unique($allowedIds));
+
+    $allowedModelIds = [];
+    foreach ($modelIdAllowlist as $mid) {
+        if (ctype_digit((string)$mid) || is_int($mid)) {
+            $mid = (int)$mid;
+            if ($mid > 0) {
+                $allowedModelIds[] = $mid;
+            }
+        }
+    }
+    $allowedModelIds = array_values(array_unique($allowedModelIds));
 
     $effectiveCategory = $categoryId;
     if (!empty($allowedIds) && $effectiveCategory !== null && !in_array($effectiveCategory, $allowedIds, true)) {
@@ -663,6 +675,14 @@ function snipeit_get_cached_bookable_models(
         $where[] = "category_id IN ({$placeholders})";
         foreach ($allowedIds as $cid) {
             $params[] = $cid;
+        }
+    }
+
+    if (!empty($allowedModelIds)) {
+        $placeholders = implode(',', array_fill(0, count($allowedModelIds), '?'));
+        $where[] = "model_id IN ({$placeholders})";
+        foreach ($allowedModelIds as $mid) {
+            $params[] = $mid;
         }
     }
 
@@ -1075,6 +1095,7 @@ function fetch_all_hardware_from_snipeit(int $maxResults = 0, bool $allowRespons
  * @param string|null $sort
  * @param int         $perPage
  * @param array       $allowedCategoryIds Optional allowlist; if provided, only models in these category IDs are returned.
+ * @param array       $modelIdAllowlist Optional allowlist; if provided, only models with these IDs are returned.
  * @return array                  ['total' => X, 'rows' => [...]]
  * @throws Exception
  */
@@ -1084,9 +1105,18 @@ function get_bookable_models(
     ?int $categoryId = null,
     ?string $sort = null,
     int $perPage = 50,
-    array $allowedCategoryIds = []
+    array $allowedCategoryIds = [],
+    array $modelIdAllowlist = []
 ): array {
-    $cached = snipeit_get_cached_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds);
+    $cached = snipeit_get_cached_bookable_models(
+        $page,
+        $search,
+        $categoryId,
+        $sort,
+        $perPage,
+        $allowedCategoryIds,
+        $modelIdAllowlist
+    );
     if ($cached !== null) {
         return $cached;
     }
@@ -1097,6 +1127,15 @@ function get_bookable_models(
     foreach ($allowedCategoryIds as $cid) {
         if (ctype_digit((string)$cid) || is_int($cid)) {
             $allowedMap[(int)$cid] = true;
+        }
+    }
+    $allowedModelMap = [];
+    foreach ($modelIdAllowlist as $mid) {
+        if (ctype_digit((string)$mid) || is_int($mid)) {
+            $mid = (int)$mid;
+            if ($mid > 0) {
+                $allowedModelMap[$mid] = true;
+            }
         }
     }
 
@@ -1118,6 +1157,13 @@ function get_bookable_models(
         $allRows = array_values(array_filter($allRows, function ($row) use ($allowedMap) {
             $cid = isset($row['category']['id']) ? (int)$row['category']['id'] : 0;
             return $cid > 0 && isset($allowedMap[$cid]);
+        }));
+    }
+
+    if (!empty($allowedModelMap)) {
+        $allRows = array_values(array_filter($allRows, function ($row) use ($allowedModelMap) {
+            $modelId = isset($row['id']) ? (int)$row['id'] : 0;
+            return $modelId > 0 && isset($allowedModelMap[$modelId]);
         }));
     }
 
