@@ -386,37 +386,11 @@ input[type="checkbox"] {
     transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.model-card--details::after {
-    content: "Click for More Info";
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 0.64rem;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: #ffffff;
-    background: rgba(var(--primary-rgb), 0.9);
-    border-radius: 999px;
-    padding: 0.18rem 0.52rem;
-    opacity: 0;
-    transform: translateY(-3px);
-    transition: opacity 0.14s ease, transform 0.14s ease;
-    pointer-events: none;
-    z-index: 3;
-}
-
 .model-card--details:hover,
 .model-card--details:focus-visible {
     transform: translateY(-4px);
     border-color: rgba(var(--primary-rgb), 0.42);
     box-shadow: 0 16px 32px rgba(var(--primary-rgb), 0.2);
-}
-
-.model-card--details:hover::after,
-.model-card--details:focus-visible::after {
-    opacity: 1;
-    transform: translateY(0);
 }
 
 .model-card--details:focus-visible {
@@ -444,6 +418,47 @@ input[type="checkbox"] {
     background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08), rgba(255, 255, 255, 0.95));
     padding: 8px;
     border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+button.model-image-wrapper {
+    width: 100%;
+    border: 0;
+}
+
+.model-image-wrapper--zoomable {
+    position: relative;
+    cursor: zoom-in;
+}
+
+.model-image-wrapper--zoomable::after {
+    content: "Click to Zoom";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.64rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #ffffff;
+    background: rgba(var(--primary-rgb), 0.9);
+    border-radius: 999px;
+    padding: 0.18rem 0.52rem;
+    opacity: 0;
+    transform: translateY(-3px);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.model-image-wrapper--zoomable:hover::after,
+.model-image-wrapper--zoomable:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.model-image-wrapper--zoomable:focus-visible {
+    outline: 3px solid rgba(var(--primary-rgb), 0.28);
+    outline-offset: -3px;
 }
 
 /* Actual images: scale down to fit, never crop */
@@ -551,6 +566,26 @@ input[type="checkbox"] {
 
 .catalogue-modal--announcement-editor .catalogue-modal__dialog {
     width: min(980px, 100%);
+}
+
+.catalogue-modal--image-zoom .catalogue-modal__dialog {
+    width: min(980px, 100%);
+}
+
+.catalogue-modal--image-zoom .catalogue-modal__body {
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+}
+
+.model-image-zoomed {
+    max-width: 100%;
+    max-height: 78vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
 }
 
 .announcement-modal__message {
