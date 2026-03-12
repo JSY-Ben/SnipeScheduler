@@ -1,6 +1,6 @@
 # Changelog
 
-## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 12/03/2026
+## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.4.4) - 12/03/2026
 
 ### Please Read before Installing
 
@@ -19,7 +19,7 @@ After updating the files, please do the following:
 3) You can now change the quantity of booked items in the basket with a new +/- toggle, without going back to the catalogue.
 
 
-## [v1.4.3](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 06/03/2026
+## v1.4.3 - 06/03/2026
 
 ### A Minor new feature release
 
