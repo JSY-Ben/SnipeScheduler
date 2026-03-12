@@ -2,9 +2,22 @@
 
 ## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 12/03/2026
 
+### Please Read before Installing
+
+This release has a database upgrade, so requires running the upgrade script.
+
+After updating the files, please do the following:
+
+1) Run the upgrade script at [www.yourinstallation.com/install/upgrade](url) through a browser.
+
 ### A Minor new feature release
 
-1) You can now change the quantity of booked items in the basket with a new +/- toggle, without going back to the catalogue.
+1) There is now a 'Favourites' feature for users on the catalogue, so users can add specific models as a favourite if they book it often. There is a new toggle in the search box on the catalogue to show only Favourites so it makes it easier to regularly book regularly needed items.
+
+2) You can now click on the image of a model in the catalogue and get a zoomed in version of the image to see more detail
+
+3) You can now change the quantity of booked items in the basket with a new +/- toggle, without going back to the catalogue.
+
 
 ## [v1.4.3](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.3.2) - 06/03/2026
 
