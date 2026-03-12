@@ -1148,6 +1148,8 @@ $searchRaw    = trim($_GET['q'] ?? '');
 $categoryRaw  = trim($_GET['category'] ?? '');
 $sortRaw      = trim($_GET['sort'] ?? '');
 $favouritesOnlyRaw = trim((string)($_GET['favourites_only'] ?? ''));
+$favouritesOnlyHasQuery = array_key_exists('favourites_only', $_GET);
+$favouritesOnlyExplicitToggle = array_key_exists('favourites_only_explicit', $_GET);
 $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $windowStartRaw = trim($_GET['start_datetime'] ?? '');
 $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
@@ -1157,7 +1159,17 @@ $search   = $searchRaw !== '' ? $searchRaw : null;
 $category = ctype_digit($categoryRaw) ? (int)$categoryRaw : null;
 $sort     = $sortRaw !== '' ? $sortRaw : null;
 $favouritesOnlyRequested = in_array(strtolower($favouritesOnlyRaw), ['1', 'true', 'on', 'yes'], true);
-$favouritesOnly = $isAuthenticated && $favouritesOnlyRequested;
+$favouritesOnly = false;
+if ($isAuthenticated) {
+    if ($favouritesOnlyExplicitToggle || $favouritesOnlyHasQuery) {
+        $favouritesOnly = $favouritesOnlyRequested;
+        $_SESSION['catalogue_show_favourites_only'] = $favouritesOnly ? 1 : 0;
+    } else {
+        $favouritesOnly = !empty($_SESSION['catalogue_show_favourites_only']);
+    }
+} else {
+    unset($_SESSION['catalogue_show_favourites_only']);
+}
 
 if ($windowStartRaw === '' && $windowEndRaw === '') {
     $sessionStart = trim((string)($_SESSION['reservation_window_start'] ?? ''));
@@ -1526,6 +1538,9 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
             <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
             <input type="hidden" name="prefetch" value="1">
+            <?php if ($canUseFavourites): ?>
+                <input type="hidden" name="favourites_only_explicit" value="1">
+            <?php endif; ?>
 
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5">
