@@ -3235,9 +3235,28 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     modelImageZoomButtons.forEach(function (button) {
+        const card = button.closest('.model-card--details');
+        const setImageHoverState = function (isActive) {
+            if (!card) return;
+            card.classList.toggle('model-card--image-hover', !!isActive);
+        };
+
+        button.addEventListener('mouseenter', function () {
+            setImageHoverState(true);
+        });
+        button.addEventListener('mouseleave', function () {
+            setImageHoverState(false);
+        });
+        button.addEventListener('focus', function () {
+            setImageHoverState(true);
+        });
+        button.addEventListener('blur', function () {
+            setImageHoverState(false);
+        });
         button.addEventListener('click', function (event) {
             event.preventDefault();
             event.stopPropagation();
+            setImageHoverState(false);
             const src = button.getAttribute('data-zoom-src') || '';
             const title = button.getAttribute('data-zoom-title') || 'Model';
             openModelImageZoomModal(src, title, button);
