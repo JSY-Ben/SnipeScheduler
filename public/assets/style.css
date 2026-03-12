@@ -289,7 +289,7 @@ input[type="checkbox"] {
 .basket-qty-form {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.7rem;
 }
 
 .basket-qty-btn {
@@ -304,6 +304,7 @@ input[type="checkbox"] {
 
 .basket-qty-value {
     min-width: 2.4ch;
+    padding: 0 0.15rem;
     text-align: center;
     font-weight: 700;
 }
