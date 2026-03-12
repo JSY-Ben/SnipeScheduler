@@ -1854,27 +1854,6 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <?php endif; ?>
                                 </p>
 
-                                <?php if ($canUseFavourites): ?>
-                                    <form method="post"
-                                          action="favourite_toggle.php"
-                                          class="model-favourite-form mb-2"
-                                          data-favourite-form="1">
-                                        <input type="hidden" name="model_id" value="<?= $modelId ?>">
-                                        <input type="hidden" name="is_favourite" value="<?= $isFavourite ? '1' : '0' ?>">
-                                        <input type="hidden" name="return_url" value="<?= h($catalogueReturnUrl) ?>">
-                                        <div class="form-check mb-0">
-                                            <input class="form-check-input model-favourite-checkbox"
-                                                   type="checkbox"
-                                                   id="model_favourite_<?= $modelId ?>"
-                                                   <?= $isFavourite ? 'checked' : '' ?>>
-                                            <label class="form-check-label small fw-semibold"
-                                                   for="model_favourite_<?= $modelId ?>">
-                                                Add to Favourites
-                                            </label>
-                                        </div>
-                                    </form>
-                                <?php endif; ?>
-
                                 <?php if ($isAuthenticated): ?>
                                     <form method="post"
                                           action="basket_add.php"
@@ -1886,8 +1865,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                         <?php endif; ?>
 
                                         <?php if ($isRequestable && $freeNow > 0): ?>
-                                            <div class="row g-2 align-items-center mb-2">
-                                                <div class="col-6">
+                                            <div class="row g-2 align-items-end mb-2">
+                                                <div class="<?= $canUseFavourites ? 'col-6' : 'col-12 col-sm-6' ?>">
                                                     <label class="form-label mb-0 small">Quantity</label>
                                                     <input type="number"
                                                            name="quantity"
@@ -1896,6 +1875,22 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                                            min="1"
                                                            max="<?= $maxQty ?>">
                                                 </div>
+                                                <?php if ($canUseFavourites): ?>
+                                                    <div class="col-6">
+                                                        <div class="form-check model-favourite-inline model-favourite-inline--aligned mb-0">
+                                                            <input class="form-check-input model-favourite-checkbox"
+                                                                   type="checkbox"
+                                                                   id="model_favourite_<?= $modelId ?>"
+                                                                   data-model-id="<?= $modelId ?>"
+                                                                   data-return-url="<?= h($catalogueReturnUrl) ?>"
+                                                                   <?= $isFavourite ? 'checked' : '' ?>>
+                                                            <label class="form-check-label small fw-semibold"
+                                                                   for="model_favourite_<?= $modelId ?>">
+                                                                Add to Favourites
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
 
                                             <button type="submit"
@@ -1903,6 +1898,20 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                                 Add to basket
                                             </button>
                                         <?php else: ?>
+                                            <?php if ($canUseFavourites): ?>
+                                                <div class="form-check model-favourite-inline mb-2">
+                                                    <input class="form-check-input model-favourite-checkbox"
+                                                           type="checkbox"
+                                                           id="model_favourite_<?= $modelId ?>"
+                                                           data-model-id="<?= $modelId ?>"
+                                                           data-return-url="<?= h($catalogueReturnUrl) ?>"
+                                                           <?= $isFavourite ? 'checked' : '' ?>>
+                                                    <label class="form-check-label small fw-semibold"
+                                                           for="model_favourite_<?= $modelId ?>">
+                                                        Add to Favourites
+                                                    </label>
+                                                </div>
+                                            <?php endif; ?>
                                             <div class="alert alert-secondary small mb-0">
                                                 <?php if (!$isRequestable): ?>
                                                     No requestable units available.
@@ -2816,7 +2825,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return false;
         }
 
-        return Boolean(target.closest('.add-to-basket-form, .model-favourite-form, button, input, select, textarea, a, label'));
+        return Boolean(target.closest('.add-to-basket-form, button, input, select, textarea, a, label'));
     }
 
     if (filterForm) {
@@ -2978,18 +2987,41 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    const favouriteForms = document.querySelectorAll('form[data-favourite-form="1"]');
-    favouriteForms.forEach(function (form) {
-        const checkbox = form.querySelector('.model-favourite-checkbox');
-        const valueInput = form.querySelector('input[name="is_favourite"]');
-        if (!checkbox || !valueInput) {
-            return;
-        }
-
+    const favouriteCheckboxes = document.querySelectorAll('.model-favourite-checkbox[data-model-id]');
+    favouriteCheckboxes.forEach(function (checkbox) {
         checkbox.addEventListener('change', function () {
+            const modelId = parseInt(checkbox.dataset.modelId || '0', 10);
+            const returnUrl = String(checkbox.dataset.returnUrl || 'catalogue.php');
+            if (!Number.isFinite(modelId) || modelId <= 0) {
+                return;
+            }
+
+            const submitForm = document.createElement('form');
+            submitForm.method = 'post';
+            submitForm.action = 'favourite_toggle.php';
+            submitForm.style.display = 'none';
+
+            const modelInput = document.createElement('input');
+            modelInput.type = 'hidden';
+            modelInput.name = 'model_id';
+            modelInput.value = String(modelId);
+            submitForm.appendChild(modelInput);
+
+            const valueInput = document.createElement('input');
+            valueInput.type = 'hidden';
+            valueInput.name = 'is_favourite';
             valueInput.value = checkbox.checked ? '1' : '0';
+            submitForm.appendChild(valueInput);
+
+            const returnInput = document.createElement('input');
+            returnInput.type = 'hidden';
+            returnInput.name = 'return_url';
+            returnInput.value = returnUrl;
+            submitForm.appendChild(returnInput);
+
+            document.body.appendChild(submitForm);
             showLoadingOverlay();
-            form.submit();
+            submitForm.submit();
         });
     });
 
