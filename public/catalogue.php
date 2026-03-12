@@ -3023,6 +3023,7 @@ document.addEventListener('DOMContentLoaded', function () {
             submitForm.appendChild(returnInput);
 
             document.body.appendChild(submitForm);
+            saveWindowScrollPosition();
             showLoadingOverlay();
             submitForm.submit();
         });
