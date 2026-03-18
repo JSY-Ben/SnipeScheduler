@@ -103,11 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
                 $newEnd = $fallbackEnd->format('Y-m-d H:i:s');
             }
 
-            $itemsStmt = $pdo->prepare('
-                SELECT model_id, quantity, model_name_cache
-                FROM reservation_items
-                WHERE reservation_id = :id
-            ');
+            $itemsStmt = $pdo->prepare("
+                SELECT " . booking_reservation_item_select_sql($pdo) . "
+                  FROM reservation_items
+                 WHERE reservation_id = :id
+            ");
             $itemsStmt->execute([':id' => $restoreId]);
             $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -116,37 +116,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
             }
 
             foreach ($items as $item) {
-                $mid = (int)($item['model_id'] ?? 0);
+                $itemType = booking_normalize_item_type((string)($item['item_type'] ?? 'model'));
+                $itemId = (int)($item['item_id'] ?? 0);
                 $qty = (int)($item['quantity'] ?? 0);
-                $modelName = $item['model_name_cache'] ?? ('Model #' . $mid);
+                $itemName = trim((string)($item['item_name_cache'] ?? ''));
+                if ($itemName === '') {
+                    $itemName = ucfirst($itemType) . ' #' . $itemId;
+                }
 
-                if ($mid <= 0 || $qty <= 0) {
+                if ($itemId <= 0 || $qty <= 0) {
                     continue;
                 }
 
-                $sql = "
-                    SELECT COALESCE(SUM(ri.quantity), 0) AS booked_qty
-                    FROM reservation_items ri
-                    JOIN reservations r ON r.id = ri.reservation_id
-                    WHERE ri.model_id = :model_id
-                      AND r.status IN ('pending','confirmed')
-                      AND (r.start_datetime < :end AND r.end_datetime > :start)
-                ";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([
-                    ':model_id' => $mid,
-                    ':start'    => $newStart,
-                    ':end'      => $newEnd,
-                ]);
-                $row = $stmt->fetch();
-                $existingBooked = $row ? (int)$row['booked_qty'] : 0;
-
-                $totalRequestable = count_requestable_assets_by_model($mid);
-                $activeCheckedOut = count_checked_out_assets_by_model($mid);
+                $existingBooked = booking_count_reserved_item_quantity(
+                    $pdo,
+                    $itemType,
+                    $itemId,
+                    $newStart,
+                    $newEnd,
+                    ['pending', 'confirmed']
+                );
+                $totalRequestable = booking_get_requestable_total_for_item($itemType, $itemId);
+                $activeCheckedOut = booking_count_effective_checked_out_for_item($itemType, $itemId, $config);
                 $availableNow = $totalRequestable > 0 ? max(0, $totalRequestable - $activeCheckedOut) : 0;
 
                 if ($totalRequestable > 0 && $existingBooked + $qty > $availableNow) {
-                    throw new Exception('Not enough units available for "' . $modelName . '" in that time period.');
+                    throw new Exception('Not enough units available for "' . $itemName . '" in that time period.');
                 }
             }
 
@@ -166,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 
             $assetLabels = [];
             foreach ($items as $item) {
-                $name = trim((string)($item['model_name_cache'] ?? ''));
+                $name = trim((string)($item['item_name_cache'] ?? ''));
                 $qty = (int)($item['quantity'] ?? 0);
                 if ($name === '') {
                     $name = 'Item';
@@ -408,6 +403,7 @@ try {
                     <tbody>
                         <?php foreach ($reservations as $r): ?>
                             <?php
+                                $canEditReservation = booking_reservation_contains_only_models($pdo, (int)$r['id']);
                                 $items      = get_reservation_items_with_names($pdo, (int)$r['id']);
                                 $itemsLines = [];
                                 foreach ($items as $item) {
@@ -425,7 +421,7 @@ try {
                                 $status     = strtolower((string)($r['status'] ?? ''));
                                 if ($itemsText !== '') {
                                     $modelsHtml = '<details class="items-section">'
-                                        . '<summary><strong>Models Reserved:</strong></summary>'
+                                        . '<summary><strong>Items Reserved:</strong></summary>'
                                         . '<div class="items-section-body items-section-body--scroll">' . $itemsText . '</div>'
                                         . '</details>';
                                 }
@@ -475,7 +471,7 @@ try {
                                            class="btn btn-sm btn-outline-secondary btn-action">
                                             View
                                         </a>
-                                        <?php if ($status === 'pending'): ?>
+                                        <?php if ($status === 'pending' && $canEditReservation): ?>
                                             <a href="reservation_edit.php?id=<?= (int)$r['id'] ?><?= h($editSuffix) ?>"
                                                class="btn btn-sm btn-outline-primary btn-action">
                                                 Edit

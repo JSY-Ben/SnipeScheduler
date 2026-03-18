@@ -60,12 +60,16 @@ CREATE TABLE IF NOT EXISTS reservations (
 CREATE TABLE IF NOT EXISTS reservation_items (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     reservation_id INT UNSIGNED NOT NULL,
+    item_type VARCHAR(32) NOT NULL DEFAULT 'model',
+    item_id INT UNSIGNED NOT NULL DEFAULT 0,
+    item_name_cache VARCHAR(255) NOT NULL DEFAULT '',
     model_id INT UNSIGNED NOT NULL,
     model_name_cache VARCHAR(255) NOT NULL,
     quantity INT UNSIGNED NOT NULL DEFAULT 1,
 
     PRIMARY KEY (id),
     KEY idx_reservation_items_reservation (reservation_id),
+    KEY idx_reservation_items_type_item (item_type, item_id),
     KEY idx_reservation_items_model (model_id),
 
     CONSTRAINT fk_res_items_reservation

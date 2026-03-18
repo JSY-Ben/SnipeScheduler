@@ -185,6 +185,7 @@ if (!empty($_GET['deleted'])) {
                 <?php foreach ($reservations as $res): ?>
                     <?php
                         $resId   = (int)$res['id'];
+                        $canEditReservation = booking_reservation_contains_only_models($pdo, $resId);
                         $items   = get_reservation_items_with_names($pdo, $resId);
                         $summary = build_items_summary_text($items);
                         $status  = strtolower((string)($res['status'] ?? ''));
@@ -241,7 +242,7 @@ if (!empty($_GET['deleted'])) {
                             <?php endif; ?>
 
                             <div class="d-flex justify-content-end gap-2 mt-3">
-                                <?php if ($status === 'pending'): ?>
+                                <?php if ($status === 'pending' && $canEditReservation): ?>
                                     <a href="reservation_edit.php?id=<?= $resId ?>&from=my_bookings"
                                        class="btn btn-outline-primary btn-sm btn-action">
                                         Edit

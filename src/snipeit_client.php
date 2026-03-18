@@ -1932,3 +1932,468 @@ function list_checked_out_assets(bool $overdueOnly = false): array
 
     return $results;
 }
+
+function snipeit_array_is_list_compat(array $value): bool
+{
+    if (function_exists('array_is_list')) {
+        return array_is_list($value);
+    }
+
+    $expectedKey = 0;
+    foreach (array_keys($value) as $key) {
+        if ($key !== $expectedKey) {
+            return false;
+        }
+        $expectedKey++;
+    }
+
+    return true;
+}
+
+function snipeit_extract_rows_from_collection_payload(array $data): array
+{
+    if (isset($data['rows']) && is_array($data['rows'])) {
+        return $data['rows'];
+    }
+
+    if (isset($data['data']) && is_array($data['data'])) {
+        return $data['data'];
+    }
+
+    return snipeit_array_is_list_compat($data) ? $data : [];
+}
+
+function snipeit_fetch_all_rows_from_endpoint(string $endpoint, array $baseParams = [], bool $allowResponseCache = true): array
+{
+    $limit = 200;
+    $offset = 0;
+    $rows = [];
+
+    do {
+        $params = $baseParams;
+        $params['limit'] = $limit;
+        $params['offset'] = $offset;
+
+        $data = snipeit_request('GET', $endpoint, $params, $allowResponseCache);
+        $chunk = snipeit_extract_rows_from_collection_payload($data);
+        if (empty($chunk)) {
+            break;
+        }
+
+        $rows = array_merge($rows, $chunk);
+        if (count($chunk) < $limit) {
+            break;
+        }
+
+        $offset += $limit;
+    } while (true);
+
+    return $rows;
+}
+
+function snipeit_request_first_successful_get(array $endpointCandidates, array $params = [], bool $allowResponseCache = true): array
+{
+    $lastError = null;
+
+    foreach ($endpointCandidates as $endpoint) {
+        try {
+            return snipeit_request('GET', $endpoint, $params, $allowResponseCache);
+        } catch (Throwable $e) {
+            $lastError = $e;
+        }
+    }
+
+    if ($lastError instanceof Throwable) {
+        throw $lastError;
+    }
+
+    throw new RuntimeException('No Snipe-IT endpoint candidates were provided.');
+}
+
+function snipeit_fetch_all_rows_from_candidates(array $endpointCandidates, array $baseParams = [], bool $allowResponseCache = true): array
+{
+    $lastError = null;
+
+    foreach ($endpointCandidates as $endpoint) {
+        try {
+            return snipeit_fetch_all_rows_from_endpoint($endpoint, $baseParams, $allowResponseCache);
+        } catch (Throwable $e) {
+            $lastError = $e;
+        }
+    }
+
+    if ($lastError instanceof Throwable) {
+        throw $lastError;
+    }
+
+    throw new RuntimeException('No Snipe-IT endpoint candidates were provided.');
+}
+
+function snipeit_accessory_available_quantity_from_payload(array $accessory): int
+{
+    $directCandidates = [
+        'remaining_qty',
+        'remaining_count',
+        'available_qty',
+        'available_count',
+        'num_remaining',
+        'available',
+    ];
+    foreach ($directCandidates as $field) {
+        if (isset($accessory[$field]) && is_numeric($accessory[$field])) {
+            return max(0, (int)$accessory[$field]);
+        }
+    }
+
+    $qty = isset($accessory['qty']) && is_numeric($accessory['qty'])
+        ? (int)$accessory['qty']
+        : (isset($accessory['quantity']) && is_numeric($accessory['quantity']) ? (int)$accessory['quantity'] : 0);
+
+    $checkedOut = 0;
+    $checkedOutCandidates = [
+        'checkout_count',
+        'checked_out',
+        'checked_out_count',
+        'assigned_count',
+        'assigned_qty',
+        'users_count',
+    ];
+    foreach ($checkedOutCandidates as $field) {
+        if (isset($accessory[$field]) && is_numeric($accessory[$field])) {
+            $checkedOut = (int)$accessory[$field];
+            break;
+        }
+    }
+
+    return max(0, $qty - $checkedOut);
+}
+
+function fetch_all_accessories_from_snipeit(string $search = '', bool $allowResponseCache = true): array
+{
+    $params = [];
+    if ($search !== '') {
+        $params['search'] = $search;
+    }
+
+    return snipeit_fetch_all_rows_from_endpoint('accessories', $params, $allowResponseCache);
+}
+
+function get_bookable_accessories(
+    int $page = 1,
+    string $search = '',
+    ?string $sort = null,
+    int $perPage = 50
+): array {
+    $page = max(1, $page);
+    $perPage = max(1, $perPage);
+    $sort = trim((string)$sort);
+
+    $rows = fetch_all_accessories_from_snipeit($search);
+    $rows = array_values(array_filter($rows, static function (array $row): bool {
+        return snipeit_accessory_available_quantity_from_payload($row) > 0;
+    }));
+
+    usort($rows, static function (array $a, array $b) use ($sort): int {
+        $nameA = (string)($a['name'] ?? '');
+        $nameB = (string)($b['name'] ?? '');
+        $manA = (string)(is_array($a['manufacturer'] ?? null) ? ($a['manufacturer']['name'] ?? '') : ($a['manufacturer_name'] ?? ''));
+        $manB = (string)(is_array($b['manufacturer'] ?? null) ? ($b['manufacturer']['name'] ?? '') : ($b['manufacturer_name'] ?? ''));
+        $qtyA = snipeit_accessory_available_quantity_from_payload($a);
+        $qtyB = snipeit_accessory_available_quantity_from_payload($b);
+
+        switch ($sort) {
+            case 'manu_asc':
+                return strcasecmp($manA, $manB);
+            case 'manu_desc':
+                return strcasecmp($manB, $manA);
+            case 'name_desc':
+                return strcasecmp($nameB, $nameA);
+            case 'units_asc':
+                return $qtyA === $qtyB ? strcasecmp($nameA, $nameB) : ($qtyA <=> $qtyB);
+            case 'units_desc':
+                return $qtyA === $qtyB ? strcasecmp($nameA, $nameB) : ($qtyB <=> $qtyA);
+            case 'name_asc':
+            case '':
+            default:
+                return strcasecmp($nameA, $nameB);
+        }
+    });
+
+    $total = count($rows);
+    $offset = ($page - 1) * $perPage;
+
+    return [
+        'total' => $total,
+        'rows' => array_slice($rows, $offset, $perPage),
+    ];
+}
+
+function get_accessory(int $accessoryId): array
+{
+    if ($accessoryId <= 0) {
+        throw new InvalidArgumentException('Invalid accessory ID');
+    }
+
+    return snipeit_request('GET', 'accessories/' . $accessoryId);
+}
+
+function count_available_accessory_units(int $accessoryId): int
+{
+    static $cache = [];
+    if ($accessoryId <= 0) {
+        throw new InvalidArgumentException('Accessory ID must be positive.');
+    }
+
+    if (isset($cache[$accessoryId])) {
+        return $cache[$accessoryId];
+    }
+
+    $accessory = get_accessory($accessoryId);
+    $cache[$accessoryId] = snipeit_accessory_available_quantity_from_payload($accessory);
+
+    return $cache[$accessoryId];
+}
+
+function checkout_accessory_to_user(int $accessoryId, int $userId, int $quantity = 1, string $note = ''): void
+{
+    if ($accessoryId <= 0) {
+        throw new InvalidArgumentException('Invalid accessory ID for checkout.');
+    }
+    if ($userId <= 0) {
+        throw new InvalidArgumentException('Invalid user ID for checkout.');
+    }
+    if ($quantity <= 0) {
+        throw new InvalidArgumentException('Accessory checkout quantity must be positive.');
+    }
+
+    $payload = [
+        'assigned_to' => $userId,
+        'checkout_to_type' => 'user',
+        'checkout_qty' => $quantity,
+        'quantity' => $quantity,
+    ];
+    if ($note !== '') {
+        $payload['note'] = $note;
+    }
+
+    $resp = snipeit_request('POST', 'accessories/' . $accessoryId . '/checkout', $payload, false);
+    $status = $resp['status'] ?? 'success';
+    $messagesField = $resp['messages'] ?? ($resp['message'] ?? '');
+    $flatMessages = [];
+    if (is_array($messagesField)) {
+        array_walk_recursive($messagesField, static function ($val) use (&$flatMessages): void {
+            if (is_string($val) && trim($val) !== '') {
+                $flatMessages[] = $val;
+            }
+        });
+    } elseif (is_string($messagesField) && trim($messagesField) !== '') {
+        $flatMessages[] = $messagesField;
+    }
+
+    $message = $flatMessages ? implode('; ', $flatMessages) : 'Unknown API response';
+    $hasExplicitError = is_array($messagesField) && isset($messagesField['error']);
+    if ($status !== 'success' || $hasExplicitError) {
+        throw new Exception('Snipe-IT accessory checkout did not succeed: ' . $message);
+    }
+}
+
+function snipeit_kit_endpoint_candidates(): array
+{
+    return ['kits', 'predefined_kits', 'predefinedkits'];
+}
+
+function fetch_all_kits_from_snipeit(string $search = '', bool $allowResponseCache = true): array
+{
+    $params = [];
+    if ($search !== '') {
+        $params['search'] = $search;
+    }
+
+    return snipeit_fetch_all_rows_from_candidates(snipeit_kit_endpoint_candidates(), $params, $allowResponseCache);
+}
+
+function get_bookable_kits(
+    int $page = 1,
+    string $search = '',
+    ?string $sort = null,
+    int $perPage = 50
+): array {
+    $page = max(1, $page);
+    $perPage = max(1, $perPage);
+    $sort = trim((string)$sort);
+
+    $rows = fetch_all_kits_from_snipeit($search);
+    usort($rows, static function (array $a, array $b) use ($sort): int {
+        $nameA = (string)($a['name'] ?? '');
+        $nameB = (string)($b['name'] ?? '');
+
+        switch ($sort) {
+            case 'name_desc':
+                return strcasecmp($nameB, $nameA);
+            case 'name_asc':
+            case '':
+            default:
+                return strcasecmp($nameA, $nameB);
+        }
+    });
+
+    $total = count($rows);
+    $offset = ($page - 1) * $perPage;
+
+    return [
+        'total' => $total,
+        'rows' => array_slice($rows, $offset, $perPage),
+    ];
+}
+
+function get_kit(int $kitId): array
+{
+    if ($kitId <= 0) {
+        throw new InvalidArgumentException('Invalid kit ID');
+    }
+
+    $endpoints = [];
+    foreach (snipeit_kit_endpoint_candidates() as $baseEndpoint) {
+        $endpoints[] = $baseEndpoint . '/' . $kitId;
+    }
+
+    return snipeit_request_first_successful_get($endpoints);
+}
+
+function snipeit_extract_kit_embedded_rows(array $kit, string $field): array
+{
+    $candidates = [
+        $kit[$field] ?? null,
+        $kit[$field . '_rows'] ?? null,
+        $kit['included_' . $field] ?? null,
+        $kit['kit_' . $field] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (!is_array($candidate)) {
+            continue;
+        }
+
+        $rows = snipeit_extract_rows_from_collection_payload($candidate);
+        if (!empty($rows)) {
+            return $rows;
+        }
+
+        if (snipeit_array_is_list_compat($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return [];
+}
+
+function snipeit_get_kit_element_rows(int $kitId, string $field): array
+{
+    $field = strtolower(trim($field));
+    if ($field === '') {
+        return [];
+    }
+
+    $kit = get_kit($kitId);
+    $embedded = snipeit_extract_kit_embedded_rows($kit, $field);
+    if (!empty($embedded)) {
+        return $embedded;
+    }
+
+    $endpoints = [];
+    foreach (snipeit_kit_endpoint_candidates() as $baseEndpoint) {
+        $endpoints[] = $baseEndpoint . '/' . $kitId . '/' . $field;
+    }
+
+    return snipeit_fetch_all_rows_from_candidates($endpoints);
+}
+
+function snipeit_kit_element_quantity(array $row): int
+{
+    $candidates = [
+        $row['quantity'] ?? null,
+        $row['qty'] ?? null,
+        $row['count'] ?? null,
+    ];
+    foreach ($candidates as $candidate) {
+        if (is_numeric($candidate)) {
+            return max(1, (int)$candidate);
+        }
+    }
+
+    if (isset($row['pivot']) && is_array($row['pivot']) && is_numeric($row['pivot']['quantity'] ?? null)) {
+        return max(1, (int)$row['pivot']['quantity']);
+    }
+
+    return 1;
+}
+
+function get_kit_booking_breakdown(int $kitId): array
+{
+    $kit = get_kit($kitId);
+    $models = snipeit_get_kit_element_rows($kitId, 'models');
+    $accessories = snipeit_get_kit_element_rows($kitId, 'accessories');
+
+    $licenses = [];
+    $consumables = [];
+    try {
+        $licenses = snipeit_get_kit_element_rows($kitId, 'licenses');
+    } catch (Throwable $e) {
+        $licenses = [];
+    }
+    try {
+        $consumables = snipeit_get_kit_element_rows($kitId, 'consumables');
+    } catch (Throwable $e) {
+        $consumables = [];
+    }
+
+    $supportedItems = [];
+    foreach ($models as $row) {
+        $itemId = (int)($row['id'] ?? 0);
+        if ($itemId <= 0) {
+            continue;
+        }
+        $supportedItems[] = [
+            'type' => 'model',
+            'id' => $itemId,
+            'name' => trim((string)($row['name'] ?? ('Model #' . $itemId))),
+            'qty' => snipeit_kit_element_quantity($row),
+        ];
+    }
+    foreach ($accessories as $row) {
+        $itemId = (int)($row['id'] ?? 0);
+        if ($itemId <= 0) {
+            continue;
+        }
+        $supportedItems[] = [
+            'type' => 'accessory',
+            'id' => $itemId,
+            'name' => trim((string)($row['name'] ?? ('Accessory #' . $itemId))),
+            'qty' => snipeit_kit_element_quantity($row),
+        ];
+    }
+
+    $unsupported = [];
+    if (!empty($licenses)) {
+        $unsupported[] = [
+            'type' => 'license',
+            'count' => count($licenses),
+        ];
+    }
+    if (!empty($consumables)) {
+        $unsupported[] = [
+            'type' => 'consumable',
+            'count' => count($consumables),
+        ];
+    }
+
+    return [
+        'kit' => $kit,
+        'models' => $models,
+        'accessories' => $accessories,
+        'licenses' => $licenses,
+        'consumables' => $consumables,
+        'supported_items' => $supportedItems,
+        'unsupported_items' => $unsupported,
+    ];
+}

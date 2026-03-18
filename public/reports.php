@@ -322,7 +322,7 @@ try {
 }
 
 try {
-    $itemStmt = $pdo->prepare("
+    $itemSql = "
         SELECT r.id AS reservation_id,
                ri.model_id,
                ri.quantity,
@@ -333,7 +333,12 @@ try {
          WHERE r.status IN ('pending','confirmed','completed','missed')
            AND r.start_datetime < :range_end
            AND r.end_datetime > :range_start
-    ");
+    ";
+    if (booking_reservation_items_have_typed_columns($pdo)) {
+        $itemSql .= " AND COALESCE(NULLIF(ri.item_type, ''), 'model') = 'model'";
+    }
+
+    $itemStmt = $pdo->prepare($itemSql);
     $itemStmt->execute([
         ':range_start' => $rangeStartSql,
         ':range_end' => $rangeEndSql,

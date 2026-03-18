@@ -1,5 +1,23 @@
 # Changelog
 
+## [v1.5.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.0) - 18/03/2026
+
+### Please Read before Installing
+
+This release has a database upgrade, so requires running the upgrade script.
+
+After updating the files, please do the following:
+
+1) Run the upgrade script at [www.yourinstallation.com/install/upgrade](url) through a browser.
+
+### New catalogue booking types
+
+1) The Catalogue now has separate `Models`, `Accessories`, and `Kits` tabs.
+
+2) Accessories can now be added to the basket, reserved, and checked out directly to users from the staff checkout page.
+
+3) Kits can now be added from the Catalogue. Supported kit contents are expanded into their underlying models and accessories when added to the basket.
+
 ## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.4.4) - 12/03/2026
 
 ### Please Read before Installing
@@ -213,4 +231,3 @@ Thank you for downloading this initial public release of SnipeScheduler!
 Please use the README.md to find the instructions on how to install and configure the app.
 
 As mentioned in the Readme, this is still a beta release, so I wouldn't consider it ready for a high-risk production installation yet. It has been in use in production on a single site but you may find errors that others haven't, so please do report them and request features in the Issues tab on GitHub.
-

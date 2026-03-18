@@ -10,29 +10,29 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
 
 $userOverride = $_SESSION['booking_user_override'] ?? null;
-$user   = $userOverride ?: $currentUser;
-$basket = $_SESSION['basket'] ?? [];
+$user = $userOverride ?: $currentUser;
+$basket = booking_session_basket_items($_SESSION['basket'] ?? []);
 
 if (empty($basket)) {
     die('Your basket is empty.');
 }
 
 $startRaw = $_POST['start_datetime'] ?? '';
-$endRaw   = $_POST['end_datetime'] ?? '';
+$endRaw = $_POST['end_datetime'] ?? '';
 
 if (!$startRaw || !$endRaw) {
     die('Start and end date/time are required.');
 }
 
 $startTs = strtotime($startRaw);
-$endTs   = strtotime($endRaw);
+$endTs = strtotime($endRaw);
 
 if ($startTs === false || $endTs === false) {
     die('Invalid date/time.');
 }
 
 $start = date('Y-m-d H:i:s', $startTs);
-$end   = date('Y-m-d H:i:s', $endTs);
+$end = date('Y-m-d H:i:s', $endTs);
 
 if ($end <= $start) {
     die('End time must be after start time.');
@@ -44,13 +44,12 @@ $overrideEmail = strtolower(trim((string)($userOverride['email'] ?? '')));
 $currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
 $isOnBehalfBooking = is_array($userOverride) && $overrideEmail !== '' && $overrideEmail !== $currentEmail;
 
-// Build user info from Snipe-IT user record
-$userName  = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+$userName = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
 if ($userName === '') {
     $userName = (string)($user['email'] ?? 'Unknown user');
 }
 $userEmail = (string)($user['email'] ?? '');
-$userId    = (string)($user['id'] ?? ''); // Snipe-IT user id
+$userId = (string)($user['id'] ?? '');
 
 $reservationPolicy = reservation_policy_get($config);
 $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
@@ -66,70 +65,67 @@ if (!empty($policyViolations)) {
     die('Could not create booking: ' . htmlspecialchars($policyViolations[0]));
 }
 
+$reservationItemsTyped = booking_reservation_items_have_typed_columns($pdo);
+$hasNonModelItems = false;
+foreach ($basket as $basketItem) {
+    if (booking_normalize_item_type((string)($basketItem['type'] ?? 'model')) !== 'model') {
+        $hasNonModelItems = true;
+        break;
+    }
+}
+if ($hasNonModelItems && !$reservationItemsTyped) {
+    die('This installation must run the latest database upgrade before accessories or kits can be booked.');
+}
+
 $pdo->beginTransaction();
 
 try {
-    $models = [];
+    $items = [];
     $totalRequestedItems = 0;
 
-    foreach ($basket as $modelId => $qty) {
-        $modelId = (int)$modelId;
-        $qty     = (int)$qty;
+    foreach ($basket as $basketItem) {
+        $itemType = booking_normalize_item_type((string)($basketItem['type'] ?? 'model'));
+        $itemId = (int)($basketItem['id'] ?? 0);
+        $qty = (int)($basketItem['qty'] ?? 0);
 
-        if ($modelId <= 0 || $qty < 1) {
-            throw new Exception('Invalid model/quantity in basket.');
+        if ($itemId <= 0 || $qty < 1) {
+            throw new Exception('Invalid item/quantity in basket.');
         }
 
-        $model = get_model($modelId);
-        if (empty($model['id'])) {
-            throw new Exception('Model not found in Snipe-IT: ID ' . $modelId);
+        $record = booking_fetch_catalogue_item_record($itemType, $itemId);
+        if (empty($record['id'])) {
+            throw new Exception(ucfirst($itemType) . ' not found in Snipe-IT: ID ' . $itemId);
         }
 
-        // How many units of this model are already booked for this time range?
-        $sql = "
-            SELECT COALESCE(SUM(ri.quantity), 0) AS booked_qty
-            FROM reservation_items ri
-            JOIN reservations r ON r.id = ri.reservation_id
-            WHERE ri.model_id = :model_id
-              AND r.status IN ('pending','confirmed')
-              AND (r.start_datetime < :end AND r.end_datetime > :start)
-        ";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':model_id' => $modelId,
-            ':start'    => $start,
-            ':end'      => $end,
-        ]);
-        $row = $stmt->fetch();
-        $existingBooked = $row ? (int)$row['booked_qty'] : 0;
-
-        // Total requestable units in Snipe-IT
-        $totalRequestable = count_requestable_assets_by_model($modelId);
-        $activeCheckedOut = booking_count_effective_checked_out_assets($modelId, $config, (int)$startTs);
+        $existingBooked = booking_count_reserved_item_quantity(
+            $pdo,
+            $itemType,
+            $itemId,
+            $start,
+            $end,
+            ['pending', 'confirmed']
+        );
+        $totalRequestable = booking_get_requestable_total_for_item($itemType, $itemId);
+        $activeCheckedOut = booking_count_effective_checked_out_for_item($itemType, $itemId, $config, (int)$startTs);
         $availableNow = $totalRequestable > 0 ? max(0, $totalRequestable - $activeCheckedOut) : 0;
 
         if ($totalRequestable > 0 && $existingBooked + $qty > $availableNow) {
             throw new Exception(
-                'Not enough units available for "' . ($model['name'] ?? ('ID '.$modelId)) . '" '
+                'Not enough units available for "' . ($record['name'] ?? (ucfirst($itemType) . ' #' . $itemId)) . '" '
                 . 'in that time period. Requested ' . $qty . ', already booked ' . $existingBooked
                 . ', total available ' . $availableNow . '.'
             );
         }
 
-        $models[] = [
-            'model' => $model,
-            'qty'   => $qty,
+        $items[] = [
+            'type' => $itemType,
+            'item' => $record,
+            'qty' => $qty,
         ];
         $totalRequestedItems += $qty;
     }
 
-    // Reservation header summary text
-    if (!empty($models)) {
-        $firstName = $models[0]['model']['name'] ?? 'Multiple models';
-    } else {
-        $firstName = 'Multiple models';
-    }
-
+    $firstName = !empty($items) ? (string)($items[0]['item']['name'] ?? 'Multiple items') : 'Multiple items';
     $label = $firstName;
     if ($totalRequestedItems > 1) {
         $label .= ' +' . ($totalRequestedItems - 1) . ' more item(s)';
@@ -147,49 +143,80 @@ try {
         )
     ");
     $insertRes->execute([
-        ':user_name'        => $userName,
-        ':user_email'       => $userEmail,
-        ':user_id'          => $userId,
-        ':snipeit_user_id'  => $user['id'],
+        ':user_name' => $userName,
+        ':user_email' => $userEmail,
+        ':user_id' => $userId,
+        ':snipeit_user_id' => $user['id'],
         ':asset_name_cache' => 'Pending checkout',
-        ':start_datetime'   => $start,
-        ':end_datetime'     => $end,
+        ':start_datetime' => $start,
+        ':end_datetime' => $end,
     ]);
 
     $reservationId = (int)$pdo->lastInsertId();
 
-    // Insert reservation_items as model-level rows with quantity
-    $insertItem = $pdo->prepare("
-        INSERT INTO reservation_items (
-            reservation_id, model_id, model_name_cache, quantity
-        ) VALUES (
-            :reservation_id, :model_id, :model_name_cache, :quantity
-        )
-    ");
+    if ($reservationItemsTyped) {
+        $insertItem = $pdo->prepare("
+            INSERT INTO reservation_items (
+                reservation_id, item_type, item_id, item_name_cache,
+                model_id, model_name_cache, quantity
+            ) VALUES (
+                :reservation_id, :item_type, :item_id, :item_name_cache,
+                :model_id, :model_name_cache, :quantity
+            )
+        ");
 
-    foreach ($models as $entry) {
-        $model = $entry['model'];
-        $qty   = (int)$entry['qty'];
+        foreach ($items as $entry) {
+            $itemType = booking_normalize_item_type((string)($entry['type'] ?? 'model'));
+            $record = $entry['item'];
+            $qty = (int)($entry['qty'] ?? 0);
+            $itemId = (int)($record['id'] ?? 0);
 
-        $insertItem->execute([
-            ':reservation_id'   => $reservationId,
-            ':model_id'         => (int)$model['id'],
-            ':model_name_cache' => $model['name'] ?? ('Model #' . $model['id']),
-            ':quantity'         => $qty,
-        ]);
+            $insertItem->execute([
+                ':reservation_id' => $reservationId,
+                ':item_type' => $itemType,
+                ':item_id' => $itemId,
+                ':item_name_cache' => $record['name'] ?? (ucfirst($itemType) . ' #' . $itemId),
+                ':model_id' => $itemType === 'model' ? $itemId : 0,
+                ':model_name_cache' => $itemType === 'model'
+                    ? ($record['name'] ?? ('Model #' . $itemId))
+                    : '',
+                ':quantity' => $qty,
+            ]);
+        }
+    } else {
+        $insertItem = $pdo->prepare("
+            INSERT INTO reservation_items (
+                reservation_id, model_id, model_name_cache, quantity
+            ) VALUES (
+                :reservation_id, :model_id, :model_name_cache, :quantity
+            )
+        ");
+
+        foreach ($items as $entry) {
+            $record = $entry['item'];
+            $qty = (int)($entry['qty'] ?? 0);
+            $itemId = (int)($record['id'] ?? 0);
+
+            $insertItem->execute([
+                ':reservation_id' => $reservationId,
+                ':model_id' => $itemId,
+                ':model_name_cache' => $record['name'] ?? ('Model #' . $itemId),
+                ':quantity' => $qty,
+            ]);
+        }
     }
 
     $pdo->commit();
-    $_SESSION['basket'] = []; // clear basket
+    $_SESSION['basket'] = [];
 
     activity_log_event('reservation_submitted', 'Reservation submitted', [
         'subject_type' => 'reservation',
-        'subject_id'   => $reservationId,
-        'metadata'     => [
-            'items'     => $totalRequestedItems,
-            'start'     => $start,
-            'end'       => $end,
-            'booked_for'=> $userEmail,
+        'subject_id' => $reservationId,
+        'metadata' => [
+            'items' => $totalRequestedItems,
+            'start' => $start,
+            'end' => $end,
+            'booked_for' => $userEmail,
         ],
     ]);
 
@@ -225,17 +252,17 @@ try {
             $bookedForDisplay .= " ({$userEmail})";
         }
 
-        $modelLabels = [];
-        foreach ($models as $entry) {
-            $modelName = trim((string)($entry['model']['name'] ?? 'Item'));
-            if ($modelName === '') {
-                $modelName = 'Item';
+        $itemLabels = [];
+        foreach ($items as $entry) {
+            $itemName = trim((string)($entry['item']['name'] ?? 'Item'));
+            if ($itemName === '') {
+                $itemName = 'Item';
             }
             $qty = (int)($entry['qty'] ?? 0);
-            $modelLabels[] = $qty > 1 ? ($modelName . " (x{$qty})") : $modelName;
+            $itemLabels[] = $qty > 1 ? ($itemName . " (x{$qty})") : $itemName;
         }
-        $itemsSummary = !empty($modelLabels)
-            ? implode(', ', $modelLabels)
+        $itemsSummary = !empty($itemLabels)
+            ? implode(', ', $itemLabels)
             : ((int)$totalRequestedItems . ' item(s)');
 
         $userBody = [
@@ -315,9 +342,10 @@ try {
             );
         }
     }
-
-} catch (Exception $e) {
-    $pdo->rollBack();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     die('Could not create booking: ' . htmlspecialchars($e->getMessage()));
 }
 ?>
@@ -334,7 +362,7 @@ try {
 <div class="container">
     <?= layout_logo_tag() ?>
     <h1>Thank you</h1>
-    <p>Your booking has been submitted for <?= (int)$totalRequestedItems ?> item(s).</p>
+    <p>Your booking has been submitted.</p>
     <p>
         <a href="catalogue.php" class="btn btn-primary">Book more equipment</a>
         <a href="my_bookings.php" class="btn btn-secondary">View my bookings</a>
