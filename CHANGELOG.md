@@ -18,6 +18,8 @@ After updating the files, please do the following:
 
 3) Kits can now be added from the Catalogue. Supported kit contents are expanded into their underlying models and accessories when added to the basket.
 
+4) The database upgrade page now includes a button to download a `.sql` backup of the current booking database before you run upgrades.
+
 ## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.4.4) - 12/03/2026
 
 ### Please Read before Installing
