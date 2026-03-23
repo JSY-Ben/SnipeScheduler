@@ -2066,6 +2066,190 @@ function list_checked_out_assets(bool $overdueOnly = false): array
     return $results;
 }
 
+function snipeit_extract_datetime_string($value): string
+{
+    if (is_array($value)) {
+        $value = $value['datetime'] ?? ($value['date'] ?? ($value['formatted'] ?? ''));
+    }
+
+    return trim((string)$value);
+}
+
+function snipeit_extract_first_datetime_field(array $row, array $fieldCandidates): string
+{
+    foreach ($fieldCandidates as $field) {
+        if (!array_key_exists($field, $row)) {
+            continue;
+        }
+
+        $value = snipeit_extract_datetime_string($row[$field]);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function snipeit_accessory_checked_out_count_from_payload(array $accessory): int
+{
+    $checkedOutCandidates = [
+        'checkout_count',
+        'checked_out',
+        'checked_out_count',
+        'assigned_count',
+        'assigned_qty',
+        'users_count',
+    ];
+    foreach ($checkedOutCandidates as $field) {
+        if (isset($accessory[$field]) && is_numeric($accessory[$field])) {
+            return max(0, (int)$accessory[$field]);
+        }
+    }
+
+    $qty = isset($accessory['qty']) && is_numeric($accessory['qty'])
+        ? (int)$accessory['qty']
+        : (isset($accessory['quantity']) && is_numeric($accessory['quantity']) ? (int)$accessory['quantity'] : 0);
+
+    return max(0, $qty - snipeit_accessory_available_quantity_from_payload($accessory));
+}
+
+function snipeit_accessory_checked_out_quantity_from_payload(array $row): int
+{
+    $quantityCandidates = [
+        'assigned_qty',
+        'checkout_qty',
+        'quantity',
+        'qty',
+        'checked_out',
+        'count',
+    ];
+    foreach ($quantityCandidates as $field) {
+        if (isset($row[$field]) && is_numeric($row[$field])) {
+            return max(1, (int)$row[$field]);
+        }
+    }
+
+    return 1;
+}
+
+function snipeit_normalize_checked_out_accessory_row(array $accessory, array $row): ?array
+{
+    $accessoryId = (int)($accessory['id'] ?? ($row['accessory_id'] ?? 0));
+    if ($accessoryId <= 0) {
+        return null;
+    }
+
+    $manufacturer = is_array($accessory['manufacturer'] ?? null)
+        ? trim((string)($accessory['manufacturer']['name'] ?? ''))
+        : trim((string)($accessory['manufacturer_name'] ?? ''));
+    $category = is_array($accessory['category'] ?? null)
+        ? trim((string)($accessory['category']['name'] ?? ''))
+        : trim((string)($accessory['category_name'] ?? ''));
+
+    $assignedSource = $row['assigned_to'] ?? ($row['assigned_user'] ?? ($row['user'] ?? ($row['target'] ?? ($accessory['assigned_to'] ?? ($accessory['assigned_to_fullname'] ?? '')))));
+    $assigned = snipeit_extract_assigned_user_fields($assignedSource);
+    if ($assigned['id'] <= 0 && $assigned['name'] === '' && $assigned['email'] === '' && $assigned['username'] === '') {
+        $assigned = [
+            'id' => (int)($row['assigned_to_id'] ?? ($row['assigned_user_id'] ?? ($row['user_id'] ?? ($row['target_id'] ?? 0)))),
+            'name' => trim((string)($row['assigned_to_name'] ?? ($row['assigned_user_name'] ?? ($row['name'] ?? ($row['target_name'] ?? ''))))),
+            'email' => trim((string)($row['assigned_to_email'] ?? ($row['assigned_user_email'] ?? ($row['email'] ?? ($row['target_email'] ?? ''))))),
+            'username' => trim((string)($row['assigned_to_username'] ?? ($row['assigned_user_username'] ?? ($row['username'] ?? '')))),
+        ];
+    }
+
+    $assigned = array_filter($assigned, static function ($value): bool {
+        if (is_int($value)) {
+            return $value > 0;
+        }
+
+        return trim((string)$value) !== '';
+    });
+
+    $lastCheckout = snipeit_extract_first_datetime_field($row, [
+        'checkout_date',
+        'last_checkout',
+        'created_at',
+        'assigned_at',
+        'updated_at',
+    ]);
+    if ($lastCheckout === '') {
+        $lastCheckout = snipeit_extract_datetime_string($accessory['last_checkout'] ?? '');
+    }
+
+    $expectedCheckin = snipeit_extract_first_datetime_field($row, [
+        'expected_checkin',
+        'expected_checkin_date',
+        'expected_checkout',
+        'due_date',
+    ]);
+    if ($expectedCheckin === '') {
+        $expectedCheckin = snipeit_extract_datetime_string($accessory['expected_checkin'] ?? '');
+    }
+
+    $item = [
+        'id' => $accessoryId,
+        'item_type' => 'accessory',
+        'accessory_id' => $accessoryId,
+        'accessory_checkout_id' => (int)($row['id'] ?? 0),
+        'asset_tag' => '',
+        'name' => trim((string)($accessory['name'] ?? ('Accessory #' . $accessoryId))),
+        'manufacturer_name' => $manufacturer,
+        'category_name' => $category,
+        'assigned_qty' => snipeit_accessory_checked_out_quantity_from_payload($row),
+        'last_checkout' => $lastCheckout,
+        'expected_checkin' => $expectedCheckin,
+        '_last_checkout_norm' => $lastCheckout,
+        '_expected_checkin_norm' => $expectedCheckin,
+    ];
+
+    if (!empty($assigned)) {
+        $item['assigned_to'] = $assigned;
+    }
+
+    return $item;
+}
+
+function fetch_checked_out_accessories_from_snipeit(bool $allowResponseCache = true): array
+{
+    $accessories = fetch_all_accessories_from_snipeit('', $allowResponseCache);
+    $results = [];
+
+    foreach ($accessories as $accessory) {
+        $accessoryId = (int)($accessory['id'] ?? 0);
+        if ($accessoryId <= 0) {
+            continue;
+        }
+
+        if (snipeit_accessory_checked_out_count_from_payload($accessory) <= 0) {
+            continue;
+        }
+
+        try {
+            $rows = snipeit_fetch_all_rows_from_endpoint('accessories/' . $accessoryId . '/checkedout', [], $allowResponseCache);
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+
+        if (empty($rows)) {
+            $fallbackItem = snipeit_normalize_checked_out_accessory_row($accessory, $accessory);
+            if ($fallbackItem !== null) {
+                $results[] = $fallbackItem;
+            }
+            continue;
+        }
+
+        foreach ($rows as $row) {
+            $item = snipeit_normalize_checked_out_accessory_row($accessory, is_array($row) ? $row : []);
+            if ($item !== null) {
+                $results[] = $item;
+            }
+        }
+    }
+
+    return $results;
+}
+
 function snipeit_array_is_list_compat(array $value): bool
 {
     if (function_exists('array_is_list')) {

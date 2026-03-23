@@ -97,6 +97,74 @@ function expected_to_timestamp($value): ?int
     return $ts;
 }
 
+function checked_out_row_type_key(array $row): string
+{
+    return (($row['item_type'] ?? 'asset') === 'accessory') ? 'accessory' : 'asset';
+}
+
+function checked_out_row_type_label(array $row): string
+{
+    return checked_out_row_type_key($row) === 'accessory' ? 'Accessory' : 'Equipment';
+}
+
+function checked_out_row_identifier(array $row): string
+{
+    if (checked_out_row_type_key($row) === 'accessory') {
+        $accessoryId = (int)($row['accessory_id'] ?? ($row['id'] ?? 0));
+        return $accessoryId > 0 ? ('Accessory #' . $accessoryId) : 'Accessory';
+    }
+
+    $assetTag = trim((string)($row['asset_tag'] ?? ''));
+    if ($assetTag !== '') {
+        return $assetTag;
+    }
+
+    $assetId = (int)($row['id'] ?? 0);
+    return $assetId > 0 ? ('Asset #' . $assetId) : 'Equipment';
+}
+
+function checked_out_row_name(array $row): string
+{
+    $name = trim((string)($row['name'] ?? ''));
+    if ($name !== '') {
+        return $name;
+    }
+
+    return checked_out_row_identifier($row);
+}
+
+function checked_out_row_details(array $row): string
+{
+    if (checked_out_row_type_key($row) === 'accessory') {
+        $parts = [];
+        $manufacturer = trim((string)($row['manufacturer_name'] ?? ''));
+        $category = trim((string)($row['category_name'] ?? ''));
+        $quantity = max(1, (int)($row['assigned_qty'] ?? 1));
+
+        if ($manufacturer !== '') {
+            $parts[] = $manufacturer;
+        }
+        if ($category !== '') {
+            $parts[] = $category;
+        }
+        $parts[] = 'Qty x' . $quantity;
+
+        return implode(' • ', $parts);
+    }
+
+    return trim((string)($row['model']['name'] ?? ''));
+}
+
+function checked_out_row_user_display(array $row): string
+{
+    $user = $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? '');
+    if (is_array($user)) {
+        return trim((string)($user['name'] ?? ($user['username'] ?? ($user['email'] ?? ''))));
+    }
+
+    return trim((string)$user);
+}
+
 $active    = basename($_SERVER['PHP_SELF']);
 $isAdmin   = !empty($currentUser['is_admin']);
 $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
@@ -161,10 +229,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                 ]);
             } catch (Throwable $e) {
-                $error = 'Could not check in asset: ' . $e->getMessage();
+                $error = 'Could not check in equipment: ' . $e->getMessage();
             }
         } else {
-            $error = 'Select a valid asset to check in.';
+            $error = 'Select valid equipment to check in.';
         }
     } elseif (isset($_POST['renew_asset_id'])) {
         // Renew single
@@ -177,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($renewId > 0 && $normalized !== '') {
             try {
                 update_asset_expected_checkin($renewId, $normalized);
-                $messages[] = "Extended expected check-in to " . format_display_datetime($normalized) . " for asset #{$renewId}.";
+                $messages[] = "Extended expected check-in to " . format_display_datetime($normalized) . " for equipment #{$renewId}.";
                 $labels = load_asset_labels($pdo, [$renewId]);
                 $label = $labels[$renewId] ?? ('Asset #' . $renewId);
                 activity_log_event('asset_renewed', 'Checked out asset renewed', [
@@ -189,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                 ]);
             } catch (Throwable $e) {
-                $error = 'Could not renew asset: ' . $e->getMessage();
+                $error = 'Could not renew equipment: ' . $e->getMessage();
             }
         } else {
             $error = 'Select a valid date/time for renewal.';
@@ -197,13 +265,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['bulk_checkin']) && $_POST['bulk_checkin'] === '1') {
         $bulkIds = $_POST['bulk_asset_ids'] ?? [];
         if (empty($bulkIds) || !is_array($bulkIds)) {
-            $error = 'Select at least one asset to check in.';
+            $error = 'Select at least one equipment row to check in.';
         } else {
             $assetIds = array_values(array_unique(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
                 return $id > 0;
             })));
             if (empty($assetIds)) {
-                $error = 'Select at least one valid asset to check in.';
+                $error = 'Select at least one valid equipment row to check in.';
             } else {
                 $labels = load_asset_labels($pdo, $assetIds);
                 $checkedInLabels = [];
@@ -222,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (!empty($checkedInLabels)) {
-                    $messages[] = 'Checked in ' . count($checkedInLabels) . ' asset(s).';
+                    $messages[] = 'Checked in ' . count($checkedInLabels) . ' equipment item(s).';
                     activity_log_event('assets_checked_in', 'Checked out assets checked in', [
                         'metadata' => [
                             'assets' => $checkedInLabels,
@@ -232,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (!empty($failedLabels)) {
-                    $error = 'Could not check in ' . count($failedLabels) . ' asset(s): ' . implode('; ', $failedLabels);
+                    $error = 'Could not check in ' . count($failedLabels) . ' equipment item(s): ' . implode('; ', $failedLabels);
                 }
             }
         }
@@ -243,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($bulkExpected === '') {
             $error = 'Select a valid date/time for bulk renewal.';
         } elseif (empty($bulkIds) || !is_array($bulkIds)) {
-            $error = 'Select at least one asset to renew.';
+            $error = 'Select at least one equipment row to renew.';
         } else {
             try {
                 $count = 0;
@@ -254,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $count++;
                     }
                 }
-                $messages[] = "Extended expected check-in to " . format_display_datetime($bulkExpected) . " for {$count} asset(s).";
+                $messages[] = "Extended expected check-in to " . format_display_datetime($bulkExpected) . " for {$count} equipment item(s).";
                 $assetIds = array_values(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
                     return $id > 0;
                 }));
@@ -270,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                 ]);
             } catch (Throwable $e) {
-                $error = 'Could not renew selected assets: ' . $e->getMessage();
+                $error = 'Could not renew selected equipment: ' . $e->getMessage();
             }
         }
     }
@@ -280,6 +348,8 @@ try {
     $assets = $forceRefresh
         ? fetch_checked_out_assets_from_snipeit(false, 0, false)
         : list_checked_out_assets(false);
+    $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
+    $assets = array_merge($assets, $accessories);
     if ($view === 'overdue') {
         $now = time();
         $assets = array_values(array_filter($assets, function ($row) use ($now) {
@@ -289,39 +359,29 @@ try {
     }
     if ($search !== '') {
         $q = mb_strtolower($search);
-    $assets = array_values(array_filter($assets, function ($row) use ($q) {
-        $fields = [
-            $row['asset_tag'] ?? '',
-            $row['name'] ?? '',
-            $row['model']['name'] ?? '',
-                $row['assigned_to'] ?? ($row['assigned_to_fullname'] ?? ''),
+        $assets = array_values(array_filter($assets, function ($row) use ($q) {
+            $fields = [
+                checked_out_row_identifier($row),
+                checked_out_row_name($row),
+                checked_out_row_details($row),
+                checked_out_row_user_display($row),
             ];
             foreach ($fields as $f) {
-                if (is_array($f)) {
-                    $f = implode(' ', $f);
-                }
                 if (mb_stripos((string)$f, $q) !== false) {
                     return true;
                 }
             }
+
             return false;
         }));
     }
     usort($assets, function ($a, $b) use ($sort) {
-        $aTag = strtolower((string)($a['asset_tag'] ?? ''));
-        $bTag = strtolower((string)($b['asset_tag'] ?? ''));
-        $aModel = strtolower((string)($a['model']['name'] ?? ''));
-        $bModel = strtolower((string)($b['model']['name'] ?? ''));
-        $aUser = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
-        $bUser = $b['assigned_to'] ?? ($b['assigned_to_fullname'] ?? '');
-        if (is_array($aUser)) {
-            $aUser = $aUser['name'] ?? ($aUser['username'] ?? '');
-        }
-        if (is_array($bUser)) {
-            $bUser = $bUser['name'] ?? ($bUser['username'] ?? '');
-        }
-        $aUser = strtolower((string)$aUser);
-        $bUser = strtolower((string)$bUser);
+        $aTag = strtolower(checked_out_row_identifier($a));
+        $bTag = strtolower(checked_out_row_identifier($b));
+        $aModel = strtolower(checked_out_row_details($a));
+        $bModel = strtolower(checked_out_row_details($b));
+        $aUser = strtolower(checked_out_row_user_display($a));
+        $bUser = strtolower(checked_out_row_user_display($b));
         $aExpected = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
         $bExpected = $b['_expected_checkin_norm'] ?? ($b['expected_checkin'] ?? '');
         if (is_array($aExpected)) {
@@ -427,7 +487,7 @@ function layout_checked_out_url(string $base, array $params): string
         <div class="page-header">
             <h1>Checked Out Reservations</h1>
             <div class="page-subtitle">
-                Showing requestable assets currently checked out in Snipe-IT.
+                Showing equipment and accessories currently checked out in Snipe-IT.
             </div>
         </div>
 
@@ -469,16 +529,16 @@ function layout_checked_out_url(string $base, array $params): string
                        name="q"
                        value="<?= htmlspecialchars($search) ?>"
                        class="form-control form-control-lg"
-                       placeholder="Filter by asset tag, name, model, or user">
+                       placeholder="Filter by identifier, item, details, or user">
             </div>
             <div class="col-md-2">
-                <select id="checked-out-sort" name="sort" class="form-select form-select-lg" aria-label="Sort checked-out assets">
+                <select id="checked-out-sort" name="sort" class="form-select form-select-lg" aria-label="Sort checked-out items">
                     <option value="expected_asc" <?= $sort === 'expected_asc' ? 'selected' : '' ?>>Expected check-in (soonest first)</option>
                     <option value="expected_desc" <?= $sort === 'expected_desc' ? 'selected' : '' ?>>Expected check-in (latest first)</option>
-                    <option value="tag_asc" <?= $sort === 'tag_asc' ? 'selected' : '' ?>>Asset tag (A–Z)</option>
-                    <option value="tag_desc" <?= $sort === 'tag_desc' ? 'selected' : '' ?>>Asset tag (Z–A)</option>
-                    <option value="model_asc" <?= $sort === 'model_asc' ? 'selected' : '' ?>>Model (A–Z)</option>
-                    <option value="model_desc" <?= $sort === 'model_desc' ? 'selected' : '' ?>>Model (Z–A)</option>
+                    <option value="tag_asc" <?= $sort === 'tag_asc' ? 'selected' : '' ?>>Identifier (A–Z)</option>
+                    <option value="tag_desc" <?= $sort === 'tag_desc' ? 'selected' : '' ?>>Identifier (Z–A)</option>
+                    <option value="model_asc" <?= $sort === 'model_asc' ? 'selected' : '' ?>>Details (A–Z)</option>
+                    <option value="model_desc" <?= $sort === 'model_desc' ? 'selected' : '' ?>>Details (Z–A)</option>
                     <option value="user_asc" <?= $sort === 'user_asc' ? 'selected' : '' ?>>User (A–Z)</option>
                     <option value="user_desc" <?= $sort === 'user_desc' ? 'selected' : '' ?>>User (Z–A)</option>
                     <option value="checkout_desc" <?= $sort === 'checkout_desc' ? 'selected' : '' ?>>Assigned since (newest first)</option>
@@ -527,7 +587,7 @@ function layout_checked_out_url(string $base, array $params): string
 
         <?php if (empty($assets) && !$error): ?>
             <div class="alert alert-secondary">
-                No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out requestable assets.
+                No <?= $view === 'overdue' ? 'overdue ' : '' ?>checked-out equipment or accessories.
             </div>
         <?php else: ?>
             <form method="post">
@@ -547,20 +607,21 @@ function layout_checked_out_url(string $base, array $params): string
                             name="bulk_renew"
                             value="1"
                             class="btn btn-outline-primary btn-sm">
-                        Renew selected
+                        Renew selected equipment
                     </button>
                     <button type="submit"
                             name="bulk_checkin"
                             value="1"
                             class="btn btn-outline-success btn-sm"
-                            onclick="return confirm('Check in all selected assets in Snipe-IT?');">
-                        Check in all selected
+                            onclick="return confirm('Check in all selected equipment in Snipe-IT?');">
+                        Check in selected equipment
                     </button>
                 </div>
+                <div class="text-muted small mb-2">Accessory rows are included here and in Overdue, but renew/check-in actions on this page still apply only to equipment rows.</div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="select-all-assets">
                     <label class="form-check-label" for="select-all-assets">
-                        Select all on this page
+                        Select all equipment on this page
                     </label>
                 </div>
                 <div class="table-responsive">
@@ -568,9 +629,10 @@ function layout_checked_out_url(string $base, array $params): string
                         <thead>
                             <tr>
                                 <th></th>
-                                <th>Asset Tag</th>
-                                <th>Name</th>
-                                <th>Model</th>
+                                <th>Type</th>
+                                <th>Identifier</th>
+                                <th>Item</th>
+                                <th>Details</th>
                                 <th>User</th>
                                 <th>Assigned Since</th>
                                 <th>Expected Check-in</th>
@@ -581,63 +643,79 @@ function layout_checked_out_url(string $base, array $params): string
                         <tbody>
                             <?php foreach ($assets as $a): ?>
                                 <?php
+                                    $rowType = checked_out_row_type_key($a);
+                                    $isAccessory = $rowType === 'accessory';
                                     $aid = (int)($a['id'] ?? 0);
-                                    $atag = $a['asset_tag'] ?? '';
-                                    $name = $a['name'] ?? '';
-                                    $model = $a['model']['name'] ?? '';
-                                    $user  = $a['assigned_to'] ?? ($a['assigned_to_fullname'] ?? '');
-                                    if (is_array($user)) {
-                                        $user = $user['name'] ?? ($user['username'] ?? '');
-                                    }
+                                    $identifier = checked_out_row_identifier($a);
+                                    $name = checked_out_row_name($a);
+                                    $details = checked_out_row_details($a);
+                                    $user = checked_out_row_user_display($a);
+                                    $assignedQty = max(1, (int)($a['assigned_qty'] ?? 1));
                                     $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
                                     $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
                                     $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
                                     $expectedTs = expected_to_timestamp($expected);
                                     $isOverdue = $expectedTs !== null && $expectedTs < time();
                                 ?>
-                                <tr data-asset-tag="<?= h(strtolower($atag)) ?>"
+                                <tr data-asset-tag="<?= h(strtolower($identifier)) ?>"
                                     data-asset-name="<?= h(strtolower($name)) ?>"
-                                    data-model="<?= h(strtolower($model)) ?>"
+                                    data-model="<?= h(strtolower($details)) ?>"
                                     data-user="<?= h(strtolower($user)) ?>"
                                     data-expected-ts="<?= (int)$expectedTs ?>"
                                     data-checkout-ts="<?= (int)$checkedOutTs ?>">
                                     <td>
-                                        <input class="form-check-input"
-                                               type="checkbox"
-                                               name="bulk_asset_ids[]"
-                                               value="<?= $aid ?>">
+                                        <?php if (!$isAccessory): ?>
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="bulk_asset_ids[]"
+                                                   value="<?= $aid ?>">
+                                        <?php endif; ?>
                                     </td>
-                                    <td><?= h($atag) ?></td>
-                                    <td><?= h($name) ?></td>
-                                    <td><?= h($model) ?></td>
+                                    <td><?= h(checked_out_row_type_label($a)) ?></td>
+                                    <td><?= h($identifier) ?></td>
+                                    <td>
+                                        <div class="fw-semibold"><?= h($name) ?></div>
+                                        <?php if ($isAccessory && $assignedQty > 1): ?>
+                                            <div class="text-muted small">Checked out quantity: <?= (int)$assignedQty ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= h($details) ?></td>
                                     <td><?= h($user) ?></td>
                                     <td><?= h(format_display_datetime($checkedOut)) ?></td>
                                     <td class="<?= $isOverdue ? 'text-danger fw-semibold' : '' ?>">
                                         <?= h(format_display_datetime($expected)) ?>
                                     </td>
                                     <td>
-                                        <input type="datetime-local"
-                                               name="renew_expected[<?= $aid ?>]"
-                                               class="form-control form-control-sm">
+                                        <?php if ($isAccessory): ?>
+                                            <span class="text-muted small">Not available</span>
+                                        <?php else: ?>
+                                            <input type="datetime-local"
+                                                   name="renew_expected[<?= $aid ?>]"
+                                                   class="form-control form-control-sm">
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            <button type="submit"
-                                                    name="renew_asset_id"
-                                                    value="<?= $aid ?>"
-                                                    class="btn btn-sm btn-outline-primary"
-                                                    <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
-                                                Renew
-                                            </button>
-                                            <button type="submit"
-                                                    name="checkin_asset_id"
-                                                    value="<?= $aid ?>"
-                                                    class="btn btn-sm btn-outline-success"
-                                                    onclick="return confirm('Check in this asset in Snipe-IT?');"
-                                                    <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
-                                                Check In
-                                            </button>
-                                        </div>
+                                        <?php if ($isAccessory): ?>
+                                            <span class="text-muted small">View only</span>
+                                        <?php else: ?>
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <button type="submit"
+                                                        name="renew_asset_id"
+                                                        value="<?= $aid ?>"
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
+                                                    Renew
+                                                </button>
+                                                <button type="submit"
+                                                        name="checkin_asset_id"
+                                                        value="<?= $aid ?>"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        onclick="return confirm('Check in this equipment in Snipe-IT?');"
+                                                        <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
+                                                    Check In
+                                                </button>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
