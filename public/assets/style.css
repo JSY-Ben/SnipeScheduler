@@ -1600,6 +1600,22 @@ form .form-select {
     color: var(--muted);
 }
 
+.quick-checkout-panel .report-model-cell {
+    gap: 0.7rem;
+}
+
+.quick-checkout-panel .report-model-thumb {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 0.45rem;
+    padding: 3px;
+}
+
+.quick-checkout-panel .report-model-thumb--placeholder {
+    font-size: 0.8rem;
+}
+
 .quick-checkout-asset-submit {
     display: flex;
     align-items: flex-end;
