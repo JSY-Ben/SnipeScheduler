@@ -1,6 +1,6 @@
 <?php
 // quick_checkin.php
-// Standalone bulk check-in page (quick scan style).
+// Standalone quick check-in page (quick scan style).
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
@@ -490,100 +490,136 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Bulk check-in</h5>
+                <h5 class="card-title">Quick Checkin</h5>
                 <p class="card-text">
-                    Scan or type asset tags to add them to the check-in list. When ready, click check in.
+                    Scan or type asset tags to add them into one check-in list, then check them in together.
                 </p>
+                <?php $checkinEntryCount = count($checkinAssets); ?>
 
-                <form method="post" class="row g-2 mb-3">
-                    <input type="hidden" name="mode" value="add_asset">
-                    <div class="col-md-6">
-                        <label class="form-label">Asset tag</label>
-                        <div class="position-relative asset-autocomplete-wrapper">
-                            <input type="text"
-                                   name="asset_tag"
-                                   class="form-control asset-autocomplete"
-                                   autocomplete="off"
-                                   placeholder="Scan or type asset tag..."
-                                   autofocus>
-                            <div class="list-group position-absolute w-100"
-                                 data-asset-suggestions
-                                 style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
+                <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
+                    <div class="filter-panel__header d-flex align-items-center gap-3">
+                        <span class="filter-panel__dot"></span>
+                        <div>
+                            <div class="filter-panel__title">QUICK CHECKIN</div>
+                            <div class="quick-checkout-panel__intro">Scan or type asset tags to build the check-in list.</div>
                         </div>
                     </div>
-                    <div class="col-md-3 d-grid align-items-end">
-                        <button type="submit" class="btn btn-outline-primary mt-4 mt-md-0">
-                            Add to check-in list
-                        </button>
-                    </div>
-                </form>
 
-                <?php if (empty($checkinAssets)): ?>
-                    <div class="alert alert-secondary">
-                        No assets in the check-in list yet. Scan or enter an asset tag above.
-                    </div>
-                <?php else: ?>
-                    <div class="table-responsive mb-3">
-                        <table class="table table-sm table-striped align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Asset Tag</th>
-                                    <th>Name</th>
-                                    <th>Model</th>
-                                    <th>Checked out to</th>
-                                    <th style="width: 80px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($checkinAssets as $asset): ?>
-                                    <tr>
-                                        <td><?= h($asset['asset_tag']) ?></td>
-                                        <td><?= h($asset['name']) ?></td>
-                                        <td><?= h($asset['model']) ?></td>
-                                        <?php
-                                            $assignedName = $asset['assigned_name'] ?? '';
-                                            $assignedEmail = $asset['assigned_email'] ?? '';
-                                            if ($assignedEmail !== '') {
-                                                $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                    ? $assignedName . " <{$assignedEmail}>"
-                                                    : $assignedEmail;
-                                            } elseif ($assignedName !== '') {
-                                                $assignedLabel = $assignedName;
-                                            } else {
-                                                $assignedLabel = 'Not checked out';
-                                            }
-                                        ?>
-                                        <td><?= h($assignedLabel) ?></td>
-                                        <td>
-                                            <a href="quick_checkin.php?remove=<?= (int)$asset['id'] ?>"
-                                               class="btn btn-sm btn-outline-danger">
-                                                Remove
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <form method="post" class="border-top pt-3">
-                        <input type="hidden" name="mode" value="checkin">
-
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-12">
-                                <label class="form-label">Note (optional)</label>
-                                <input type="text"
-                                       name="note"
-                                       class="form-control"
-                                       placeholder="Optional note to store with check-in">
+                    <div class="quick-checkout-picker-surface">
+                        <form method="post" class="row g-2 mb-0">
+                            <input type="hidden" name="mode" value="add_asset">
+                            <div class="col-md-6">
+                                <label class="form-label">Asset tag</label>
+                                <div class="position-relative asset-autocomplete-wrapper">
+                                    <div class="input-group filter-search">
+                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <input type="text"
+                                               name="asset_tag"
+                                               class="form-control form-control-lg filter-search__input asset-autocomplete"
+                                               autocomplete="off"
+                                               placeholder="Scan or type asset tag..."
+                                               autofocus>
+                                    </div>
+                                    <div class="list-group position-absolute w-100"
+                                         data-asset-suggestions
+                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
+                                </div>
                             </div>
+                            <div class="col-md-3 quick-checkout-asset-submit">
+                                <button type="submit" class="btn btn-primary w-100 quick-checkout-asset-submit__button quick-checkout-submit-button">
+                                    Add to check-in list
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
+                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="filter-panel__dot"></span>
+                            <div class="filter-panel__title">CHECK-IN LIST</div>
+                        </div>
+                        <div class="quick-checkout-panel__meta">
+                            <span class="quick-checkout-panel__count"><?= (int)$checkinEntryCount ?> asset<?= $checkinEntryCount === 1 ? '' : 's' ?></span>
+                        </div>
+                    </div>
+                    <div class="quick-checkout-panel__subtitle">Assets stay here until you check them in.</div>
+
+                    <div class="quick-checkout-basket-surface">
+                    <?php if (empty($checkinAssets)): ?>
+                        <div class="alert alert-secondary mb-0">
+                            No assets in the check-in list yet. Scan or enter an asset tag above.
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-sm table-striped align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Asset Tag</th>
+                                        <th>Name</th>
+                                        <th>Model</th>
+                                        <th>Checked out to</th>
+                                        <th style="width: 80px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($checkinAssets as $asset): ?>
+                                        <tr>
+                                            <td><?= h($asset['asset_tag']) ?></td>
+                                            <td><?= h($asset['name']) ?></td>
+                                            <td><?= h($asset['model']) ?></td>
+                                            <?php
+                                                $assignedName = $asset['assigned_name'] ?? '';
+                                                $assignedEmail = $asset['assigned_email'] ?? '';
+                                                if ($assignedEmail !== '') {
+                                                    $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
+                                                        ? $assignedName . " <{$assignedEmail}>"
+                                                        : $assignedEmail;
+                                                } elseif ($assignedName !== '') {
+                                                    $assignedLabel = $assignedName;
+                                                } else {
+                                                    $assignedLabel = 'Not checked out';
+                                                }
+                                            ?>
+                                            <td><?= h($assignedLabel) ?></td>
+                                            <td>
+                                                <a href="quick_checkin.php?remove=<?= (int)$asset['id'] ?>"
+                                                   class="btn btn-sm btn-outline-danger">
+                                                    Remove
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">
-                            Check in all listed assets
-                        </button>
-                    </form>
-                <?php endif; ?>
+                        <form method="post" class="border-top pt-3">
+                            <input type="hidden" name="mode" value="checkin">
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Note (optional)</label>
+                                    <input type="text"
+                                           name="note"
+                                           class="form-control"
+                                           placeholder="Optional note to store with check-in">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary quick-checkout-submit-button">
+                                Check in all listed assets
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                    </div>
+                </div>
             </div>
         </div>
 
