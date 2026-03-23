@@ -17,17 +17,39 @@ $quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick
 $quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
     ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
     : 5;
+$showQuickCheckoutAssetsTab = array_key_exists('show_assets_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_assets_tab'])
+    : true;
+$showQuickCheckoutAccessoriesTab = array_key_exists('show_accessories_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_accessories_tab'])
+    : true;
+$showQuickCheckoutKitsTab = array_key_exists('show_kits_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_kits_tab'])
+    : true;
 $quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
     $quickCheckoutCfg['allowed_accessory_categories'] ?? []
 );
+$quickCheckoutVisibleTabs = [];
+if ($showQuickCheckoutAssetsTab) {
+    $quickCheckoutVisibleTabs[] = 'assets';
+}
+if ($showQuickCheckoutAccessoriesTab) {
+    $quickCheckoutVisibleTabs[] = 'accessories';
+}
+if ($showQuickCheckoutKitsTab) {
+    $quickCheckoutVisibleTabs[] = 'kits';
+}
+$quickCheckoutTabsEnabled = !empty($quickCheckoutVisibleTabs);
 
 $defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
 
 $endRaw   = $_POST['end_datetime'] ?? $defaultEnd;
 
 $reservationConflicts = [];
-$selectorTab = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? 'assets'))));
-$selectorTab = in_array($selectorTab, ['assets', 'accessories', 'kits'], true) ? $selectorTab : 'assets';
+$selectorTabRaw = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? ($quickCheckoutVisibleTabs[0] ?? 'assets')))));
+$selectorTab = ($quickCheckoutTabsEnabled && in_array($selectorTabRaw, $quickCheckoutVisibleTabs, true))
+    ? $selectorTabRaw
+    : ($quickCheckoutVisibleTabs[0] ?? 'assets');
 $browseSearchValue = trim((string)($_POST['browse_search'] ?? ($_GET['browse_search'] ?? '')));
 $browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1)));
 
@@ -876,98 +898,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = trim((string)($_POST['mode'] ?? ''));
 
     if ($mode === 'add_asset') {
-        $tag = trim((string)($_POST['asset_tag'] ?? ''));
-        if ($tag === '') {
-            $errors[] = 'Please scan or enter an asset tag.';
+        if (!$showQuickCheckoutAssetsTab) {
+            $errors[] = 'Assets are currently hidden in Frontend settings.';
         } else {
-            try {
-                $asset = find_asset_by_tag($tag);
-                if (empty($asset['requestable'])) {
-                    throw new RuntimeException('This asset is not available for checkout.');
-                }
+            $tag = trim((string)($_POST['asset_tag'] ?? ''));
+            if ($tag === '') {
+                $errors[] = 'Please scan or enter an asset tag.';
+            } else {
+                try {
+                    $asset = find_asset_by_tag($tag);
+                    if (empty($asset['requestable'])) {
+                        throw new RuntimeException('This asset is not available for checkout.');
+                    }
 
-                $entry = qc_build_asset_checkout_entry($asset);
-                if (isset($checkoutItems[$entry['key']])) {
-                    $messages[] = 'Asset ' . ($entry['asset_tag'] !== '' ? $entry['asset_tag'] : ('ID ' . $entry['asset_id'])) . ' is already in the checkout list.';
-                } else {
-                    $checkoutItems[$entry['key']] = $entry;
-                    $messages[] = 'Added asset ' . qc_checkout_entry_display_label($entry) . ' to checkout list.';
+                    $entry = qc_build_asset_checkout_entry($asset);
+                    if (isset($checkoutItems[$entry['key']])) {
+                        $messages[] = 'Asset ' . ($entry['asset_tag'] !== '' ? $entry['asset_tag'] : ('ID ' . $entry['asset_id'])) . ' is already in the checkout list.';
+                    } else {
+                        $checkoutItems[$entry['key']] = $entry;
+                        $messages[] = 'Added asset ' . qc_checkout_entry_display_label($entry) . ' to checkout list.';
+                    }
+                } catch (Throwable $e) {
+                    $errors[] = 'Could not add asset: ' . $e->getMessage();
                 }
-            } catch (Throwable $e) {
-                $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
         }
     } elseif ($mode === 'add_accessory') {
-        $accessoryId = (int)($_POST['accessory_id'] ?? 0);
-        $qtyRequested = max(1, (int)($_POST['quantity'] ?? 1));
-
-        if ($accessoryId <= 0) {
-            $errors[] = 'Please choose an accessory to add.';
+        if (!$showQuickCheckoutAccessoriesTab) {
+            $errors[] = 'Accessories are currently hidden in Frontend settings.';
         } else {
-            try {
-                $selectedAccessoryQty = qc_selected_accessory_quantities($checkoutItems);
-                $remainingQty = max(0, count_available_accessory_units($accessoryId) - ($selectedAccessoryQty[$accessoryId] ?? 0));
-                if ($remainingQty < $qtyRequested) {
-                    throw new RuntimeException('Only ' . $remainingQty . ' accessory unit(s) remain available right now.');
-                }
+            $accessoryId = (int)($_POST['accessory_id'] ?? 0);
+            $qtyRequested = max(1, (int)($_POST['quantity'] ?? 1));
 
-                $entry = qc_build_accessory_checkout_entry(get_accessory($accessoryId), $qtyRequested);
-                if (isset($checkoutItems[$entry['key']])) {
-                    $checkoutItems[$entry['key']]['qty'] += $qtyRequested;
-                } else {
-                    $checkoutItems[$entry['key']] = $entry;
-                }
+            if ($accessoryId <= 0) {
+                $errors[] = 'Please choose an accessory to add.';
+            } else {
+                try {
+                    $selectedAccessoryQty = qc_selected_accessory_quantities($checkoutItems);
+                    $remainingQty = max(0, count_available_accessory_units($accessoryId) - ($selectedAccessoryQty[$accessoryId] ?? 0));
+                    if ($remainingQty < $qtyRequested) {
+                        throw new RuntimeException('Only ' . $remainingQty . ' accessory unit(s) remain available right now.');
+                    }
 
-                $messages[] = 'Added ' . ($qtyRequested > 1 ? ($entry['name'] . ' (x' . $qtyRequested . ')') : $entry['name']) . ' to checkout list.';
-            } catch (Throwable $e) {
-                $errors[] = 'Could not add accessory: ' . $e->getMessage();
+                    $entry = qc_build_accessory_checkout_entry(get_accessory($accessoryId), $qtyRequested);
+                    if (isset($checkoutItems[$entry['key']])) {
+                        $checkoutItems[$entry['key']]['qty'] += $qtyRequested;
+                    } else {
+                        $checkoutItems[$entry['key']] = $entry;
+                    }
+
+                    $messages[] = 'Added ' . ($qtyRequested > 1 ? ($entry['name'] . ' (x' . $qtyRequested . ')') : $entry['name']) . ' to checkout list.';
+                } catch (Throwable $e) {
+                    $errors[] = 'Could not add accessory: ' . $e->getMessage();
+                }
             }
         }
     } elseif ($mode === 'add_kit') {
-        $kitId = (int)($_POST['kit_id'] ?? 0);
-        $qtyRequested = max(1, (int)($_POST['quantity'] ?? 1));
-
-        if ($kitId <= 0) {
-            $errors[] = 'Please choose a kit to add.';
+        if (!$showQuickCheckoutKitsTab) {
+            $errors[] = 'Kits are currently hidden in Frontend settings.';
         } else {
-            try {
-                $expanded = qc_expand_kit_entries($pdo, $kitId, $qtyRequested, $checkoutItems);
-                foreach ($expanded['asset_entries'] as $key => $entry) {
-                    $checkoutItems[$key] = $entry;
-                }
-                foreach ($expanded['accessory_entries'] as $key => $entry) {
-                    if (isset($checkoutItems[$key])) {
-                        $checkoutItems[$key]['qty'] += (int)($entry['qty'] ?? 0);
-                    } else {
+            $kitId = (int)($_POST['kit_id'] ?? 0);
+            $qtyRequested = max(1, (int)($_POST['quantity'] ?? 1));
+
+            if ($kitId <= 0) {
+                $errors[] = 'Please choose a kit to add.';
+            } else {
+                try {
+                    $expanded = qc_expand_kit_entries($pdo, $kitId, $qtyRequested, $checkoutItems);
+                    foreach ($expanded['asset_entries'] as $key => $entry) {
                         $checkoutItems[$key] = $entry;
                     }
-                }
+                    foreach ($expanded['accessory_entries'] as $key => $entry) {
+                        if (isset($checkoutItems[$key])) {
+                            $checkoutItems[$key]['qty'] += (int)($entry['qty'] ?? 0);
+                        } else {
+                            $checkoutItems[$key] = $entry;
+                        }
+                    }
 
-                $addedAssetCount = count($expanded['asset_entries']);
-                $addedAccessoryUnits = 0;
-                foreach ($expanded['accessory_entries'] as $entry) {
-                    $addedAccessoryUnits += max(0, (int)($entry['qty'] ?? 0));
-                }
+                    $addedAssetCount = count($expanded['asset_entries']);
+                    $addedAccessoryUnits = 0;
+                    foreach ($expanded['accessory_entries'] as $entry) {
+                        $addedAccessoryUnits += max(0, (int)($entry['qty'] ?? 0));
+                    }
 
-                $detailParts = [];
-                if ($addedAssetCount > 0) {
-                    $detailParts[] = $addedAssetCount . ' asset' . ($addedAssetCount === 1 ? '' : 's');
-                }
-                if ($addedAccessoryUnits > 0) {
-                    $detailParts[] = $addedAccessoryUnits . ' accessory unit' . ($addedAccessoryUnits === 1 ? '' : 's');
-                }
+                    $detailParts = [];
+                    if ($addedAssetCount > 0) {
+                        $detailParts[] = $addedAssetCount . ' asset' . ($addedAssetCount === 1 ? '' : 's');
+                    }
+                    if ($addedAccessoryUnits > 0) {
+                        $detailParts[] = $addedAccessoryUnits . ' accessory unit' . ($addedAccessoryUnits === 1 ? '' : 's');
+                    }
 
-                $kitLabel = $qtyRequested === 1
-                    ? ('Added kit ' . $expanded['kit_name'] . ' to checkout list')
-                    : ('Added ' . $qtyRequested . ' kits of ' . $expanded['kit_name'] . ' to checkout list');
-                if (!empty($detailParts)) {
-                    $kitLabel .= ' (' . implode(', ', $detailParts) . ').';
-                } else {
-                    $kitLabel .= '.';
+                    $kitLabel = $qtyRequested === 1
+                        ? ('Added kit ' . $expanded['kit_name'] . ' to checkout list')
+                        : ('Added ' . $qtyRequested . ' kits of ' . $expanded['kit_name'] . ' to checkout list');
+                    if (!empty($detailParts)) {
+                        $kitLabel .= ' (' . implode(', ', $detailParts) . ').';
+                    } else {
+                        $kitLabel .= '.';
+                    }
+                    $messages[] = $kitLabel;
+                } catch (Throwable $e) {
+                    $errors[] = 'Could not add kit: ' . $e->getMessage();
                 }
-                $messages[] = $kitLabel;
-            } catch (Throwable $e) {
-                $errors[] = 'Could not add kit: ' . $e->getMessage();
             }
         }
     } elseif ($mode === 'checkout') {
@@ -1434,9 +1468,7 @@ if ($selectorTab === 'accessories') {
             <div class="card-body">
                 <h5 class="card-title">Quick Checkout</h5>
                 <p class="card-text">
-                    Use the tabs below to scan assets, add available accessories, or expand available kits
-                    into concrete checkout items. When ready, enter the user (email or name) and
-                    check out everything in one go.
+                    Use the available tabs below to add items into one checkout list, then assign and check them out in one go.
                 </p>
                 <?php
                     $assetTabUrl = 'quick_checkout.php';
@@ -1457,29 +1489,40 @@ if ($selectorTab === 'accessories') {
                     }
                 ?>
 
-                <ul class="nav reservations-subtabs quick-checkout-tabs mb-3">
-                    <li class="nav-item">
-                        <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Assets</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $selectorTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitTabUrl) ?>">Kits</a>
-                    </li>
-                </ul>
-
-                <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
-                    <div class="filter-panel__header d-flex align-items-center gap-3">
-                        <span class="filter-panel__dot"></span>
-                        <div>
-                            <div class="filter-panel__title">QUICK CHECKOUT</div>
-                            <div class="quick-checkout-panel__intro">Switch tabs to browse different item types.</div>
-                        </div>
+                <?php if (!$quickCheckoutTabsEnabled): ?>
+                    <div class="alert alert-info mb-3">
+                        All Quick Checkout item tabs are currently hidden in Frontend settings.
                     </div>
+                <?php else: ?>
+                    <ul class="nav reservations-subtabs quick-checkout-tabs mb-3">
+                        <?php if ($showQuickCheckoutAssetsTab): ?>
+                            <li class="nav-item">
+                                <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Assets</a>
+                            </li>
+                        <?php endif; ?>
+                        <?php if ($showQuickCheckoutAccessoriesTab): ?>
+                            <li class="nav-item">
+                                <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
+                            </li>
+                        <?php endif; ?>
+                        <?php if ($showQuickCheckoutKitsTab): ?>
+                            <li class="nav-item">
+                                <a class="nav-link <?= $selectorTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitTabUrl) ?>">Kits</a>
+                            </li>
+                        <?php endif; ?>
+                    </ul>
 
-                    <div class="quick-checkout-picker-surface">
-                        <?php if ($selectorTab === 'assets'): ?>
+                    <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
+                        <div class="filter-panel__header d-flex align-items-center gap-3">
+                            <span class="filter-panel__dot"></span>
+                            <div>
+                                <div class="filter-panel__title">QUICK CHECKOUT</div>
+                                <div class="quick-checkout-panel__intro">Switch tabs to browse different item types.</div>
+                            </div>
+                        </div>
+
+                        <div class="quick-checkout-picker-surface">
+                            <?php if ($selectorTab === 'assets'): ?>
                             <form method="post" class="row g-2 mb-0">
                                 <input type="hidden" name="mode" value="add_asset">
                                 <input type="hidden" name="active_tab" value="assets">
@@ -1511,7 +1554,7 @@ if ($selectorTab === 'accessories') {
                                     </button>
                                 </div>
                             </form>
-                        <?php elseif ($selectorTab === 'accessories'): ?>
+                            <?php elseif ($selectorTab === 'accessories'): ?>
                             <div class="quick-checkout-browser">
                                 <form method="get" class="row g-2 align-items-end mb-3">
                                     <input type="hidden" name="tab" value="accessories">
@@ -1610,7 +1653,7 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                 <?php endif; ?>
                             </div>
-                        <?php else: ?>
+                            <?php else: ?>
                             <div class="quick-checkout-browser">
                                 <form method="get" class="row g-2 align-items-end mb-3">
                                     <input type="hidden" name="tab" value="kits">
@@ -1707,9 +1750,10 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                 <?php endif; ?>
                             </div>
-                        <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
                     <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
@@ -1721,12 +1765,12 @@ if ($selectorTab === 'accessories') {
                             <span class="quick-checkout-panel__count"><?= (int)$checkoutEntryCount ?> item<?= $checkoutEntryCount === 1 ? '' : 's' ?>, <?= (int)$checkoutUnitCount ?> unit<?= $checkoutUnitCount === 1 ? '' : 's' ?></span>
                         </div>
                     </div>
-                    <div class="quick-checkout-panel__subtitle">Items stay here while you switch between Assets, Accessories, and Kits.</div>
+                    <div class="quick-checkout-panel__subtitle">Items stay here while you switch between the available item tabs.</div>
 
                     <div class="quick-checkout-basket-surface">
                     <?php if (empty($checkoutItems)): ?>
                         <div class="alert alert-secondary mb-0">
-                            No items in the checkout list yet. Add assets, accessories, or kits above.
+                            No items in the checkout list yet. Add items above.
                         </div>
                     <?php else: ?>
                         <div class="table-responsive mb-3">

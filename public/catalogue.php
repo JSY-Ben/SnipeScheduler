@@ -22,6 +22,26 @@ $activeUser      = $bookingOverride ?: $currentUser;
 $ldapCfg  = $config['ldap'] ?? [];
 $appCfg   = $config['app'] ?? [];
 $catalogueCfg = $config['catalogue'] ?? [];
+$showCatalogueModelsTab = array_key_exists('show_models_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_models_tab'])
+    : true;
+$showCatalogueAccessoriesTab = array_key_exists('show_accessories_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_accessories_tab'])
+    : true;
+$showCatalogueKitsTab = array_key_exists('show_kits_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_kits_tab'])
+    : true;
+$catalogueVisibleTabs = [];
+if ($showCatalogueModelsTab) {
+    $catalogueVisibleTabs[] = 'models';
+}
+if ($showCatalogueAccessoriesTab) {
+    $catalogueVisibleTabs[] = 'accessories';
+}
+if ($showCatalogueKitsTab) {
+    $catalogueVisibleTabs[] = 'kits';
+}
+$catalogueTabsEnabled = !empty($catalogueVisibleTabs);
 $debugOn  = !empty($appCfg['debug']);
 $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     ? !empty($appCfg['block_catalogue_overdue'])
@@ -1142,7 +1162,8 @@ if (!$skipOverdueCheck && !$catalogueBlocked && empty($overdueAssets)) {
 // Filters
 // ---------------------------------------------------------------------
 $searchRaw    = trim($_GET['q'] ?? '');
-$catalogueTabRaw = trim((string)($_GET['tab'] ?? ($_SESSION['catalogue_active_tab'] ?? 'models')));
+$catalogueDefaultTab = $catalogueVisibleTabs[0] ?? 'models';
+$catalogueTabRaw = trim((string)($_GET['tab'] ?? ($_SESSION['catalogue_active_tab'] ?? $catalogueDefaultTab)));
 $categoryRaw  = trim($_GET['category'] ?? '');
 $sortRaw      = trim($_GET['sort'] ?? '');
 $favouritesOnlyRaw = trim((string)($_GET['favourites_only'] ?? ''));
@@ -1152,19 +1173,17 @@ $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $windowStartRaw = trim($_GET['start_datetime'] ?? '');
 $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
 
-switch (strtolower($catalogueTabRaw)) {
-    case 'accessories':
-        $catalogueTab = 'accessories';
-        break;
-    case 'kits':
-        $catalogueTab = 'kits';
-        break;
-    case 'models':
-    default:
-        $catalogueTab = 'models';
-        break;
+$requestedCatalogueTab = strtolower($catalogueTabRaw);
+if ($catalogueTabsEnabled && in_array($requestedCatalogueTab, $catalogueVisibleTabs, true)) {
+    $catalogueTab = $requestedCatalogueTab;
+} else {
+    $catalogueTab = $catalogueDefaultTab;
 }
-$_SESSION['catalogue_active_tab'] = $catalogueTab;
+if ($catalogueTabsEnabled) {
+    $_SESSION['catalogue_active_tab'] = $catalogueTab;
+} else {
+    unset($_SESSION['catalogue_active_tab']);
+}
 
 // Normalise filters
 $search   = $searchRaw !== '' ? $searchRaw : null;
@@ -1305,7 +1324,7 @@ if (function_exists('ob_flush')) {
 // ---------------------------------------------------------------------
 // Load categories from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
-if ($catalogueTab === 'models') {
+if ($catalogueTabsEnabled && $catalogueTab === 'models') {
     try {
         $categories = get_model_categories();
     } catch (Throwable $e) {
@@ -1330,7 +1349,9 @@ if (is_array($allowedCfg)) {
 // Load catalogue rows from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
 try {
-    if ($catalogueTab === 'accessories') {
+    if (!$catalogueTabsEnabled) {
+        $totalModels = 0;
+    } elseif ($catalogueTab === 'accessories') {
         $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage);
         $accessories = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
         $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
@@ -1556,6 +1577,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <?php endif; ?>
 
         <div id="catalogue-content" class="<?= $catalogueBlocked ? 'd-none' : '' ?>">
+            <?php if (!$catalogueTabsEnabled): ?>
+                <div class="alert alert-info">
+                    All catalogue sections are currently hidden in Frontend settings.
+                </div>
+            <?php else: ?>
             <ul class="nav nav-tabs reservations-subtabs mb-3">
                 <?php
                     $tabBaseQuery = [
@@ -1583,15 +1609,21 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         'tab' => 'kits',
                     ]));
                 ?>
-                <li class="nav-item">
-                    <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Models</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?= $catalogueTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoriesTabUrl) ?>">Accessories</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?= $catalogueTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitsTabUrl) ?>">Kits</a>
-                </li>
+                <?php if ($showCatalogueModelsTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Models</a>
+                    </li>
+                <?php endif; ?>
+                <?php if ($showCatalogueAccessoriesTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoriesTabUrl) ?>">Accessories</a>
+                    </li>
+                <?php endif; ?>
+                <?php if ($showCatalogueKitsTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitsTabUrl) ?>">Kits</a>
+                    </li>
+                <?php endif; ?>
             </ul>
 
             <?php if ($categoryErr): ?>
@@ -2344,6 +2376,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         <?php endfor; ?>
                     </ul>
                 </nav>
+            <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
         </div>

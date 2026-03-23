@@ -481,11 +481,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $newConfig['catalogue'] = [
             'allowed_categories' => [],
             'allowed_status_labels' => [],
+            'show_models_tab' => true,
+            'show_accessories_tab' => true,
+            'show_kits_tab' => true,
             'show_available_default_locations' => true,
             'allow_public_view' => false,
         ];
         $newConfig['quick_checkout'] = [
             'allowed_accessory_categories' => [],
+            'show_assets_tab' => true,
+            'show_accessories_tab' => true,
+            'show_kits_tab' => true,
         ];
         $newConfig['smtp'] = [
             'host'       => $post('smtp_host', ''),

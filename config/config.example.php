@@ -200,6 +200,12 @@ return [
         // Restrict which Snipe-IT asset statuses count toward catalogue and basket availability.
         // Leave empty to include all statuses.
         'allowed_status_labels' => [],
+        // Show the Models tab on the catalogue page.
+        'show_models_tab' => true,
+        // Show the Accessories tab on the catalogue page.
+        'show_accessories_tab' => true,
+        // Show the Kits tab on the catalogue page.
+        'show_kits_tab' => true,
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
         // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.
@@ -212,6 +218,12 @@ return [
         // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
         // Leave empty to show all accessory categories.
         'allowed_accessory_categories' => [],
+        // Show the Assets tab on the Quick Checkout page.
+        'show_assets_tab' => true,
+        // Show the Accessories tab on the Quick Checkout page.
+        'show_accessories_tab' => true,
+        // Show the Kits tab on the Quick Checkout page.
+        'show_kits_tab' => true,
     ],
 
     'smtp' => [

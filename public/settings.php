@@ -643,6 +643,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_blackout_bypass_quick_checkout'] = isset($_POST['app_res_blackout_bypass_quick_checkout']);
 
     $catalogue = $config['catalogue'] ?? [];
+    $catalogue['show_models_tab'] = isset($_POST['catalogue_show_models_tab']);
+    $catalogue['show_accessories_tab'] = isset($_POST['catalogue_show_accessories_tab']);
+    $catalogue['show_kits_tab'] = isset($_POST['catalogue_show_kits_tab']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -679,6 +682,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $quickCheckout['allowed_accessory_categories'] = snipeit_normalize_category_filter_values(
         is_array($quickCheckoutAccessoryAllowedRaw) ? $quickCheckoutAccessoryAllowedRaw : []
     );
+    $quickCheckout['show_assets_tab'] = isset($_POST['quick_checkout_show_assets_tab']);
+    $quickCheckout['show_accessories_tab'] = isset($_POST['quick_checkout_show_accessories_tab']);
+    $quickCheckout['show_kits_tab'] = isset($_POST['quick_checkout_show_kits_tab']);
     unset($quickCheckout['allowed_kit_categories']);
 
     $smtp = $config['smtp'] ?? [];
@@ -1354,6 +1360,42 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-check form-switch">
                                     <input class="form-check-input"
                                            type="checkbox"
+                                           name="catalogue_show_models_tab"
+                                           id="catalogue_show_models_tab"
+                                        <?= $cfg(['catalogue', 'show_models_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_models_tab">
+                                        Display Models tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_accessories_tab"
+                                           id="catalogue_show_accessories_tab"
+                                        <?= $cfg(['catalogue', 'show_accessories_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_accessories_tab">
+                                        Display Accessories tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_kits_tab"
+                                           id="catalogue_show_kits_tab"
+                                        <?= $cfg(['catalogue', 'show_kits_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_kits_tab">
+                                        Display Kits tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
                                            name="catalogue_checked_out_affects_future_availability"
                                            id="catalogue_checked_out_affects_future_availability"
                                         <?= $cfg(['catalogue', 'checked_out_affects_future_availability'], true) ? 'checked' : '' ?>>
@@ -1404,12 +1446,48 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Quick Checkout display</h5>
-                        <p class="text-muted small mb-3">Control how many accessories or kits appear per page on the Quick Checkout tabs.</p>
+                        <p class="text-muted small mb-3">Control how many items appear per page on Quick Checkout and which tabs are shown.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
                                 <input type="number" name="quick_checkout_items_per_page" min="1" class="form-control" value="<?= (int)$definedValues['QUICK_CHECKOUT_ITEMS_PER_PAGE'] ?>">
                                 <div class="form-text">Adjust how many accessory or kit rows appear on each Quick Checkout page.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_assets_tab"
+                                           id="quick_checkout_show_assets_tab"
+                                        <?= $cfg(['quick_checkout', 'show_assets_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_assets_tab">
+                                        Display Assets tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_accessories_tab"
+                                           id="quick_checkout_show_accessories_tab"
+                                        <?= $cfg(['quick_checkout', 'show_accessories_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_accessories_tab">
+                                        Display Accessories tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_kits_tab"
+                                           id="quick_checkout_show_kits_tab"
+                                        <?= $cfg(['quick_checkout', 'show_kits_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_kits_tab">
+                                        Display Kits tab
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
