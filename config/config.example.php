@@ -212,9 +212,6 @@ return [
         // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
         // Leave empty to show all accessory categories.
         'allowed_accessory_categories' => [],
-        // Restrict which kit categories appear on the Quick Checkout Kits tab.
-        // Leave empty to show all kit categories.
-        'allowed_kit_categories' => [],
     ],
 
     'smtp' => [

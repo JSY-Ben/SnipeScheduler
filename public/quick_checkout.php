@@ -20,9 +20,6 @@ $quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
 $quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
     $quickCheckoutCfg['allowed_accessory_categories'] ?? []
 );
-$quickCheckoutAllowedKitCategories = snipeit_normalize_category_filter_values(
-    $quickCheckoutCfg['allowed_kit_categories'] ?? []
-);
 
 $defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
 
@@ -623,13 +620,11 @@ function qc_kit_browser_results(
     PDO $pdo,
     array $checkoutItems,
     string $search = '',
-    array $allowedCategories = [],
     int $requestedPage = 1,
     int $perPage = 12
 ): array
 {
     $rows = fetch_all_kits_from_snipeit($search);
-    $allowedCategories = snipeit_normalize_category_filter_values($allowedCategories);
 
     usort($rows, static function (array $a, array $b): int {
         return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
@@ -639,10 +634,6 @@ function qc_kit_browser_results(
     foreach ($rows as $row) {
         $kitId = (int)($row['id'] ?? 0);
         if ($kitId <= 0) {
-            continue;
-        }
-
-        if (!empty($allowedCategories) && !in_array(snipeit_category_filter_value($row), $allowedCategories, true)) {
             continue;
         }
 
@@ -1378,7 +1369,6 @@ if ($selectorTab === 'accessories') {
             $pdo,
             $checkoutItems,
             $browseSearchValue,
-            $quickCheckoutAllowedKitCategories,
             $browsePage,
             $quickCheckoutItemsPerPage
         );

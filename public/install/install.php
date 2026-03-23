@@ -486,7 +486,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         ];
         $newConfig['quick_checkout'] = [
             'allowed_accessory_categories' => [],
-            'allowed_kit_categories' => [],
         ];
         $newConfig['smtp'] = [
             'host'       => $post('smtp_host', ''),

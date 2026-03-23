@@ -44,9 +44,6 @@ $categoryFetchError = '';
 $quickCheckoutAccessoryCategoryOptions = [];
 $quickCheckoutAccessoryCategoryFetchNotice = '';
 $quickCheckoutAccessoryCategoryFetchError = '';
-$quickCheckoutKitCategoryOptions = [];
-$quickCheckoutKitCategoryFetchNotice = '';
-$quickCheckoutKitCategoryFetchError = '';
 $statusOptions = [];
 $statusFetchNotice = '';
 $statusFetchError = '';
@@ -87,20 +84,6 @@ try {
         }
     } catch (Throwable $cachedApiError) {
         $quickCheckoutAccessoryCategoryFetchError = $e->getMessage();
-    }
-}
-try {
-    $quickCheckoutKitCategoryOptions = fetch_kit_categories_from_snipeit(false);
-} catch (Throwable $e) {
-    try {
-        $quickCheckoutKitCategoryOptions = fetch_kit_categories_from_snipeit();
-        if (!empty($quickCheckoutKitCategoryOptions)) {
-            $quickCheckoutKitCategoryFetchNotice = 'Could not refresh live kit categories from Snipe-IT; showing cached API results.';
-        } else {
-            $quickCheckoutKitCategoryFetchError = $e->getMessage();
-        }
-    } catch (Throwable $cachedApiError) {
-        $quickCheckoutKitCategoryFetchError = $e->getMessage();
     }
 }
 try {
@@ -693,13 +676,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $quickCheckout = $config['quick_checkout'] ?? [];
     $quickCheckoutAccessoryAllowedRaw = $_POST['quick_checkout_allowed_accessory_categories'] ?? [];
-    $quickCheckoutKitAllowedRaw = $_POST['quick_checkout_allowed_kit_categories'] ?? [];
     $quickCheckout['allowed_accessory_categories'] = snipeit_normalize_category_filter_values(
         is_array($quickCheckoutAccessoryAllowedRaw) ? $quickCheckoutAccessoryAllowedRaw : []
     );
-    $quickCheckout['allowed_kit_categories'] = snipeit_normalize_category_filter_values(
-        is_array($quickCheckoutKitAllowedRaw) ? $quickCheckoutKitAllowedRaw : []
-    );
+    unset($quickCheckout['allowed_kit_categories']);
 
     $smtp = $config['smtp'] ?? [];
     $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
@@ -901,9 +881,6 @@ $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
 
 $quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
     $cfg(['quick_checkout', 'allowed_accessory_categories'], [])
-);
-$quickCheckoutAllowedKitCategories = snipeit_normalize_category_filter_values(
-    $cfg(['quick_checkout', 'allowed_kit_categories'], [])
 );
 
 $allowedStatusLabels = $cfg(['catalogue', 'allowed_status_labels'], []);
@@ -1491,95 +1468,48 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Quick Checkout categories</h5>
-                        <p class="text-muted small mb-3">Choose which categories appear on the Quick Checkout Accessories and Kits tabs. Leave everything unticked in either list to show all categories for that tab.</p>
+                        <p class="text-muted small mb-3">Choose which categories appear on the Quick Checkout Accessories tab. Leave everything unticked to show all accessory categories.</p>
 
-                        <div class="row g-4">
-                            <div class="col-lg-6">
-                                <h6 class="fw-semibold mb-2">Accessory categories</h6>
-                                <?php if ($quickCheckoutAccessoryCategoryFetchNotice): ?>
-                                    <div class="alert alert-warning small mb-3">
-                                        <?= h($quickCheckoutAccessoryCategoryFetchNotice) ?>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if ($quickCheckoutAccessoryCategoryFetchError): ?>
-                                    <div class="alert alert-warning small mb-3">
-                                        Could not load accessory categories from Snipe-IT: <?= h($quickCheckoutAccessoryCategoryFetchError) ?>
-                                    </div>
-                                <?php elseif (empty($quickCheckoutAccessoryCategoryOptions)): ?>
-                                    <div class="text-muted small">No accessory categories available.</div>
-                                <?php else: ?>
-                                    <div class="row g-2">
-                                        <?php foreach ($quickCheckoutAccessoryCategoryOptions as $option): ?>
-                                            <?php
-                                            $optionValue = (string)($option['value'] ?? '');
-                                            $optionLabel = (string)($option['label'] ?? '');
-                                            if ($optionValue === '' || $optionLabel === '') {
-                                                continue;
-                                            }
-                                            $optionId = 'quick_checkout_accessory_cat_' . substr(md5($optionValue), 0, 12);
-                                            ?>
-                                            <div class="col-md-6">
-                                                <div class="form-check">
-                                                    <input class="form-check-input"
-                                                           type="checkbox"
-                                                           name="quick_checkout_allowed_accessory_categories[]"
-                                                           id="<?= h($optionId) ?>"
-                                                           value="<?= h($optionValue) ?>"
-                                                        <?= in_array($optionValue, $quickCheckoutAllowedAccessoryCategories, true) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="<?= h($optionId) ?>">
-                                                        <?= h($optionLabel) ?>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="form-text mt-2">Tip: leave all unchecked to allow every accessory category to show.</div>
-                                <?php endif; ?>
+                        <h6 class="fw-semibold mb-2">Accessory categories</h6>
+                        <?php if ($quickCheckoutAccessoryCategoryFetchNotice): ?>
+                            <div class="alert alert-warning small mb-3">
+                                <?= h($quickCheckoutAccessoryCategoryFetchNotice) ?>
                             </div>
-
-                            <div class="col-lg-6">
-                                <h6 class="fw-semibold mb-2">Kit categories</h6>
-                                <?php if ($quickCheckoutKitCategoryFetchNotice): ?>
-                                    <div class="alert alert-warning small mb-3">
-                                        <?= h($quickCheckoutKitCategoryFetchNotice) ?>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if ($quickCheckoutKitCategoryFetchError): ?>
-                                    <div class="alert alert-warning small mb-3">
-                                        Could not load kit categories from Snipe-IT: <?= h($quickCheckoutKitCategoryFetchError) ?>
-                                    </div>
-                                <?php elseif (empty($quickCheckoutKitCategoryOptions)): ?>
-                                    <div class="text-muted small">No kit categories available.</div>
-                                <?php else: ?>
-                                    <div class="row g-2">
-                                        <?php foreach ($quickCheckoutKitCategoryOptions as $option): ?>
-                                            <?php
-                                            $optionValue = (string)($option['value'] ?? '');
-                                            $optionLabel = (string)($option['label'] ?? '');
-                                            if ($optionValue === '' || $optionLabel === '') {
-                                                continue;
-                                            }
-                                            $optionId = 'quick_checkout_kit_cat_' . substr(md5($optionValue), 0, 12);
-                                            ?>
-                                            <div class="col-md-6">
-                                                <div class="form-check">
-                                                    <input class="form-check-input"
-                                                           type="checkbox"
-                                                           name="quick_checkout_allowed_kit_categories[]"
-                                                           id="<?= h($optionId) ?>"
-                                                           value="<?= h($optionValue) ?>"
-                                                        <?= in_array($optionValue, $quickCheckoutAllowedKitCategories, true) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label" for="<?= h($optionId) ?>">
-                                                        <?= h($optionLabel) ?>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="form-text mt-2">Tip: leave all unchecked to allow every kit category to show.</div>
-                                <?php endif; ?>
+                        <?php endif; ?>
+                        <?php if ($quickCheckoutAccessoryCategoryFetchError): ?>
+                            <div class="alert alert-warning small mb-3">
+                                Could not load accessory categories from Snipe-IT: <?= h($quickCheckoutAccessoryCategoryFetchError) ?>
                             </div>
-                        </div>
+                        <?php elseif (empty($quickCheckoutAccessoryCategoryOptions)): ?>
+                            <div class="text-muted small">No accessory categories available.</div>
+                        <?php else: ?>
+                            <div class="row g-2">
+                                <?php foreach ($quickCheckoutAccessoryCategoryOptions as $option): ?>
+                                    <?php
+                                    $optionValue = (string)($option['value'] ?? '');
+                                    $optionLabel = (string)($option['label'] ?? '');
+                                    if ($optionValue === '' || $optionLabel === '') {
+                                        continue;
+                                    }
+                                    $optionId = 'quick_checkout_accessory_cat_' . substr(md5($optionValue), 0, 12);
+                                    ?>
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="quick_checkout_allowed_accessory_categories[]"
+                                                   id="<?= h($optionId) ?>"
+                                                   value="<?= h($optionValue) ?>"
+                                                <?= in_array($optionValue, $quickCheckoutAllowedAccessoryCategories, true) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="<?= h($optionId) ?>">
+                                                <?= h($optionLabel) ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text mt-2">Tip: leave all unchecked to allow every accessory category to show.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

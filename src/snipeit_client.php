@@ -2350,11 +2350,6 @@ function fetch_all_kits_from_snipeit(string $search = '', bool $allowResponseCac
     return snipeit_fetch_all_rows_from_candidates(snipeit_kit_endpoint_candidates(), $params, $allowResponseCache);
 }
 
-function fetch_kit_categories_from_snipeit(bool $allowResponseCache = true): array
-{
-    return snipeit_collect_category_options(fetch_all_kits_from_snipeit('', $allowResponseCache));
-}
-
 function get_bookable_kits(
     int $page = 1,
     string $search = '',
