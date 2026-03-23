@@ -1389,8 +1389,8 @@ if ($selectorTab === 'accessories') {
                                              style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
                                     </div>
                                 </div>
-                                <div class="col-md-3 d-grid align-items-end">
-                                    <button type="submit" class="btn btn-primary mt-4 mt-md-0">
+                                <div class="col-md-3 quick-checkout-asset-submit">
+                                    <button type="submit" class="btn btn-primary w-100 quick-checkout-asset-submit__button">
                                         Add to checkout list
                                     </button>
                                 </div>
@@ -1774,7 +1774,7 @@ if ($selectorTab === 'accessories') {
                                 </div>
                             <?php endif; ?>
 
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary quick-checkout-submit-button">
                                 Check out all listed items
                             </button>
                         </form>

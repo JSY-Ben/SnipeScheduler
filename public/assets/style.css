@@ -1600,6 +1600,15 @@ form .form-select {
     color: var(--muted);
 }
 
+.quick-checkout-asset-submit {
+    display: flex;
+    align-items: flex-end;
+}
+
+.quick-checkout-asset-submit__button {
+    min-height: 54px;
+}
+
 .quick-checkout-browser {
     padding: 0;
     margin-bottom: 0;
@@ -1621,6 +1630,21 @@ form .form-select {
     max-width: 88px;
 }
 
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    border-color: rgba(var(--primary-rgb), 0.5);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(var(--primary-rgb), 0.18);
+}
+
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:hover,
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:active,
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:focus-visible {
+    background: linear-gradient(120deg, var(--primary-strong), var(--primary-soft));
+    border-color: rgba(var(--primary-rgb), 0.55);
+    color: #ffffff;
+}
+
 @media (max-width: 575.98px) {
     .quick-checkout-panel__header,
     .quick-checkout-panel__meta {
@@ -1635,6 +1659,10 @@ form .form-select {
     .quick-checkout-inline-form {
         min-width: 0;
         flex-wrap: wrap;
+    }
+
+    .quick-checkout-asset-submit__button {
+        min-height: 50px;
     }
 
     .quick-checkout-inline-form .form-control,
