@@ -1569,6 +1569,14 @@ form .form-select {
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
 }
 
+.quick-checkout-picker-surface {
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--text);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+}
+
 .quick-checkout-panel.filter-panel .btn-outline-light {
     border-color: rgba(255, 255, 255, 0.72);
     color: #fff;
@@ -1587,12 +1595,18 @@ form .form-select {
     color: var(--muted);
 }
 
+.quick-checkout-picker-surface .form-label,
+.quick-checkout-picker-surface .form-text {
+    color: var(--muted);
+}
+
 .quick-checkout-browser {
-    padding: 1rem;
+    padding: 0;
     margin-bottom: 0;
-    border: 1px solid rgba(var(--primary-rgb), 0.12);
-    border-radius: 0.8rem;
-    background: linear-gradient(180deg, rgba(var(--primary-soft-rgb), 0.12), rgba(255, 255, 255, 0.9));
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .quick-checkout-browser-table th {

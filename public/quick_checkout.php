@@ -1341,6 +1341,18 @@ if ($selectorTab === 'accessories') {
                     }
                 ?>
 
+                <ul class="nav reservations-subtabs quick-checkout-tabs mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Assets</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $selectorTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitTabUrl) ?>">Kits</a>
+                    </li>
+                </ul>
+
                 <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
                     <div class="filter-panel__header d-flex align-items-center gap-3">
                         <span class="filter-panel__dot"></span>
@@ -1350,225 +1362,215 @@ if ($selectorTab === 'accessories') {
                         </div>
                     </div>
 
-                    <ul class="nav reservations-subtabs quick-checkout-tabs mb-3">
-                        <li class="nav-item">
-                            <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Assets</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link <?= $selectorTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitTabUrl) ?>">Kits</a>
-                        </li>
-                    </ul>
-
-                    <?php if ($selectorTab === 'assets'): ?>
-                        <form method="post" class="row g-2 mb-0">
-                            <input type="hidden" name="mode" value="add_asset">
-                            <input type="hidden" name="active_tab" value="assets">
-                            <div class="col-md-6">
-                                <label class="form-label">Asset tag</label>
-                                <div class="position-relative asset-autocomplete-wrapper">
-                                    <div class="input-group filter-search">
-                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
-                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                            </svg>
-                                        </span>
-                                        <input type="text"
-                                               name="asset_tag"
-                                               class="form-control form-control-lg filter-search__input asset-autocomplete"
-                                               autocomplete="off"
-                                               placeholder="Scan or type asset tag..."
-                                               autofocus>
-                                    </div>
-                                    <div class="list-group position-absolute w-100"
-                                         data-asset-suggestions
-                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 d-grid align-items-end">
-                                <button type="submit" class="btn btn-primary mt-4 mt-md-0">
-                                    Add to checkout list
-                                </button>
-                            </div>
-                        </form>
-                    <?php elseif ($selectorTab === 'accessories'): ?>
-                        <div class="quick-checkout-browser">
-                            <form method="get" class="row g-2 align-items-end mb-3">
-                                <input type="hidden" name="tab" value="accessories">
+                    <div class="quick-checkout-picker-surface">
+                        <?php if ($selectorTab === 'assets'): ?>
+                            <form method="post" class="row g-2 mb-0">
+                                <input type="hidden" name="mode" value="add_asset">
+                                <input type="hidden" name="active_tab" value="assets">
                                 <div class="col-md-6">
-                                    <label class="form-label">Search accessories</label>
-                                    <div class="input-group filter-search">
-                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
-                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                            </svg>
-                                        </span>
-                                        <input type="search"
-                                               name="browse_search"
-                                               class="form-control form-control-lg filter-search__input"
-                                               value="<?= h($browseSearchValue) ?>"
-                                               placeholder="Search by accessory name or manufacturer"
-                                               autofocus>
+                                    <label class="form-label">Asset tag</label>
+                                    <div class="position-relative asset-autocomplete-wrapper">
+                                        <div class="input-group filter-search">
+                                            <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                    <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </span>
+                                            <input type="text"
+                                                   name="asset_tag"
+                                                   class="form-control form-control-lg filter-search__input asset-autocomplete"
+                                                   autocomplete="off"
+                                                   placeholder="Scan or type asset tag..."
+                                                   autofocus>
+                                        </div>
+                                        <div class="list-group position-absolute w-100"
+                                             data-asset-suggestions
+                                             style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
                                     </div>
                                 </div>
-                                <div class="col-md-2 d-grid">
-                                    <button type="submit" class="btn btn-primary">Search</button>
-                                </div>
-                                <div class="col-md-2 d-grid">
-                                    <a href="quick_checkout.php?tab=accessories" class="btn btn-outline-light">Reset</a>
+                                <div class="col-md-3 d-grid align-items-end">
+                                    <button type="submit" class="btn btn-primary mt-4 mt-md-0">
+                                        Add to checkout list
+                                    </button>
                                 </div>
                             </form>
+                        <?php elseif ($selectorTab === 'accessories'): ?>
+                            <div class="quick-checkout-browser">
+                                <form method="get" class="row g-2 align-items-end mb-3">
+                                    <input type="hidden" name="tab" value="accessories">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Search accessories</label>
+                                        <div class="input-group filter-search">
+                                            <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                    <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </span>
+                                            <input type="search"
+                                                   name="browse_search"
+                                                   class="form-control form-control-lg filter-search__input"
+                                                   value="<?= h($browseSearchValue) ?>"
+                                                   placeholder="Search by accessory name or manufacturer"
+                                                   autofocus>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <button type="submit" class="btn btn-primary">Search</button>
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <a href="quick_checkout.php?tab=accessories" class="btn btn-outline-secondary">Reset</a>
+                                    </div>
+                                </form>
 
-                            <?php if (empty($accessoryBrowserResults)): ?>
-                                <div class="alert alert-secondary">
-                                    No available accessories found<?= $browseSearchValue !== '' ? ' for that search' : '' ?>.
-                                </div>
-                            <?php else: ?>
-                                <div class="table-responsive mb-0">
-                                    <table class="table table-sm align-middle mb-0 quick-checkout-browser-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Accessory</th>
-                                                <th class="text-nowrap">Available now</th>
-                                                <th style="width: 220px;">Add</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($accessoryBrowserResults as $row): ?>
+                                <?php if (empty($accessoryBrowserResults)): ?>
+                                    <div class="alert alert-secondary">
+                                        No available accessories found<?= $browseSearchValue !== '' ? ' for that search' : '' ?>.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive mb-0">
+                                        <table class="table table-sm align-middle mb-0 quick-checkout-browser-table">
+                                            <thead>
                                                 <tr>
-                                                    <td>
-                                                        <div class="report-model-cell">
-                                                            <?php if ($row['image_url'] !== ''): ?>
-                                                                <img src="<?= h($row['image_url']) ?>"
-                                                                     alt=""
-                                                                     class="report-model-thumb"
-                                                                     loading="lazy">
-                                                            <?php else: ?>
-                                                                <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
-                                                            <?php endif; ?>
-                                                            <div class="report-model-cell__text">
-                                                                <div class="fw-semibold"><?= h($row['name']) ?></div>
-                                                                <?php if ($row['subtitle'] !== ''): ?>
-                                                                    <div class="text-muted small"><?= h($row['subtitle']) ?></div>
+                                                    <th>Accessory</th>
+                                                    <th class="text-nowrap">Available now</th>
+                                                    <th style="width: 220px;">Add</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($accessoryBrowserResults as $row): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div class="report-model-cell">
+                                                                <?php if ($row['image_url'] !== ''): ?>
+                                                                    <img src="<?= h($row['image_url']) ?>"
+                                                                         alt=""
+                                                                         class="report-model-thumb"
+                                                                         loading="lazy">
+                                                                <?php else: ?>
+                                                                    <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
                                                                 <?php endif; ?>
-                                                                <span class="text-muted small">ID <?= (int)$row['id'] ?></span>
+                                                                <div class="report-model-cell__text">
+                                                                    <div class="fw-semibold"><?= h($row['name']) ?></div>
+                                                                    <?php if ($row['subtitle'] !== ''): ?>
+                                                                        <div class="text-muted small"><?= h($row['subtitle']) ?></div>
+                                                                    <?php endif; ?>
+                                                                    <span class="text-muted small">ID <?= (int)$row['id'] ?></span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td class="text-nowrap"><?= (int)$row['available_qty'] ?></td>
-                                                    <td>
-                                                        <form method="post" class="d-flex gap-2 align-items-center quick-checkout-inline-form">
-                                                            <input type="hidden" name="mode" value="add_accessory">
-                                                            <input type="hidden" name="active_tab" value="accessories">
-                                                            <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
-                                                            <input type="hidden" name="accessory_id" value="<?= (int)$row['id'] ?>">
-                                                            <input type="number"
-                                                                   name="quantity"
-                                                                   class="form-control form-control-sm"
-                                                                   value="1"
-                                                                   min="1"
-                                                                   max="<?= (int)$row['available_qty'] ?>">
-                                                            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Add</button>
-                                                        </form>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="quick-checkout-browser">
-                            <form method="get" class="row g-2 align-items-end mb-3">
-                                <input type="hidden" name="tab" value="kits">
-                                <div class="col-md-6">
-                                    <label class="form-label">Search kits</label>
-                                    <div class="input-group filter-search">
-                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
-                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                            </svg>
-                                        </span>
-                                        <input type="search"
-                                               name="browse_search"
-                                               class="form-control form-control-lg filter-search__input"
-                                               value="<?= h($browseSearchValue) ?>"
-                                               placeholder="Search by kit name"
-                                               autofocus>
+                                                        </td>
+                                                        <td class="text-nowrap"><?= (int)$row['available_qty'] ?></td>
+                                                        <td>
+                                                            <form method="post" class="d-flex gap-2 align-items-center quick-checkout-inline-form">
+                                                                <input type="hidden" name="mode" value="add_accessory">
+                                                                <input type="hidden" name="active_tab" value="accessories">
+                                                                <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                                                                <input type="hidden" name="accessory_id" value="<?= (int)$row['id'] ?>">
+                                                                <input type="number"
+                                                                       name="quantity"
+                                                                       class="form-control form-control-sm"
+                                                                       value="1"
+                                                                       min="1"
+                                                                       max="<?= (int)$row['available_qty'] ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Add</button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
                                     </div>
-                                </div>
-                                <div class="col-md-2 d-grid">
-                                    <button type="submit" class="btn btn-primary">Search</button>
-                                </div>
-                                <div class="col-md-2 d-grid">
-                                    <a href="quick_checkout.php?tab=kits" class="btn btn-outline-light">Reset</a>
-                                </div>
-                            </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="quick-checkout-browser">
+                                <form method="get" class="row g-2 align-items-end mb-3">
+                                    <input type="hidden" name="tab" value="kits">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Search kits</label>
+                                        <div class="input-group filter-search">
+                                            <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                    <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                </svg>
+                                            </span>
+                                            <input type="search"
+                                                   name="browse_search"
+                                                   class="form-control form-control-lg filter-search__input"
+                                                   value="<?= h($browseSearchValue) ?>"
+                                                   placeholder="Search by kit name"
+                                                   autofocus>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <button type="submit" class="btn btn-primary">Search</button>
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <a href="quick_checkout.php?tab=kits" class="btn btn-outline-secondary">Reset</a>
+                                    </div>
+                                </form>
 
-                            <?php if (empty($kitBrowserResults)): ?>
-                                <div class="alert alert-secondary">
-                                    No complete kits are available<?= $browseSearchValue !== '' ? ' for that search' : '' ?>.
-                                </div>
-                            <?php else: ?>
-                                <div class="table-responsive mb-0">
-                                    <table class="table table-sm align-middle mb-0 quick-checkout-browser-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Kit</th>
-                                                <th class="text-nowrap">Complete kits now</th>
-                                                <th style="width: 220px;">Add</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($kitBrowserResults as $row): ?>
+                                <?php if (empty($kitBrowserResults)): ?>
+                                    <div class="alert alert-secondary">
+                                        No complete kits are available<?= $browseSearchValue !== '' ? ' for that search' : '' ?>.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="table-responsive mb-0">
+                                        <table class="table table-sm align-middle mb-0 quick-checkout-browser-table">
+                                            <thead>
                                                 <tr>
-                                                    <td>
-                                                        <div class="report-model-cell">
-                                                            <?php if ($row['image_url'] !== ''): ?>
-                                                                <img src="<?= h($row['image_url']) ?>"
-                                                                     alt=""
-                                                                     class="report-model-thumb"
-                                                                     loading="lazy">
-                                                            <?php else: ?>
-                                                                <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">K</div>
-                                                            <?php endif; ?>
-                                                            <div class="report-model-cell__text">
-                                                                <div class="fw-semibold"><?= h($row['name']) ?></div>
-                                                                <div class="text-muted small"><?= h($row['summary']) ?></div>
-                                                                <span class="text-muted small">ID <?= (int)$row['id'] ?></span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td class="text-nowrap"><?= (int)$row['available_qty'] ?></td>
-                                                    <td>
-                                                        <form method="post" class="d-flex gap-2 align-items-center quick-checkout-inline-form">
-                                                            <input type="hidden" name="mode" value="add_kit">
-                                                            <input type="hidden" name="active_tab" value="kits">
-                                                            <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
-                                                            <input type="hidden" name="kit_id" value="<?= (int)$row['id'] ?>">
-                                                            <input type="number"
-                                                                   name="quantity"
-                                                                   class="form-control form-control-sm"
-                                                                   value="1"
-                                                                   min="1"
-                                                                   max="<?= (int)$row['available_qty'] ?>">
-                                                            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Add</button>
-                                                        </form>
-                                                    </td>
+                                                    <th>Kit</th>
+                                                    <th class="text-nowrap">Complete kits now</th>
+                                                    <th style="width: 220px;">Add</th>
                                                 </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($kitBrowserResults as $row): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div class="report-model-cell">
+                                                                <?php if ($row['image_url'] !== ''): ?>
+                                                                    <img src="<?= h($row['image_url']) ?>"
+                                                                         alt=""
+                                                                         class="report-model-thumb"
+                                                                         loading="lazy">
+                                                                <?php else: ?>
+                                                                    <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">K</div>
+                                                                <?php endif; ?>
+                                                                <div class="report-model-cell__text">
+                                                                    <div class="fw-semibold"><?= h($row['name']) ?></div>
+                                                                    <div class="text-muted small"><?= h($row['summary']) ?></div>
+                                                                    <span class="text-muted small">ID <?= (int)$row['id'] ?></span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td class="text-nowrap"><?= (int)$row['available_qty'] ?></td>
+                                                        <td>
+                                                            <form method="post" class="d-flex gap-2 align-items-center quick-checkout-inline-form">
+                                                                <input type="hidden" name="mode" value="add_kit">
+                                                                <input type="hidden" name="active_tab" value="kits">
+                                                                <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                                                                <input type="hidden" name="kit_id" value="<?= (int)$row['id'] ?>">
+                                                                <input type="number"
+                                                                       name="quantity"
+                                                                       class="form-control form-control-sm"
+                                                                       value="1"
+                                                                       min="1"
+                                                                       max="<?= (int)$row['available_qty'] ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Add</button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
