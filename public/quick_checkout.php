@@ -12,6 +12,18 @@ require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/reservation_policy.php';
 
+$config = load_config();
+$quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick_checkout'] : [];
+$quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
+    ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
+    : (defined('CATALOGUE_ITEMS_PER_PAGE') ? max(1, (int)CATALOGUE_ITEMS_PER_PAGE) : 12);
+$quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
+    $quickCheckoutCfg['allowed_accessory_categories'] ?? []
+);
+$quickCheckoutAllowedKitCategories = snipeit_normalize_category_filter_values(
+    $quickCheckoutCfg['allowed_kit_categories'] ?? []
+);
+
 $defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
 
 $endRaw   = $_POST['end_datetime'] ?? $defaultEnd;
@@ -20,6 +32,7 @@ $reservationConflicts = [];
 $selectorTab = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? 'assets'))));
 $selectorTab = in_array($selectorTab, ['assets', 'accessories', 'kits'], true) ? $selectorTab : 'assets';
 $browseSearchValue = trim((string)($_POST['browse_search'] ?? ($_GET['browse_search'] ?? '')));
+$browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1)));
 
 // Helpers
 function qc_display_datetime(?string $iso): string
@@ -38,6 +51,88 @@ function qc_checkout_session_key(string $entryType, int $id): string
     }
 
     return $entryType . ':' . $id;
+}
+
+function qc_paginate_rows(array $rows, int $requestedPage, int $perPage): array
+{
+    $total = count($rows);
+    $safePerPage = max(1, $perPage);
+    $totalPages = max(1, (int)ceil($total / $safePerPage));
+    $page = min(max(1, $requestedPage), $totalPages);
+    $offset = ($page - 1) * $safePerPage;
+    $slice = array_slice($rows, $offset, $safePerPage);
+
+    if ($total === 0) {
+        $startIndex = 0;
+        $endIndex = 0;
+    } else {
+        $startIndex = $offset + 1;
+        $endIndex = min($total, $offset + count($slice));
+    }
+
+    return [
+        'rows' => $slice,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $safePerPage,
+        'total_pages' => $totalPages,
+        'start_index' => $startIndex,
+        'end_index' => $endIndex,
+    ];
+}
+
+function qc_render_pagination(array $pagination, array $baseParams): string
+{
+    $totalPages = (int)($pagination['total_pages'] ?? 1);
+    $currentPage = (int)($pagination['page'] ?? 1);
+    if ($totalPages <= 1) {
+        return '';
+    }
+
+    $baseParams = array_filter($baseParams, static function ($value): bool {
+        return trim((string)$value) !== '';
+    });
+    $buildUrl = static function (int $targetPage) use ($baseParams): string {
+        $params = $baseParams;
+        if ($targetPage > 1) {
+            $params['browse_page'] = $targetPage;
+        } else {
+            unset($params['browse_page']);
+        }
+
+        $query = http_build_query($params);
+        return 'quick_checkout.php' . ($query !== '' ? '?' . $query : '');
+    };
+
+    $window = 2;
+    $startPage = max(1, $currentPage - $window);
+    $endPage = min($totalPages, $currentPage + $window);
+    if (($endPage - $startPage + 1) < 5) {
+        if ($startPage === 1) {
+            $endPage = min($totalPages, $startPage + 4);
+        } elseif ($endPage === $totalPages) {
+            $startPage = max(1, $endPage - 4);
+        }
+    }
+
+    $html = '<nav aria-label="Quick checkout pagination"><ul class="pagination pagination-sm mb-0">';
+    $prevDisabled = $currentPage <= 1 ? ' disabled' : '';
+    $prevHref = $currentPage <= 1 ? '#' : h($buildUrl($currentPage - 1));
+    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link" href="' . $prevHref . '">Previous</a></li>';
+
+    for ($pageNum = $startPage; $pageNum <= $endPage; $pageNum++) {
+        $isActive = $pageNum === $currentPage;
+        $itemClass = 'page-item' . ($isActive ? ' active' : '');
+        $href = $isActive ? '#' : h($buildUrl($pageNum));
+        $html .= '<li class="' . $itemClass . '"><a class="page-link" href="' . $href . '">' . $pageNum . '</a></li>';
+    }
+
+    $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
+    $nextHref = $currentPage >= $totalPages ? '#' : h($buildUrl($currentPage + 1));
+    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link" href="' . $nextHref . '">Next</a></li>';
+    $html .= '</ul></nav>';
+
+    return $html;
 }
 
 function qc_extract_status_label($status): string
@@ -475,10 +570,17 @@ function qc_expand_kit_entries(PDO $pdo, int $kitId, int $quantity, array $check
     ];
 }
 
-function qc_accessory_browser_results(array $checkoutItems, string $search = '', int $limit = 12): array
+function qc_accessory_browser_results(
+    array $checkoutItems,
+    string $search = '',
+    array $allowedCategories = [],
+    int $requestedPage = 1,
+    int $perPage = 12
+): array
 {
     $rows = fetch_all_accessories_from_snipeit($search);
     $selectedAccessoryQty = qc_selected_accessory_quantities($checkoutItems);
+    $allowedCategories = snipeit_normalize_category_filter_values($allowedCategories);
 
     usort($rows, static function (array $a, array $b): int {
         return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
@@ -491,6 +593,10 @@ function qc_accessory_browser_results(array $checkoutItems, string $search = '',
             continue;
         }
 
+        if (!empty($allowedCategories) && !in_array(snipeit_category_filter_value($row), $allowedCategories, true)) {
+            continue;
+        }
+
         $remainingQty = max(0, snipeit_accessory_available_quantity_from_payload($row) - ($selectedAccessoryQty[$accessoryId] ?? 0));
         if ($remainingQty <= 0) {
             continue;
@@ -499,9 +605,7 @@ function qc_accessory_browser_results(array $checkoutItems, string $search = '',
         $manufacturer = is_array($row['manufacturer'] ?? null)
             ? trim((string)($row['manufacturer']['name'] ?? ''))
             : trim((string)($row['manufacturer_name'] ?? ''));
-        $category = is_array($row['category'] ?? null)
-            ? trim((string)($row['category']['name'] ?? ''))
-            : trim((string)($row['category_name'] ?? ''));
+        $category = snipeit_extract_category_name($row);
         $subtitleParts = array_values(array_filter([$manufacturer, $category]));
         $results[] = [
             'id' => $accessoryId,
@@ -510,18 +614,22 @@ function qc_accessory_browser_results(array $checkoutItems, string $search = '',
             'available_qty' => $remainingQty,
             'image_url' => qc_image_proxy_url(qc_extract_record_image_path($row)),
         ];
-
-        if (count($results) >= $limit) {
-            break;
-        }
     }
 
-    return $results;
+    return qc_paginate_rows($results, $requestedPage, $perPage);
 }
 
-function qc_kit_browser_results(PDO $pdo, array $checkoutItems, string $search = '', int $limit = 12): array
+function qc_kit_browser_results(
+    PDO $pdo,
+    array $checkoutItems,
+    string $search = '',
+    array $allowedCategories = [],
+    int $requestedPage = 1,
+    int $perPage = 12
+): array
 {
     $rows = fetch_all_kits_from_snipeit($search);
+    $allowedCategories = snipeit_normalize_category_filter_values($allowedCategories);
 
     usort($rows, static function (array $a, array $b): int {
         return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
@@ -531,6 +639,10 @@ function qc_kit_browser_results(PDO $pdo, array $checkoutItems, string $search =
     foreach ($rows as $row) {
         $kitId = (int)($row['id'] ?? 0);
         if ($kitId <= 0) {
+            continue;
+        }
+
+        if (!empty($allowedCategories) && !in_array(snipeit_category_filter_value($row), $allowedCategories, true)) {
             continue;
         }
 
@@ -551,13 +663,9 @@ function qc_kit_browser_results(PDO $pdo, array $checkoutItems, string $search =
         } catch (Throwable $e) {
             continue;
         }
-
-        if (count($results) >= $limit) {
-            break;
-        }
     }
 
-    return $results;
+    return qc_paginate_rows($results, $requestedPage, $perPage);
 }
 
 /**
@@ -743,7 +851,9 @@ $selectedUserId = 0;
 $overrideValue = false;
 $accessoryBrowserResults = [];
 $kitBrowserResults = [];
-$reservationPolicy = reservation_policy_get(load_config());
+$accessoryBrowserPagination = qc_paginate_rows([], 1, $quickCheckoutItemsPerPage);
+$kitBrowserPagination = qc_paginate_rows([], 1, $quickCheckoutItemsPerPage);
+$reservationPolicy = reservation_policy_get($config);
 
 if (isset($_GET['remove'])) {
     $removeKey = trim((string)$_GET['remove']);
@@ -757,6 +867,9 @@ if (isset($_GET['remove'])) {
     }
     if ($browseSearchValue !== '') {
         $redirectParams['browse_search'] = $browseSearchValue;
+    }
+    if ($browsePage > 1) {
+        $redirectParams['browse_page'] = $browsePage;
     }
 
     $redirectUrl = 'quick_checkout.php';
@@ -1248,13 +1361,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($selectorTab === 'accessories') {
     try {
-        $accessoryBrowserResults = qc_accessory_browser_results($checkoutItems, $browseSearchValue, 12);
+        $accessoryBrowserPagination = qc_accessory_browser_results(
+            $checkoutItems,
+            $browseSearchValue,
+            $quickCheckoutAllowedAccessoryCategories,
+            $browsePage,
+            $quickCheckoutItemsPerPage
+        );
+        $accessoryBrowserResults = $accessoryBrowserPagination['rows'] ?? [];
     } catch (Throwable $e) {
         $errors[] = 'Could not load accessory list: ' . $e->getMessage();
     }
 } elseif ($selectorTab === 'kits') {
     try {
-        $kitBrowserResults = qc_kit_browser_results($pdo, $checkoutItems, $browseSearchValue, 12);
+        $kitBrowserPagination = qc_kit_browser_results(
+            $pdo,
+            $checkoutItems,
+            $browseSearchValue,
+            $quickCheckoutAllowedKitCategories,
+            $browsePage,
+            $quickCheckoutItemsPerPage
+        );
+        $kitBrowserResults = $kitBrowserPagination['rows'] ?? [];
     } catch (Throwable $e) {
         $errors[] = 'Could not load kit list: ' . $e->getMessage();
     }
@@ -1464,6 +1592,7 @@ if ($selectorTab === 'accessories') {
                                                                 <input type="hidden" name="mode" value="add_accessory">
                                                                 <input type="hidden" name="active_tab" value="accessories">
                                                                 <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                                                                <input type="hidden" name="browse_page" value="<?= (int)($accessoryBrowserPagination['page'] ?? 1) ?>">
                                                                 <input type="hidden" name="accessory_id" value="<?= (int)$row['id'] ?>">
                                                                 <input type="number"
                                                                        name="quantity"
@@ -1478,6 +1607,16 @@ if ($selectorTab === 'accessories') {
                                                 <?php endforeach; ?>
                                             </tbody>
                                         </table>
+                                    </div>
+                                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-3">
+                                        <div class="text-muted small">
+                                            Showing <?= (int)($accessoryBrowserPagination['start_index'] ?? 0) ?>-<?= (int)($accessoryBrowserPagination['end_index'] ?? 0) ?>
+                                            of <?= (int)($accessoryBrowserPagination['total'] ?? 0) ?> accessories.
+                                        </div>
+                                        <?= qc_render_pagination($accessoryBrowserPagination, [
+                                            'tab' => 'accessories',
+                                            'browse_search' => $browseSearchValue,
+                                        ]) ?>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -1550,6 +1689,7 @@ if ($selectorTab === 'accessories') {
                                                                 <input type="hidden" name="mode" value="add_kit">
                                                                 <input type="hidden" name="active_tab" value="kits">
                                                                 <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                                                                <input type="hidden" name="browse_page" value="<?= (int)($kitBrowserPagination['page'] ?? 1) ?>">
                                                                 <input type="hidden" name="kit_id" value="<?= (int)$row['id'] ?>">
                                                                 <input type="number"
                                                                        name="quantity"
@@ -1564,6 +1704,16 @@ if ($selectorTab === 'accessories') {
                                                 <?php endforeach; ?>
                                             </tbody>
                                         </table>
+                                    </div>
+                                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-3">
+                                        <div class="text-muted small">
+                                            Showing <?= (int)($kitBrowserPagination['start_index'] ?? 0) ?>-<?= (int)($kitBrowserPagination['end_index'] ?? 0) ?>
+                                            of <?= (int)($kitBrowserPagination['total'] ?? 0) ?> kits.
+                                        </div>
+                                        <?= qc_render_pagination($kitBrowserPagination, [
+                                            'tab' => 'kits',
+                                            'browse_search' => $browseSearchValue,
+                                        ]) ?>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -1627,6 +1777,9 @@ if ($selectorTab === 'accessories') {
                                                     }
                                                     if ($browseSearchValue !== '') {
                                                         $removeParams['browse_search'] = $browseSearchValue;
+                                                    }
+                                                    if ($browsePage > 1) {
+                                                        $removeParams['browse_page'] = $browsePage;
                                                     }
                                                 ?>
                                                 <tr>
@@ -1699,6 +1852,7 @@ if ($selectorTab === 'accessories') {
                             <input type="hidden" name="mode" value="checkout">
                             <input type="hidden" name="active_tab" value="<?= h($selectorTab) ?>">
                             <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                            <input type="hidden" name="browse_page" value="<?= (int)$browsePage ?>">
 
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">

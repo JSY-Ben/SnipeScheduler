@@ -19,6 +19,10 @@ if (!defined('CATALOGUE_ITEMS_PER_PAGE')) {
     define('CATALOGUE_ITEMS_PER_PAGE', SNIPEIT_API_PAGE_LIMIT);
 }
 
+if (!defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')) {
+    define('QUICK_CHECKOUT_ITEMS_PER_PAGE', CATALOGUE_ITEMS_PER_PAGE);
+}
+
 // ---------------------------------------------------------------------
 // Main config array (keep your existing values here)
 // ---------------------------------------------------------------------
@@ -202,6 +206,15 @@ return [
         'checked_out_affects_future_availability' => true,
         // Allow non-logged-in users to view Dashboard/Catalogue (booking actions still require login).
         'allow_public_view' => false,
+    ],
+
+    'quick_checkout' => [
+        // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
+        // Leave empty to show all accessory categories.
+        'allowed_accessory_categories' => [],
+        // Restrict which kit categories appear on the Quick Checkout Kits tab.
+        // Leave empty to show all kit categories.
+        'allowed_kit_categories' => [],
     ],
 
     'smtp' => [

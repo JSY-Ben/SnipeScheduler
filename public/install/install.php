@@ -60,6 +60,7 @@ $configExists    = is_file($configPath);
 $definedValues = [
     'SNIPEIT_API_PAGE_LIMIT'   => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE' => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
+    'QUICK_CHECKOUT_ITEMS_PER_PAGE' => defined('QUICK_CHECKOUT_ITEMS_PER_PAGE') ? QUICK_CHECKOUT_ITEMS_PER_PAGE : (defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12),
 ];
 
 $isAjax = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
@@ -386,6 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $missed      = 60;
         $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
         $cataloguePP = $definedValues['CATALOGUE_ITEMS_PER_PAGE'];
+        $quickCheckoutPP = $definedValues['QUICK_CHECKOUT_ITEMS_PER_PAGE'];
 
         $newConfig = $defaultConfig;
         $newConfig['db_booking'] = [
@@ -482,6 +484,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'show_available_default_locations' => true,
             'allow_public_view' => false,
         ];
+        $newConfig['quick_checkout'] = [
+            'allowed_accessory_categories' => [],
+            'allowed_kit_categories' => [],
+        ];
         $newConfig['smtp'] = [
             'host'       => $post('smtp_host', ''),
             'port'       => (int)$post('smtp_port', 587),
@@ -547,6 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $content = layout_build_config_file($newConfig, [
             'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
+            'QUICK_CHECKOUT_ITEMS_PER_PAGE' => $quickCheckoutPP,
         ]);
 
         if (@file_put_contents($configPath, $content, LOCK_EX) === false) {

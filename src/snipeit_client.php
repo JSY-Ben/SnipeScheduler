@@ -981,6 +981,139 @@ function fetch_model_categories_from_snipeit(bool $allowResponseCache = true): a
     return $rows;
 }
 
+function snipeit_extract_category_id(array $row): int
+{
+    $category = $row['category'] ?? null;
+    if (is_array($category) && isset($category['id']) && is_numeric($category['id'])) {
+        return max(0, (int)$category['id']);
+    }
+
+    if (isset($row['category_id']) && is_numeric($row['category_id'])) {
+        return max(0, (int)$row['category_id']);
+    }
+
+    return 0;
+}
+
+function snipeit_extract_category_name(array $row): string
+{
+    $category = $row['category'] ?? null;
+    if (is_array($category)) {
+        $candidates = [
+            $category['name'] ?? null,
+            $category['category_name'] ?? null,
+            $category['label'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
+            }
+        }
+    } elseif (is_string($category) && trim($category) !== '') {
+        return trim($category);
+    }
+
+    $candidates = [
+        $row['category_name'] ?? null,
+        $row['category_label'] ?? null,
+    ];
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && trim($candidate) !== '') {
+            return trim($candidate);
+        }
+    }
+
+    return '';
+}
+
+function snipeit_category_filter_value_from_parts(int $categoryId, string $categoryName): string
+{
+    if ($categoryId > 0) {
+        return 'id:' . $categoryId;
+    }
+
+    $categoryName = trim($categoryName);
+    if ($categoryName !== '') {
+        return 'name:' . strtolower($categoryName);
+    }
+
+    return 'uncategorized';
+}
+
+function snipeit_category_filter_value(array $row): string
+{
+    return snipeit_category_filter_value_from_parts(
+        snipeit_extract_category_id($row),
+        snipeit_extract_category_name($row)
+    );
+}
+
+function snipeit_normalize_category_filter_values($values): array
+{
+    if (!is_array($values)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($values as $rawValue) {
+        if (is_int($rawValue) || (is_string($rawValue) && ctype_digit($rawValue))) {
+            $value = 'id:' . max(0, (int)$rawValue);
+        } else {
+            $value = strtolower(trim((string)$rawValue));
+            if ($value === '') {
+                continue;
+            }
+
+            if ($value !== 'uncategorized' && !str_starts_with($value, 'id:') && !str_starts_with($value, 'name:')) {
+                $value = 'name:' . $value;
+            }
+        }
+
+        if ($value === 'id:0') {
+            continue;
+        }
+
+        $normalized[$value] = $value;
+    }
+
+    return array_values($normalized);
+}
+
+function snipeit_collect_category_options(array $rows): array
+{
+    $options = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $categoryId = snipeit_extract_category_id($row);
+        $categoryName = snipeit_extract_category_name($row);
+        $value = snipeit_category_filter_value_from_parts($categoryId, $categoryName);
+        if (isset($options[$value])) {
+            continue;
+        }
+
+        $options[$value] = [
+            'value' => $value,
+            'label' => $categoryName !== '' ? $categoryName : 'Uncategorised',
+        ];
+    }
+
+    uasort($options, static function (array $a, array $b): int {
+        $aIsUncategorised = ($a['value'] ?? '') === 'uncategorized';
+        $bIsUncategorised = ($b['value'] ?? '') === 'uncategorized';
+        if ($aIsUncategorised !== $bIsUncategorised) {
+            return $aIsUncategorised ? 1 : -1;
+        }
+
+        return strcasecmp((string)($a['label'] ?? ''), (string)($b['label'] ?? ''));
+    });
+
+    return array_values($options);
+}
+
 /**
  * Fetch asset status labels from Snipe-IT.
  *
@@ -2078,6 +2211,11 @@ function fetch_all_accessories_from_snipeit(string $search = '', bool $allowResp
     return snipeit_fetch_all_rows_from_endpoint('accessories', $params, $allowResponseCache);
 }
 
+function fetch_accessory_categories_from_snipeit(bool $allowResponseCache = true): array
+{
+    return snipeit_collect_category_options(fetch_all_accessories_from_snipeit('', $allowResponseCache));
+}
+
 function get_bookable_accessories(
     int $page = 1,
     string $search = '',
@@ -2210,6 +2348,11 @@ function fetch_all_kits_from_snipeit(string $search = '', bool $allowResponseCac
     }
 
     return snipeit_fetch_all_rows_from_candidates(snipeit_kit_endpoint_candidates(), $params, $allowResponseCache);
+}
+
+function fetch_kit_categories_from_snipeit(bool $allowResponseCache = true): array
+{
+    return snipeit_collect_category_options(fetch_all_kits_from_snipeit('', $allowResponseCache));
 }
 
 function get_bookable_kits(
