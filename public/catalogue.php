@@ -1817,7 +1817,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                     <?php if ($catName !== ''): ?>
                                         <span><strong>Category:</strong> <?= label_safe($catName) ?></span><br>
                                     <?php endif; ?>
-                                    <span><strong>Currently available in Snipe-IT:</strong> <?= (int)$availableUnits ?></span><br>
+                                    <span><strong>Requestable Units:</strong> <?= (int)$availableUnits ?></span><br>
                                     <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= (int)$freeNow ?></span>
                                     <?php if ($notes !== ''): ?>
                                         <div class="mt-2 text-muted clamp-3"><?= label_safe($notes) ?></div>
