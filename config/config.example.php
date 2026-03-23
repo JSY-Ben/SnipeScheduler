@@ -20,7 +20,7 @@ if (!defined('CATALOGUE_ITEMS_PER_PAGE')) {
 }
 
 if (!defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')) {
-    define('QUICK_CHECKOUT_ITEMS_PER_PAGE', CATALOGUE_ITEMS_PER_PAGE);
+    define('QUICK_CHECKOUT_ITEMS_PER_PAGE', 5);
 }
 
 // ---------------------------------------------------------------------

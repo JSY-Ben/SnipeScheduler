@@ -16,7 +16,7 @@ $config = load_config();
 $quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick_checkout'] : [];
 $quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
     ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
-    : (defined('CATALOGUE_ITEMS_PER_PAGE') ? max(1, (int)CATALOGUE_ITEMS_PER_PAGE) : 12);
+    : 5;
 $quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
     $quickCheckoutCfg['allowed_accessory_categories'] ?? []
 );
