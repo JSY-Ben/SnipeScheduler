@@ -1344,7 +1344,7 @@ if ($selectorTab === 'accessories') {
                 <div class="quick-checkout-panel quick-checkout-panel--picker">
                     <div class="quick-checkout-panel__header">
                         <div>
-                            <h6 class="mb-1">1. Add items</h6>
+                            <h6 class="mb-1">Add items</h6>
                             <div class="text-muted small">Switch tabs to browse different Snipe-IT item types.</div>
                         </div>
                     </div>
@@ -1549,11 +1549,10 @@ if ($selectorTab === 'accessories') {
                 <div class="quick-checkout-panel quick-checkout-panel--shared mt-4">
                     <div class="quick-checkout-panel__header quick-checkout-panel__header--shared">
                         <div>
-                            <h6 class="mb-1">2. Shared checkout list</h6>
-                            <div class="text-muted small">This section stays the same while you switch between Assets, Accessories, and Kits.</div>
+                            <h6 class="mb-1">Basket</h6>
+                            <div class="text-muted small">Items stay here while you switch between Assets, Accessories, and Kits.</div>
                         </div>
                         <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__badge">Shared across tabs</span>
                             <span class="quick-checkout-panel__count"><?= (int)$checkoutEntryCount ?> item<?= $checkoutEntryCount === 1 ? '' : 's' ?>, <?= (int)$checkoutUnitCount ?> unit<?= $checkoutUnitCount === 1 ? '' : 's' ?></span>
                         </div>
                     </div>
