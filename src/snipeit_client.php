@@ -2305,8 +2305,13 @@ function checkout_accessory_to_user(int $accessoryId, int $userId, int $quantity
     }
 
     $payload = [
-        'assigned_to' => $userId,
+        // Different Snipe-IT versions expect different accessory checkout keys,
+        // so send both the newer validated names and the older assigned_to form.
         'checkout_to_type' => 'user',
+        'checkout_to_id' => $userId,
+        'assigned_user' => $userId,
+        'assigned_to' => $userId,
+        'assigned_qty' => $quantity,
         'checkout_qty' => $quantity,
         'quantity' => $quantity,
     ];
