@@ -1390,7 +1390,7 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                 </div>
                                 <div class="col-md-3 quick-checkout-asset-submit">
-                                    <button type="submit" class="btn btn-primary w-100 quick-checkout-asset-submit__button">
+                                    <button type="submit" class="btn btn-primary w-100 quick-checkout-asset-submit__button quick-checkout-submit-button">
                                         Add to checkout list
                                     </button>
                                 </div>
