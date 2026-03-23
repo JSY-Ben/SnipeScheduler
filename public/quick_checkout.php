@@ -1368,12 +1368,20 @@ if ($selectorTab === 'accessories') {
                             <div class="col-md-6">
                                 <label class="form-label">Asset tag</label>
                                 <div class="position-relative asset-autocomplete-wrapper">
-                                    <input type="text"
-                                           name="asset_tag"
-                                           class="form-control asset-autocomplete"
-                                           autocomplete="off"
-                                           placeholder="Scan or type asset tag..."
-                                           autofocus>
+                                    <div class="input-group filter-search">
+                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <input type="text"
+                                               name="asset_tag"
+                                               class="form-control form-control-lg filter-search__input asset-autocomplete"
+                                               autocomplete="off"
+                                               placeholder="Scan or type asset tag..."
+                                               autofocus>
+                                    </div>
                                     <div class="list-group position-absolute w-100"
                                          data-asset-suggestions
                                          style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
@@ -1391,12 +1399,20 @@ if ($selectorTab === 'accessories') {
                                 <input type="hidden" name="tab" value="accessories">
                                 <div class="col-md-6">
                                     <label class="form-label">Search accessories</label>
-                                    <input type="search"
-                                           name="browse_search"
-                                           class="form-control"
-                                           value="<?= h($browseSearchValue) ?>"
-                                           placeholder="Search by accessory name or manufacturer"
-                                           autofocus>
+                                    <div class="input-group filter-search">
+                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <input type="search"
+                                               name="browse_search"
+                                               class="form-control form-control-lg filter-search__input"
+                                               value="<?= h($browseSearchValue) ?>"
+                                               placeholder="Search by accessory name or manufacturer"
+                                               autofocus>
+                                    </div>
                                 </div>
                                 <div class="col-md-2 d-grid">
                                     <button type="submit" class="btn btn-outline-primary">Search</button>
@@ -1471,12 +1487,20 @@ if ($selectorTab === 'accessories') {
                                 <input type="hidden" name="tab" value="kits">
                                 <div class="col-md-6">
                                     <label class="form-label">Search kits</label>
-                                    <input type="search"
-                                           name="browse_search"
-                                           class="form-control"
-                                           value="<?= h($browseSearchValue) ?>"
-                                           placeholder="Search by kit name"
-                                           autofocus>
+                                    <div class="input-group filter-search">
+                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <input type="search"
+                                               name="browse_search"
+                                               class="form-control form-control-lg filter-search__input"
+                                               value="<?= h($browseSearchValue) ?>"
+                                               placeholder="Search by kit name"
+                                               autofocus>
+                                    </div>
                                 </div>
                                 <div class="col-md-2 d-grid">
                                     <button type="submit" class="btn btn-outline-primary">Search</button>
@@ -1547,16 +1571,18 @@ if ($selectorTab === 'accessories') {
                 </div>
 
                 <div class="quick-checkout-panel quick-checkout-panel--shared mt-4">
-                    <div class="quick-checkout-panel__header quick-checkout-panel__header--shared">
-                        <div>
-                            <h6 class="mb-1">Basket</h6>
-                            <div class="text-muted small">Items stay here while you switch between Assets, Accessories, and Kits.</div>
+                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="filter-panel__dot"></span>
+                            <div class="filter-panel__title">BASKET</div>
                         </div>
                         <div class="quick-checkout-panel__meta">
                             <span class="quick-checkout-panel__count"><?= (int)$checkoutEntryCount ?> item<?= $checkoutEntryCount === 1 ? '' : 's' ?>, <?= (int)$checkoutUnitCount ?> unit<?= $checkoutUnitCount === 1 ? '' : 's' ?></span>
                         </div>
                     </div>
+                    <div class="quick-checkout-panel__subtitle">Items stay here while you switch between Assets, Accessories, and Kits.</div>
 
+                    <div class="quick-checkout-basket-surface">
                     <?php if (empty($checkoutItems)): ?>
                         <div class="alert alert-secondary mb-0">
                             No items in the checkout list yet. Add assets, accessories, or kits above.
@@ -1750,6 +1776,7 @@ if ($selectorTab === 'accessories') {
                             </button>
                         </form>
                     <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
