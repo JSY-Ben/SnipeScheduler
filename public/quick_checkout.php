@@ -1341,11 +1341,12 @@ if ($selectorTab === 'accessories') {
                     }
                 ?>
 
-                <div class="quick-checkout-panel quick-checkout-panel--picker">
-                    <div class="quick-checkout-panel__header">
+                <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
+                    <div class="filter-panel__header d-flex align-items-center gap-3">
+                        <span class="filter-panel__dot"></span>
                         <div>
-                            <h6 class="mb-1">Add items</h6>
-                            <div class="text-muted small">Switch tabs to browse different Snipe-IT item types.</div>
+                            <div class="filter-panel__title">QUICK CHECKOUT</div>
+                            <div class="quick-checkout-panel__intro">Switch tabs to browse different Snipe-IT item types.</div>
                         </div>
                     </div>
 
@@ -1388,7 +1389,7 @@ if ($selectorTab === 'accessories') {
                                 </div>
                             </div>
                             <div class="col-md-3 d-grid align-items-end">
-                                <button type="submit" class="btn btn-outline-primary mt-4 mt-md-0">
+                                <button type="submit" class="btn btn-primary mt-4 mt-md-0">
                                     Add to checkout list
                                 </button>
                             </div>
@@ -1415,10 +1416,10 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                 </div>
                                 <div class="col-md-2 d-grid">
-                                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                                    <button type="submit" class="btn btn-primary">Search</button>
                                 </div>
                                 <div class="col-md-2 d-grid">
-                                    <a href="quick_checkout.php?tab=accessories" class="btn btn-outline-secondary">Reset</a>
+                                    <a href="quick_checkout.php?tab=accessories" class="btn btn-outline-light">Reset</a>
                                 </div>
                             </form>
 
@@ -1503,10 +1504,10 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                 </div>
                                 <div class="col-md-2 d-grid">
-                                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                                    <button type="submit" class="btn btn-primary">Search</button>
                                 </div>
                                 <div class="col-md-2 d-grid">
-                                    <a href="quick_checkout.php?tab=kits" class="btn btn-outline-secondary">Reset</a>
+                                    <a href="quick_checkout.php?tab=kits" class="btn btn-outline-light">Reset</a>
                                 </div>
                             </form>
 
@@ -1570,7 +1571,7 @@ if ($selectorTab === 'accessories') {
                     <?php endif; ?>
                 </div>
 
-                <div class="quick-checkout-panel quick-checkout-panel--shared mt-4">
+                <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
                     <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
                         <div class="d-flex align-items-center gap-3">
                             <span class="filter-panel__dot"></span>
