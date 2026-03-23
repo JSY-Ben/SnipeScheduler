@@ -1611,7 +1611,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 ?>
                 <?php if ($showCatalogueModelsTab): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Models</a>
+                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Equipment</a>
                     </li>
                 <?php endif; ?>
                 <?php if ($showCatalogueAccessoriesTab): ?>

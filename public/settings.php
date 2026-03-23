@@ -1364,7 +1364,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="catalogue_show_models_tab"
                                         <?= $cfg(['catalogue', 'show_models_tab'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="catalogue_show_models_tab">
-                                        Display Models tab
+                                        Display Equipment tab
                                     </label>
                                 </div>
                             </div>
@@ -1461,7 +1461,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="quick_checkout_show_assets_tab"
                                         <?= $cfg(['quick_checkout', 'show_assets_tab'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="quick_checkout_show_assets_tab">
-                                        Display Assets tab
+                                        Display Equipment tab
                                     </label>
                                 </div>
                             </div>

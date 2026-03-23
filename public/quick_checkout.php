@@ -1497,7 +1497,7 @@ if ($selectorTab === 'accessories') {
                     <ul class="nav reservations-subtabs quick-checkout-tabs mb-3">
                         <?php if ($showQuickCheckoutAssetsTab): ?>
                             <li class="nav-item">
-                                <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Assets</a>
+                                <a class="nav-link <?= $selectorTab === 'assets' ? 'active' : '' ?>" href="<?= h($assetTabUrl) ?>">Equipment</a>
                             </li>
                         <?php endif; ?>
                         <?php if ($showQuickCheckoutAccessoriesTab): ?>
