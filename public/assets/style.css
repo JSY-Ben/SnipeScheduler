@@ -1605,11 +1605,9 @@ form .form-select {
     align-items: flex-end;
 }
 
-.quick-checkout-asset-submit__button {
-    height: calc(1.5rem + 1.7rem + 2px);
-    min-height: calc(1.5rem + 1.7rem + 2px);
-    padding-top: 0;
-    padding-bottom: 0;
+.quick-checkout-panel.filter-panel .quick-checkout-asset-submit__button {
+    height: auto;
+    min-height: 0;
 }
 
 .quick-checkout-browser {

@@ -1,6 +1,6 @@
 <?php
 // quick_checkout.php
-// Standalone bulk checkout page (ad-hoc, not tied to reservations).
+// Standalone quick checkout page (ad-hoc, not tied to reservations).
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
@@ -779,7 +779,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $asset = find_asset_by_tag($tag);
                 if (empty($asset['requestable'])) {
-                    throw new RuntimeException('This asset is not requestable in Snipe-IT.');
+                    throw new RuntimeException('This asset is not available for checkout.');
                 }
 
                 $entry = qc_build_asset_checkout_entry($asset);
@@ -888,7 +888,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasNonModelItems = !empty($accessoryEntries);
 
         if ($checkoutTo === '') {
-            $errors[] = 'Please enter the Snipe-IT user (email or name) to check out to.';
+            $errors[] = 'Please enter the user (email or name) to check out to.';
         } elseif (empty($checkoutEntries)) {
             $errors[] = 'There are no items in the checkout list.';
         } elseif ($hasNonModelItems && !booking_reservation_items_have_typed_columns($pdo)) {
@@ -916,7 +916,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $errors[] = 'Selected user is not available for this query. Please choose again.';
                         }
                     } else {
-                        $warnings[] = "Multiple Snipe-IT users matched '{$checkoutTo}'. Please choose which account to use.";
+                        $warnings[] = "Multiple users matched '{$checkoutTo}'. Please choose which account to use.";
                     }
                 }
 
@@ -1240,7 +1240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             } catch (Throwable $e) {
-                $errors[] = 'Could not find user in Snipe-IT: ' . $e->getMessage();
+                $errors[] = 'Could not find user: ' . $e->getMessage();
             }
         }
     }
@@ -1277,9 +1277,7 @@ if ($selectorTab === 'accessories') {
         <?= layout_logo_tag() ?>
         <div class="page-header">
             <h1>Quick Checkout</h1>
-            <div class="page-subtitle">
-                Ad-hoc bulk checkout via Snipe-IT (not tied to a reservation).
-            </div>
+            <div class="page-subtitle">Ad-hoc checkout not tied to a reservation.</div>
         </div>
 
         <?= layout_render_nav($active, $isStaff, $isAdmin) ?>
@@ -1316,10 +1314,10 @@ if ($selectorTab === 'accessories') {
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Bulk checkout (via Snipe-IT)</h5>
+                <h5 class="card-title">Quick Checkout</h5>
                 <p class="card-text">
                     Use the tabs below to scan assets, add available accessories, or expand available kits
-                    into concrete checkout items. When ready, enter the Snipe-IT user (email or name) and
+                    into concrete checkout items. When ready, enter the user (email or name) and
                     check out everything in one go.
                 </p>
                 <?php
@@ -1358,7 +1356,7 @@ if ($selectorTab === 'accessories') {
                         <span class="filter-panel__dot"></span>
                         <div>
                             <div class="filter-panel__title">QUICK CHECKOUT</div>
-                            <div class="quick-checkout-panel__intro">Switch tabs to browse different Snipe-IT item types.</div>
+                            <div class="quick-checkout-panel__intro">Switch tabs to browse different item types.</div>
                         </div>
                     </div>
 
@@ -1657,7 +1655,7 @@ if ($selectorTab === 'accessories') {
                                                     </td>
                                                     <td><?= (int)($entry['qty'] ?? 1) ?></td>
                                                     <td class="small text-muted">
-                                                        <?= h(!empty($detailParts) ? implode(' • ', $detailParts) : ($isAccessoryEntry ? 'Accessory checkout in Snipe-IT' : 'Asset checkout in Snipe-IT')) ?>
+                                                        <?= h(!empty($detailParts) ? implode(' • ', $detailParts) : ($isAccessoryEntry ? 'Accessory checkout' : 'Asset checkout')) ?>
                                                     </td>
                                                     <td>
                                                         <a href="quick_checkout.php?<?= h(http_build_query($removeParams)) ?>"
@@ -1705,7 +1703,7 @@ if ($selectorTab === 'accessories') {
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">
-                                        Check out to (Snipe-IT user email or name)
+                                        Check out to (user email or name)
                                     </label>
                                     <div class="position-relative user-autocomplete-wrapper">
                                         <input type="text"
@@ -1732,7 +1730,7 @@ if ($selectorTab === 'accessories') {
                             <div class="row g-3 mb-3">
                                 <?php if (!empty($pendingUserCandidates)): ?>
                                     <div class="col-md-6">
-                                        <label class="form-label">Select matching Snipe-IT user</label>
+                                        <label class="form-label">Select matching user</label>
                                         <select name="checkout_user_id" class="form-select" required>
                                             <option value="">-- Choose user --</option>
                                             <?php foreach ($pendingUserCandidates as $candidate): ?>
