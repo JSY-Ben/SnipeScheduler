@@ -1168,6 +1168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $expectedCheckinIso = date('Y-m-d H:i:s', $endTs);
                             $checkedOutLabels = [];
+                            $successfulEntries = [];
+                            $failedCheckoutLabels = [];
 
                             foreach ($assetEntries as $entry) {
                                 $assetId = (int)($entry['asset_id'] ?? 0);
@@ -1181,7 +1183,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $label = qc_checkout_entry_display_label($entry);
                                     $messages[] = 'Checked out asset ' . ($assetTag !== '' ? $assetTag : $label) . ' to ' . $userName . '.' . (!empty($reservationConflicts[$entry['key'] ?? '']) ? ' (Override used)' : '');
                                     $checkedOutLabels[] = $label;
+                                    $successfulEntries[(string)($entry['key'] ?? ('asset:' . $assetId))] = $entry;
                                 } catch (Throwable $e) {
+                                    $failedCheckoutLabels[] = $assetTag !== '' ? $assetTag : ('asset #' . $assetId);
                                     $errors[] = 'Failed to check out ' . ($assetTag !== '' ? $assetTag : ('asset #' . $assetId)) . ': ' . $e->getMessage();
                                 }
                             }
@@ -1199,186 +1203,208 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $label = qc_checkout_entry_display_label($entry);
                                     $messages[] = 'Checked out ' . $label . ' to ' . $userName . '.' . (!empty($reservationConflicts[$entry['key'] ?? '']) ? ' (Override used)' : '');
                                     $checkedOutLabels[] = $label;
+                                    $successfulEntries[(string)($entry['key'] ?? ('accessory:' . $accessoryId))] = $entry;
                                 } catch (Throwable $e) {
+                                    $failedCheckoutLabels[] = $name !== '' ? $name : ('accessory #' . $accessoryId);
                                     $errors[] = 'Failed to check out ' . ($name !== '' ? $name : ('accessory #' . $accessoryId)) . ': ' . $e->getMessage();
                                 }
                             }
-                        }
-                    }
 
-                    if (empty($errors)) {
-                        $reservationStart = date('Y-m-d H:i:s', $startTs);
-                        $reservationEnd   = date('Y-m-d H:i:s', $endTs);
-                        $historyItems     = qc_history_items_from_checkout_items($checkoutItems);
-                        $itemsText        = implode(', ', $checkedOutLabels);
-                        $reservationId    = 0;
+                            if (!empty($successfulEntries)) {
+                                $reservationStart = date('Y-m-d H:i:s', $startTs);
+                                $reservationEnd   = date('Y-m-d H:i:s', $endTs);
+                                $historyItems     = qc_history_items_from_checkout_items($successfulEntries);
+                                $itemsText        = implode(', ', $checkedOutLabels);
+                                $reservationId    = 0;
+                                $hadPartialFailures = !empty($failedCheckoutLabels);
 
-                        try {
-                            $pdo->beginTransaction();
+                                try {
+                                    $pdo->beginTransaction();
 
-                            $insertRes = $pdo->prepare("
-                                INSERT INTO reservations (
-                                    user_name, user_email, user_id, snipeit_user_id,
-                                    asset_id, asset_name_cache,
-                                    start_datetime, end_datetime, status
-                                ) VALUES (
-                                    :user_name, :user_email, :user_id, :snipeit_user_id,
-                                    0, :asset_name_cache,
-                                    :start_datetime, :end_datetime, 'completed'
-                                )
-                            ");
-                            $insertRes->execute([
-                                ':user_name'        => $userName,
-                                ':user_email'       => $user['email'] ?? '',
-                                ':user_id'          => (string)$userId,
-                                ':snipeit_user_id'  => $userId,
-                                ':asset_name_cache' => $itemsText,
-                                ':start_datetime'   => $reservationStart,
-                                ':end_datetime'     => $reservationEnd,
-                            ]);
-
-                            $reservationId = (int)$pdo->lastInsertId();
-                            if ($reservationId > 0 && !empty($historyItems)) {
-                                if (booking_reservation_items_have_typed_columns($pdo)) {
-                                    $insertItem = $pdo->prepare("
-                                        INSERT INTO reservation_items (
-                                            reservation_id, item_type, item_id, item_name_cache,
-                                            model_id, model_name_cache, quantity
+                                    $insertRes = $pdo->prepare("
+                                        INSERT INTO reservations (
+                                            user_name, user_email, user_id, snipeit_user_id,
+                                            asset_id, asset_name_cache,
+                                            start_datetime, end_datetime, status
                                         ) VALUES (
-                                            :reservation_id, :item_type, :item_id, :item_name_cache,
-                                            :model_id, :model_name_cache, :quantity
+                                            :user_name, :user_email, :user_id, :snipeit_user_id,
+                                            0, :asset_name_cache,
+                                            :start_datetime, :end_datetime, 'completed'
                                         )
                                     ");
+                                    $insertRes->execute([
+                                        ':user_name'        => $userName,
+                                        ':user_email'       => $user['email'] ?? '',
+                                        ':user_id'          => (string)$userId,
+                                        ':snipeit_user_id'  => $userId,
+                                        ':asset_name_cache' => $itemsText,
+                                        ':start_datetime'   => $reservationStart,
+                                        ':end_datetime'     => $reservationEnd,
+                                    ]);
 
-                                    foreach ($historyItems as $historyItem) {
-                                        $insertItem->execute([
-                                            ':reservation_id' => $reservationId,
-                                            ':item_type' => $historyItem['item_type'],
-                                            ':item_id' => $historyItem['item_id'],
-                                            ':item_name_cache' => $historyItem['item_name_cache'],
-                                            ':model_id' => $historyItem['model_id'],
-                                            ':model_name_cache' => $historyItem['model_name_cache'],
-                                            ':quantity' => $historyItem['quantity'],
-                                        ]);
+                                    $reservationId = (int)$pdo->lastInsertId();
+                                    if ($reservationId > 0 && !empty($historyItems)) {
+                                        if (booking_reservation_items_have_typed_columns($pdo)) {
+                                            $insertItem = $pdo->prepare("
+                                                INSERT INTO reservation_items (
+                                                    reservation_id, item_type, item_id, item_name_cache,
+                                                    model_id, model_name_cache, quantity
+                                                ) VALUES (
+                                                    :reservation_id, :item_type, :item_id, :item_name_cache,
+                                                    :model_id, :model_name_cache, :quantity
+                                                )
+                                            ");
+
+                                            foreach ($historyItems as $historyItem) {
+                                                $insertItem->execute([
+                                                    ':reservation_id' => $reservationId,
+                                                    ':item_type' => $historyItem['item_type'],
+                                                    ':item_id' => $historyItem['item_id'],
+                                                    ':item_name_cache' => $historyItem['item_name_cache'],
+                                                    ':model_id' => $historyItem['model_id'],
+                                                    ':model_name_cache' => $historyItem['model_name_cache'],
+                                                    ':quantity' => $historyItem['quantity'],
+                                                ]);
+                                            }
+                                        } else {
+                                            $insertItem = $pdo->prepare("
+                                                INSERT INTO reservation_items (
+                                                    reservation_id, model_id, model_name_cache, quantity
+                                                ) VALUES (
+                                                    :reservation_id, :model_id, :model_name_cache, :quantity
+                                                )
+                                            ");
+
+                                            foreach ($historyItems as $historyItem) {
+                                                if (($historyItem['item_type'] ?? 'model') !== 'model') {
+                                                    continue;
+                                                }
+
+                                                $insertItem->execute([
+                                                    ':reservation_id' => $reservationId,
+                                                    ':model_id' => $historyItem['model_id'],
+                                                    ':model_name_cache' => $historyItem['model_name_cache'],
+                                                    ':quantity' => $historyItem['quantity'],
+                                                ]);
+                                            }
+                                        }
                                     }
-                                } else {
-                                    $insertItem = $pdo->prepare("
-                                        INSERT INTO reservation_items (
-                                            reservation_id, model_id, model_name_cache, quantity
-                                        ) VALUES (
-                                            :reservation_id, :model_id, :model_name_cache, :quantity
-                                        )
-                                    ");
 
-                                    foreach ($historyItems as $historyItem) {
-                                        if (($historyItem['item_type'] ?? 'model') !== 'model') {
-                                            continue;
+                                    $pdo->commit();
+                                } catch (Throwable $e) {
+                                    if ($pdo->inTransaction()) {
+                                        $pdo->rollBack();
+                                    }
+                                    $warnings[] = 'Items were checked out, but reservation history could not be recorded: ' . $e->getMessage();
+                                }
+
+                                try {
+                                    activity_log_event('quick_checkout', $hadPartialFailures ? 'Quick checkout partially completed' : 'Quick checkout completed', [
+                                        'subject_type' => 'reservation',
+                                        'subject_id'   => $reservationId > 0 ? $reservationId : null,
+                                        'metadata'     => [
+                                            'checked_out_to' => $userName,
+                                            'items'          => $checkedOutLabels,
+                                            'failed_items'   => $failedCheckoutLabels,
+                                            'start'          => $reservationStart,
+                                            'end'            => $reservationEnd,
+                                            'note'           => $note,
+                                        ],
+                                    ]);
+                                } catch (Throwable $e) {
+                                    $warnings[] = 'Items were checked out, but the activity log could not be written: ' . $e->getMessage();
+                                }
+
+                                try {
+                                    $userEmail = $user['email'] ?? '';
+                                    $staffEmail = $currentUser['email'] ?? '';
+                                    $staffName = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
+                                    $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
+                                    $dueDisplay = app_format_datetime($endTs);
+                                    $bodyLines = [
+                                        'Items checked out:',
+                                        $itemsText,
+                                        $hadPartialFailures ? 'Some requested items could not be checked out and were left out of this checkout.' : '',
+                                        'Return by: ' . $dueDisplay,
+                                        $note !== '' ? ('Note: ' . $note) : '',
+                                    ];
+                                    $bodyLines = array_values(array_filter($bodyLines, static function (string $line): bool {
+                                        return trim($line) !== '';
+                                    }));
+
+                                    $notificationConfig = load_config();
+                                    $userBodyLines = $bodyLines;
+                                    $staffBodyLines = $bodyLines;
+                                    $userPortalLinkLine = layout_my_reservations_link_line($notificationConfig);
+                                    if ($userPortalLinkLine !== null) {
+                                        $userBodyLines[] = $userPortalLinkLine;
+                                    }
+                                    $staffPortalLinkLine = layout_staff_reservations_link_line($notificationConfig);
+                                    if ($staffPortalLinkLine !== null) {
+                                        $staffBodyLines[] = $staffPortalLinkLine;
+                                    }
+
+                                    $appCfg = $notificationConfig['app'] ?? [];
+                                    $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
+                                        ? !empty($appCfg['notification_quick_checkout_enabled'])
+                                        : true;
+                                    $sendUserDefault = array_key_exists('notification_quick_checkout_send_user', $appCfg)
+                                        ? !empty($appCfg['notification_quick_checkout_send_user'])
+                                        : true;
+                                    $sendStaffDefault = array_key_exists('notification_quick_checkout_send_staff', $appCfg)
+                                        ? !empty($appCfg['notification_quick_checkout_send_staff'])
+                                        : true;
+
+                                    if ($notifyEnabled) {
+                                        $defaultEmails = [];
+
+                                        if ($sendUserDefault && $userEmail !== '') {
+                                            layout_send_notification($userEmail, $userName, 'Items checked out', $userBodyLines, $notificationConfig);
+                                            $defaultEmails[] = $userEmail;
                                         }
 
-                                        $insertItem->execute([
-                                            ':reservation_id' => $reservationId,
-                                            ':model_id' => $historyItem['model_id'],
-                                            ':model_name_cache' => $historyItem['model_name_cache'],
-                                            ':quantity' => $historyItem['quantity'],
-                                        ]);
+                                        if ($sendStaffDefault && $staffEmail !== '') {
+                                            $staffBody = array_merge(
+                                                [
+                                                    'You checked out items for ' . $userName,
+                                                ],
+                                                $staffBodyLines
+                                            );
+                                            layout_send_notification($staffEmail, $staffDisplayName, 'You checked out items', $staffBody, $notificationConfig);
+                                            $defaultEmails[] = $staffEmail;
+                                        }
+
+                                        $extraRecipients = layout_extra_notification_recipients(
+                                            (string)($appCfg['notification_quick_checkout_extra_emails'] ?? ''),
+                                            $defaultEmails
+                                        );
+                                        foreach ($extraRecipients as $recipient) {
+                                            layout_send_notification(
+                                                $recipient['email'],
+                                                $recipient['name'],
+                                                'Items checked out',
+                                                $staffBodyLines,
+                                                $notificationConfig
+                                            );
+                                        }
                                     }
+                                } catch (Throwable $e) {
+                                    $warnings[] = 'Items were checked out, but notification emails could not be sent: ' . $e->getMessage();
+                                }
+
+                                foreach (array_keys($successfulEntries) as $successKey) {
+                                    unset($checkoutItems[$successKey]);
+                                }
+
+                                if ($hadPartialFailures) {
+                                    $warnings[] = count($successfulEntries) . ' item' . (count($successfulEntries) === 1 ? ' was' : 's were') . ' checked out successfully. Successful items were removed from the basket; failed items remain for review.';
                                 }
                             }
-
-                            $pdo->commit();
-                        } catch (Throwable $e) {
-                            if ($pdo->inTransaction()) {
-                                $pdo->rollBack();
-                            }
-                            $errors[] = 'Quick checkout completed, but could not record reservation history: ' . $e->getMessage();
                         }
-
-                        activity_log_event('quick_checkout', 'Quick checkout completed', [
-                            'subject_type' => 'reservation',
-                            'subject_id'   => $reservationId > 0 ? $reservationId : null,
-                            'metadata'     => [
-                                'checked_out_to' => $userName,
-                                'items'          => $checkedOutLabels,
-                                'start'          => $reservationStart,
-                                'end'            => $reservationEnd,
-                                'note'           => $note,
-                            ],
-                        ]);
-
-                        $userEmail = $user['email'] ?? '';
-                        $staffEmail = $currentUser['email'] ?? '';
-                        $staffName = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
-                        $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-                        $dueDisplay = app_format_datetime($endTs);
-                        $bodyLines = [
-                            'Items checked out:',
-                            $itemsText,
-                            'Return by: ' . $dueDisplay,
-                            $note !== '' ? ('Note: ' . $note) : '',
-                        ];
-
-                        $notificationConfig = load_config();
-                        $userBodyLines = $bodyLines;
-                        $staffBodyLines = $bodyLines;
-                        $userPortalLinkLine = layout_my_reservations_link_line($notificationConfig);
-                        if ($userPortalLinkLine !== null) {
-                            $userBodyLines[] = $userPortalLinkLine;
-                        }
-                        $staffPortalLinkLine = layout_staff_reservations_link_line($notificationConfig);
-                        if ($staffPortalLinkLine !== null) {
-                            $staffBodyLines[] = $staffPortalLinkLine;
-                        }
-
-                        $appCfg = $notificationConfig['app'] ?? [];
-                        $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
-                            ? !empty($appCfg['notification_quick_checkout_enabled'])
-                            : true;
-                        $sendUserDefault = array_key_exists('notification_quick_checkout_send_user', $appCfg)
-                            ? !empty($appCfg['notification_quick_checkout_send_user'])
-                            : true;
-                        $sendStaffDefault = array_key_exists('notification_quick_checkout_send_staff', $appCfg)
-                            ? !empty($appCfg['notification_quick_checkout_send_staff'])
-                            : true;
-
-                        if ($notifyEnabled) {
-                            $defaultEmails = [];
-
-                            if ($sendUserDefault && $userEmail !== '') {
-                                layout_send_notification($userEmail, $userName, 'Items checked out', $userBodyLines, $notificationConfig);
-                                $defaultEmails[] = $userEmail;
-                            }
-
-                            if ($sendStaffDefault && $staffEmail !== '') {
-                                $staffBody = array_merge(
-                                    [
-                                        'You checked out items for ' . $userName,
-                                    ],
-                                    $staffBodyLines
-                                );
-                                layout_send_notification($staffEmail, $staffDisplayName, 'You checked out items', $staffBody, $notificationConfig);
-                                $defaultEmails[] = $staffEmail;
-                            }
-
-                            $extraRecipients = layout_extra_notification_recipients(
-                                (string)($appCfg['notification_quick_checkout_extra_emails'] ?? ''),
-                                $defaultEmails
-                            );
-                            foreach ($extraRecipients as $recipient) {
-                                layout_send_notification(
-                                    $recipient['email'],
-                                    $recipient['name'],
-                                    'Items checked out',
-                                    $staffBodyLines,
-                                    $notificationConfig
-                                );
-                            }
-                        }
-
-                        $checkoutItems = [];
                     }
                 }
             } catch (Throwable $e) {
-                $errors[] = 'Could not find user: ' . $e->getMessage();
+                $errors[] = 'Could not complete quick checkout: ' . $e->getMessage();
             }
         }
     }
