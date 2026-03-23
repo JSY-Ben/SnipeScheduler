@@ -1502,6 +1502,47 @@ form .form-select {
 }
 
 /* --------------------------------------------------
+   Quick checkout
+-------------------------------------------------- */
+
+.quick-checkout-tabs {
+    margin-bottom: 1rem;
+}
+
+.quick-checkout-browser {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(var(--primary-rgb), 0.12);
+    border-radius: 0.8rem;
+    background: linear-gradient(180deg, rgba(var(--primary-soft-rgb), 0.12), rgba(255, 255, 255, 0.9));
+}
+
+.quick-checkout-browser-table th {
+    white-space: nowrap;
+}
+
+.quick-checkout-inline-form {
+    min-width: 180px;
+}
+
+.quick-checkout-inline-form .form-control {
+    max-width: 88px;
+}
+
+@media (max-width: 575.98px) {
+    .quick-checkout-inline-form {
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .quick-checkout-inline-form .form-control,
+    .quick-checkout-inline-form .btn {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+/* --------------------------------------------------
    Checked-out reservations table
 -------------------------------------------------- */
 
