@@ -22,6 +22,10 @@ $logOut = static function (string $level, string $message) use ($nowStamp): void
 $appCfg         = $config['app'] ?? [];
 $cutoffMinutes  = isset($appCfg['missed_cutoff_minutes']) ? (int)$appCfg['missed_cutoff_minutes'] : 60;
 $cutoffMinutes  = max(1, $cutoffMinutes);
+$effectiveTz = $scriptTz ?? new DateTimeZone(date_default_timezone_get());
+$cutoffDateTime = (new DateTimeImmutable('now', $effectiveTz))
+    ->modify("-{$cutoffMinutes} minutes");
+$cutoffIso = $cutoffDateTime->format('Y-m-d H:i:s');
 $notifyMissedEnabled = !empty($appCfg['notification_mark_missed_enabled']);
 $notifyMissedSendUser = array_key_exists('notification_mark_missed_send_user', $appCfg)
     ? !empty($appCfg['notification_mark_missed_send_user'])
@@ -61,12 +65,13 @@ try {
     $logOut('warn', 'Could not verify/alter status column: ' . $e->getMessage());
 }
 
-// Use DB server time to avoid PHP/DB drift.
+// Compare against an app-timezone cutoff so DST and DB server timezone do not
+// change when a reservation is considered missed.
 $sql = "
     UPDATE reservations
        SET status = 'missed'
      WHERE status IN ('pending', 'confirmed')
-       AND start_datetime < (NOW() - INTERVAL :mins MINUTE)
+       AND start_datetime < :cutoff
 ";
 
 $pdo->beginTransaction();
@@ -75,9 +80,9 @@ $selectStmt = $pdo->prepare("
     SELECT id, user_name, user_email, start_datetime, end_datetime
       FROM reservations
      WHERE status IN ('pending', 'confirmed')
-       AND start_datetime < (NOW() - INTERVAL :mins MINUTE)
+       AND start_datetime < :cutoff
 ");
-$selectStmt->bindValue(':mins', $cutoffMinutes, PDO::PARAM_INT);
+$selectStmt->bindValue(':cutoff', $cutoffIso, PDO::PARAM_STR);
 $selectStmt->execute();
 $missedReservations = $selectStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $missedIds = array_values(array_filter(array_map(static function (array $row): int {
@@ -87,7 +92,7 @@ $missedIds = array_values(array_filter(array_map(static function (array $row): i
 }));
 
 $stmt = $pdo->prepare($sql);
-$stmt->bindValue(':mins', $cutoffMinutes, PDO::PARAM_INT);
+$stmt->bindValue(':cutoff', $cutoffIso, PDO::PARAM_STR);
 $stmt->execute();
 
 $affected = $stmt->rowCount();

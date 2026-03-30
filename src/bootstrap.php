@@ -17,3 +17,13 @@ if (!defined('CONFIG_PATH')) {
 require_once SRC_PATH . '/config_loader.php';
 require_once SRC_PATH . '/datetime_helpers.php';
 require_once SRC_PATH . '/announcement_helpers.php';
+
+try {
+    $bootstrapConfig = load_config();
+    $bootstrapTz = app_get_timezone($bootstrapConfig);
+    if ($bootstrapTz instanceof DateTimeZone) {
+        date_default_timezone_set($bootstrapTz->getName());
+    }
+} catch (Throwable $e) {
+    // Install/bootstrap flows may not have a config yet.
+}
