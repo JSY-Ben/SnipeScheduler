@@ -80,6 +80,10 @@ input[type="checkbox"] {
     background-image: var(--bs-form-check-bg-image) !important;
 }
 
+#bulk-renew-button {
+    border-radius: var(--bs-border-radius) !important;
+}
+
 .page-shell {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.96));
     border-radius: 1.1rem;
