@@ -22,6 +22,26 @@ $activeUser      = $bookingOverride ?: $currentUser;
 $ldapCfg  = $config['ldap'] ?? [];
 $appCfg   = $config['app'] ?? [];
 $catalogueCfg = $config['catalogue'] ?? [];
+$showCatalogueModelsTab = array_key_exists('show_models_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_models_tab'])
+    : true;
+$showCatalogueAccessoriesTab = array_key_exists('show_accessories_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_accessories_tab'])
+    : true;
+$showCatalogueKitsTab = array_key_exists('show_kits_tab', $catalogueCfg)
+    ? !empty($catalogueCfg['show_kits_tab'])
+    : true;
+$catalogueVisibleTabs = [];
+if ($showCatalogueModelsTab) {
+    $catalogueVisibleTabs[] = 'models';
+}
+if ($showCatalogueAccessoriesTab) {
+    $catalogueVisibleTabs[] = 'accessories';
+}
+if ($showCatalogueKitsTab) {
+    $catalogueVisibleTabs[] = 'kits';
+}
+$catalogueTabsEnabled = !empty($catalogueVisibleTabs);
 $debugOn  = !empty($appCfg['debug']);
 $blockCatalogueOverdue = array_key_exists('block_catalogue_overdue', $appCfg)
     ? !empty($appCfg['block_catalogue_overdue'])
@@ -231,6 +251,133 @@ function http_get_json(string $url, array $headers = []): array
         throw new Exception('Unexpected response format.');
     }
     return $data;
+}
+
+function catalogue_extract_image_path_from_value($value): string
+{
+    if (is_array($value)) {
+        $candidates = [
+            $value['url'] ?? null,
+            $value['src'] ?? null,
+            $value['href'] ?? null,
+            $value['path'] ?? null,
+            $value['image'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            $path = catalogue_extract_image_path_from_value($candidate);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+
+        return '';
+    }
+
+    return trim((string)$value);
+}
+
+function catalogue_extract_record_image_path(array $row): string
+{
+    $candidates = [
+        $row['image'] ?? null,
+        $row['image_url'] ?? null,
+        $row['image_path'] ?? null,
+        $row['thumbnail'] ?? null,
+        $row['thumbnail_url'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $path = catalogue_extract_image_path_from_value($candidate);
+        if ($path !== '') {
+            return $path;
+        }
+    }
+
+    foreach (['model', 'asset_model'] as $nestedKey) {
+        if (isset($row[$nestedKey]) && is_array($row[$nestedKey])) {
+            $path = catalogue_extract_record_image_path($row[$nestedKey]);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+    }
+
+    return '';
+}
+
+function catalogue_kit_model_row_id(array $row): int
+{
+    foreach (['id', 'model_id', 'item_id'] as $field) {
+        if (isset($row[$field]) && is_numeric($row[$field])) {
+            return max(0, (int)$row[$field]);
+        }
+    }
+
+    foreach (['model', 'asset_model'] as $nestedKey) {
+        if (isset($row[$nestedKey]) && is_array($row[$nestedKey])) {
+            $id = catalogue_kit_model_row_id($row[$nestedKey]);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+    }
+
+    return 0;
+}
+
+function catalogue_kit_model_image_items(array $modelRows): array
+{
+    static $cachedModelById = [];
+
+    $items = [];
+    $seen = [];
+    foreach ($modelRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $modelId = catalogue_kit_model_row_id($row);
+        $seenKey = $modelId > 0 ? ('id:' . $modelId) : ('row:' . count($seen));
+        if (isset($seen[$seenKey])) {
+            continue;
+        }
+        $seen[$seenKey] = true;
+
+        $name = trim((string)($row['name'] ?? ($row['model']['name'] ?? 'Model')));
+        $imagePath = catalogue_extract_record_image_path($row);
+
+        if ($imagePath === '' && $modelId > 0) {
+            if (!array_key_exists($modelId, $cachedModelById)) {
+                try {
+                    $cachedModelById[$modelId] = snipeit_get_cached_model($modelId);
+                } catch (Throwable $e) {
+                    $cachedModelById[$modelId] = null;
+                }
+            }
+
+            if (is_array($cachedModelById[$modelId])) {
+                $imagePath = catalogue_extract_record_image_path($cachedModelById[$modelId]);
+                if ($name === 'Model') {
+                    $name = trim((string)($cachedModelById[$modelId]['name'] ?? $name));
+                }
+            }
+        }
+
+        if ($imagePath === '') {
+            continue;
+        }
+
+        $items[] = [
+            'src' => 'image_proxy.php?src=' . urlencode($imagePath),
+            'label' => $name !== '' ? $name : 'Model',
+        ];
+
+        if (count($items) >= 4) {
+            break;
+        }
+    }
+
+    return $items;
 }
 
 function google_directory_search(string $q, array $config): array
@@ -1071,11 +1218,8 @@ if (($_GET['ajax'] ?? '') === 'model_details') {
 // ---------------------------------------------------------------------
 // Current basket count (for "View basket (X)")
 // ---------------------------------------------------------------------
-$basket       = $_SESSION['basket'] ?? [];
-$basketCount  = 0;
-foreach ($basket as $qty) {
-    $basketCount += (int)$qty;
-}
+$basket = $_SESSION['basket'] ?? [];
+$basketCount = booking_session_basket_total_quantity($basket);
 
 // ---------------------------------------------------------------------
 // Cached overdue state (session cache)
@@ -1145,6 +1289,8 @@ if (!$skipOverdueCheck && !$catalogueBlocked && empty($overdueAssets)) {
 // Filters
 // ---------------------------------------------------------------------
 $searchRaw    = trim($_GET['q'] ?? '');
+$catalogueDefaultTab = $catalogueVisibleTabs[0] ?? 'models';
+$catalogueTabRaw = trim((string)($_GET['tab'] ?? ($_SESSION['catalogue_active_tab'] ?? $catalogueDefaultTab)));
 $categoryRaw  = trim($_GET['category'] ?? '');
 $sortRaw      = trim($_GET['sort'] ?? '');
 $favouritesOnlyRaw = trim((string)($_GET['favourites_only'] ?? ''));
@@ -1153,6 +1299,18 @@ $favouritesOnlyExplicitToggle = array_key_exists('favourites_only_explicit', $_G
 $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $windowStartRaw = trim($_GET['start_datetime'] ?? '');
 $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
+
+$requestedCatalogueTab = strtolower($catalogueTabRaw);
+if ($catalogueTabsEnabled && in_array($requestedCatalogueTab, $catalogueVisibleTabs, true)) {
+    $catalogueTab = $requestedCatalogueTab;
+} else {
+    $catalogueTab = $catalogueDefaultTab;
+}
+if ($catalogueTabsEnabled) {
+    $_SESSION['catalogue_active_tab'] = $catalogueTab;
+} else {
+    unset($_SESSION['catalogue_active_tab']);
+}
 
 // Normalise filters
 $search   = $searchRaw !== '' ? $searchRaw : null;
@@ -1169,6 +1327,12 @@ if ($isAuthenticated) {
     }
 } else {
     unset($_SESSION['catalogue_show_favourites_only']);
+}
+
+if ($catalogueTab !== 'models' && $catalogueTab !== 'accessories') {
+    $categoryRaw = '';
+    $category = null;
+    $favouritesOnly = false;
 }
 
 if ($windowStartRaw === '' && $windowEndRaw === '') {
@@ -1218,6 +1382,8 @@ $allowedCategoryMap = [];
 $allowedCategoryIds = [];
 $allowedStatusLabels = snipeit_catalogue_allowed_status_labels($config);
 $models      = [];
+$accessories = [];
+$kits        = [];
 $modelErr    = '';
 $totalModels = 0;
 $totalPages  = 1;
@@ -1233,7 +1399,7 @@ $favouritesUserEmail = '';
 $canUseFavourites = false;
 $catalogueReturnUrl = 'catalogue.php';
 
-if ($isAuthenticated) {
+if ($catalogueTab === 'models' && $isAuthenticated) {
     $favouritesUserEmail = favourites_normalize_user_email((string)($activeUser['email'] ?? ''));
     $favouritesAvailable = favourites_storage_available($pdo);
 
@@ -1249,6 +1415,8 @@ if ($isAuthenticated) {
 if (!$canUseFavourites) {
     $favouritesOnly = false;
 }
+$basketFeedback = $_SESSION['basket_feedback'] ?? null;
+unset($_SESSION['basket_feedback']);
 ?>
 <!DOCTYPE html>
 <html>
@@ -1283,11 +1451,34 @@ if (function_exists('ob_flush')) {
 // ---------------------------------------------------------------------
 // Load categories from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
-try {
-    $categories = get_model_categories();
-} catch (Throwable $e) {
-    $categories  = [];
-    $categoryErr = $e->getMessage();
+if ($catalogueTabsEnabled && ($catalogueTab === 'models' || $catalogueTab === 'accessories')) {
+    try {
+        if ($catalogueTab === 'accessories') {
+            $categories = get_accessory_categories();
+        } else {
+            $categories = get_model_categories();
+        }
+    } catch (Throwable $e) {
+        $categories  = [];
+        $categoryErr = $e->getMessage();
+    }
+}
+
+if ($catalogueTab === 'accessories' && $categoryRaw !== '') {
+    $normalizedAccessoryCategories = snipeit_normalize_category_filter_values([$categoryRaw]);
+    $categoryRaw = $normalizedAccessoryCategories[0] ?? '';
+    $validAccessoryCategoryValues = [];
+    foreach ($categories as $cat) {
+        if (!is_array($cat)) {
+            continue;
+        }
+        foreach (snipeit_category_filter_values($cat) as $categoryValue) {
+            $validAccessoryCategoryValues[$categoryValue] = $categoryValue;
+        }
+    }
+    if ($categoryRaw !== '' && !in_array($categoryRaw, $validAccessoryCategoryValues, true)) {
+        $categoryRaw = '';
+    }
 }
 
 // Optional admin-controlled allowlist for categories shown in the filter
@@ -1303,28 +1494,40 @@ if (is_array($allowedCfg)) {
 }
 
 // ---------------------------------------------------------------------
-// Load models from Snipe-IT (deferred so loader shows immediately)
+// Load catalogue rows from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
 try {
-    $modelAllowlist = [];
-    if ($favouritesOnly) {
-        $modelAllowlist = $favouriteModelIds;
-    }
-
-    if ($favouritesOnly && empty($modelAllowlist)) {
-        $data = ['rows' => [], 'total' => 0];
+    if (!$catalogueTabsEnabled) {
+        $totalModels = 0;
+    } elseif ($catalogueTab === 'accessories') {
+        $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage, $categoryRaw);
+        $accessories = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
+    } elseif ($catalogueTab === 'kits') {
+        $data = get_bookable_kits($page, $search ?? '', $sort, $perPage);
+        $kits = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        $totalModels = isset($data['total']) ? (int)$data['total'] : count($kits);
     } else {
-        $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist);
-    }
+        $modelAllowlist = [];
+        if ($favouritesOnly) {
+            $modelAllowlist = $favouriteModelIds;
+        }
 
-    if (isset($data['rows']) && is_array($data['rows'])) {
-        $models = $data['rows'];
-    }
+        if ($favouritesOnly && empty($modelAllowlist)) {
+            $data = ['rows' => [], 'total' => 0];
+        } else {
+            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist);
+        }
 
-    if (isset($data['total'])) {
-        $totalModels = (int)$data['total'];
-    } else {
-        $totalModels = count($models);
+        if (isset($data['rows']) && is_array($data['rows'])) {
+            $models = $data['rows'];
+        }
+
+        if (isset($data['total'])) {
+            $totalModels = (int)$data['total'];
+        } else {
+            $totalModels = count($models);
+        }
     }
 
     if ($perPage > 0) {
@@ -1338,6 +1541,7 @@ try {
 }
 
 $catalogueReturnQuery = [
+    'tab' => $catalogueTab,
     'q' => $searchRaw,
     'category' => $categoryRaw,
     'sort' => $sortRaw,
@@ -1355,7 +1559,7 @@ $catalogueReturnQuery = array_filter(
 );
 $catalogueReturnUrl = 'catalogue.php' . (empty($catalogueReturnQuery) ? '' : ('?' . http_build_query($catalogueReturnQuery)));
 
-if (!empty($models)) {
+if ($catalogueTab === 'models' && !empty($models)) {
     try {
         $pageModelIds = [];
         foreach ($models as $rowModel) {
@@ -1405,7 +1609,7 @@ if (!empty($models)) {
 }
 
 // Apply allowlist if configured; otherwise show all categories returned by Snipe-IT
-if (!empty($allowedCategoryMap) && !empty($categories)) {
+if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categories)) {
     $categories = array_values(array_filter($categories, function ($cat) use ($allowedCategoryMap) {
         $id = isset($cat['id']) ? (int)$cat['id'] : 0;
         return $id > 0 && isset($allowedCategoryMap[$id]);
@@ -1418,7 +1622,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
         <div class="page-header">
             <h1>Equipment catalogue</h1>
             <div class="page-subtitle">
-                Browse bookable equipment models and add them to your basket.
+                Browse bookable models, accessories, and kits and add them to your basket.
             </div>
         </div>
 
@@ -1428,6 +1632,12 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
         <?php if ($isAuthenticated && $blockCatalogueOverdue): ?>
             <div id="overdue-warning" class="alert alert-warning<?= $overdueErr ? '' : ' d-none' ?>">
                 <?= h($overdueErr) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (is_array($basketFeedback) && !empty($basketFeedback['message'])): ?>
+            <div class="alert alert-<?= h((string)($basketFeedback['type'] ?? 'info')) ?>">
+                <?= h((string)$basketFeedback['message']) ?>
             </div>
         <?php endif; ?>
 
@@ -1515,6 +1725,55 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
         <?php endif; ?>
 
         <div id="catalogue-content" class="<?= $catalogueBlocked ? 'd-none' : '' ?>">
+            <?php if (!$catalogueTabsEnabled): ?>
+                <div class="alert alert-info">
+                    All catalogue sections are currently hidden in Frontend settings.
+                </div>
+            <?php else: ?>
+            <ul class="nav nav-tabs reservations-subtabs mb-3">
+                <?php
+                    $tabBaseQuery = [
+                        'q' => $searchRaw,
+                        'sort' => $sortRaw,
+                        'start_datetime' => $windowStartRaw,
+                        'end_datetime' => $windowEndRaw,
+                        'prefetch' => '1',
+                    ];
+                    $tabBaseQuery = array_filter($tabBaseQuery, static function ($value): bool {
+                        return trim((string)$value) !== '';
+                    });
+                    $modelsTabFavouritesOnly = $catalogueTab === 'models'
+                        ? $favouritesOnly
+                        : !empty($_SESSION['catalogue_show_favourites_only']);
+                    $modelsTabUrl = 'catalogue.php?' . http_build_query(array_merge($tabBaseQuery, [
+                        'tab' => 'models',
+                        'category' => $categoryRaw,
+                        'favourites_only' => $modelsTabFavouritesOnly ? '1' : '',
+                    ]));
+                    $accessoriesTabUrl = 'catalogue.php?' . http_build_query(array_merge($tabBaseQuery, [
+                        'tab' => 'accessories',
+                    ]));
+                    $kitsTabUrl = 'catalogue.php?' . http_build_query(array_merge($tabBaseQuery, [
+                        'tab' => 'kits',
+                    ]));
+                ?>
+                <?php if ($showCatalogueModelsTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Equipment</a>
+                    </li>
+                <?php endif; ?>
+                <?php if ($showCatalogueAccessoriesTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoriesTabUrl) ?>">Accessories</a>
+                    </li>
+                <?php endif; ?>
+                <?php if ($showCatalogueKitsTab): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $catalogueTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitsTabUrl) ?>">Kits</a>
+                    </li>
+                <?php endif; ?>
+            </ul>
+
             <?php if ($categoryErr): ?>
                 <div class="alert alert-warning">
                     Could not load categories from Snipe-IT: <?= htmlspecialchars($categoryErr) ?>
@@ -1523,7 +1782,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
 
             <?php if ($modelErr): ?>
                 <div class="alert alert-danger">
-                    Error talking to Snipe-IT (models): <?= htmlspecialchars($modelErr) ?>
+                    Error talking to Snipe-IT (<?= h($catalogueTab) ?>): <?= htmlspecialchars($modelErr) ?>
                 </div>
             <?php endif; ?>
 
@@ -1535,10 +1794,11 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                 <div class="filter-panel__title">SEARCH</div>
             </div>
 
+            <input type="hidden" name="tab" value="<?= h($catalogueTab) ?>">
             <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
             <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
             <input type="hidden" name="prefetch" value="1">
-            <?php if ($canUseFavourites): ?>
+            <?php if ($catalogueTab === 'models' && $canUseFavourites): ?>
                 <input type="hidden" name="favourites_only_explicit" value="1">
             <?php endif; ?>
 
@@ -1555,47 +1815,67 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         <input type="text"
                                name="q"
                                class="form-control form-control-lg filter-search__input"
-                               placeholder="Search by model name or manufacturer"
+                               placeholder="<?= h($catalogueTab === 'accessories' ? 'Search by accessory name or manufacturer' : ($catalogueTab === 'kits' ? 'Search by kit name' : 'Search by model name or manufacturer')) ?>"
                                value="<?= htmlspecialchars($searchRaw) ?>">
                     </div>
                 </div>
 
-                <div class="col-6 col-lg-3">
-                    <label class="form-label mb-1 fw-semibold">Category</label>
-                    <select name="category" class="form-select">
-                        <option value="">All categories</option>
-                        <?php foreach ($categories as $cat): ?>
+                <?php if ($catalogueTab === 'models' || $catalogueTab === 'accessories'): ?>
+                    <div class="col-6 col-lg-3">
+                        <label class="form-label mb-1 fw-semibold">Category</label>
+                        <select name="category" class="form-select">
+                            <option value="">All categories</option>
                             <?php
-                            $cid   = (int)($cat['id'] ?? 0);
-                            $cname = $cat['name'] ?? '';
-                            ?>
-                            <option value="<?= $cid ?>"
-                                <?= ($category === $cid) ? 'selected' : '' ?>>
-                                <?= label_safe($cname) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+                            foreach ($categories as $cat): ?>
+                                <?php
+                                if ($catalogueTab === 'accessories') {
+                                    $categoryValue = trim((string)($cat['value'] ?? ''));
+                                    $categoryLabel = trim((string)($cat['label'] ?? ($cat['name'] ?? '')));
+                                    if ($categoryValue === '' || $categoryLabel === '') {
+                                        continue;
+                                    }
+                                    $selected = $categoryRaw !== '' && in_array($categoryRaw, snipeit_category_filter_values($cat), true);
+                                } else {
+                                    $cid = (int)($cat['id'] ?? 0);
+                                    $categoryValue = (string)$cid;
+                                    $categoryLabel = (string)($cat['name'] ?? '');
+                                    $selected = $category === $cid;
+                                }
+                                ?>
+                                <option value="<?= h($categoryValue) ?>"
+                                    <?= $selected ? 'selected' : '' ?>>
+                                    <?= label_safe($categoryLabel) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
 
-                <div class="col-6 col-lg-2">
+                <div class="col-6 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '3' ?>">
                     <label class="form-label mb-1 fw-semibold">Sort</label>
                     <select name="sort" class="form-select">
-                        <option value="">Model name (A–Z)</option>
-                        <option value="name_asc"   <?= $sort === 'name_asc'   ? 'selected' : '' ?>>Model Name (Ascending)</option>
-                        <option value="name_desc"  <?= $sort === 'name_desc'  ? 'selected' : '' ?>>Model Name (Descending)</option>
-                        <option value="manu_asc"   <?= $sort === 'manu_asc'   ? 'selected' : '' ?>>Manufacturer (Ascending)</option>
-                        <option value="manu_desc"  <?= $sort === 'manu_desc'  ? 'selected' : '' ?>>Manufacturer (Descending)</option>
-                        <option value="units_asc"  <?= $sort === 'units_asc'  ? 'selected' : '' ?>>Units in Total (Ascending)</option>
-                        <option value="units_desc" <?= $sort === 'units_desc' ? 'selected' : '' ?>>Units in Total (Descending)</option>
+                        <?php if ($catalogueTab === 'kits'): ?>
+                            <option value="">Kit name (A–Z)</option>
+                            <option value="name_asc"  <?= $sort === 'name_asc'  ? 'selected' : '' ?>>Kit Name (Ascending)</option>
+                            <option value="name_desc" <?= $sort === 'name_desc' ? 'selected' : '' ?>>Kit Name (Descending)</option>
+                        <?php else: ?>
+                            <option value=""><?= $catalogueTab === 'accessories' ? 'Accessory name (A–Z)' : 'Model name (A–Z)' ?></option>
+                            <option value="name_asc"   <?= $sort === 'name_asc'   ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Accessory' : 'Model' ?> Name (Ascending)</option>
+                            <option value="name_desc"  <?= $sort === 'name_desc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Accessory' : 'Model' ?> Name (Descending)</option>
+                            <option value="manu_asc"   <?= $sort === 'manu_asc'   ? 'selected' : '' ?>>Manufacturer (Ascending)</option>
+                            <option value="manu_desc"  <?= $sort === 'manu_desc'  ? 'selected' : '' ?>>Manufacturer (Descending)</option>
+                            <option value="units_asc"  <?= $sort === 'units_asc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Available Units' : 'Units in Total' ?> (Ascending)</option>
+                            <option value="units_desc" <?= $sort === 'units_desc' ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Available Units' : 'Units in Total' ?> (Descending)</option>
+                        <?php endif; ?>
                     </select>
                 </div>
 
-                <div class="col-12 col-lg-2 d-grid">
+                <div class="col-12 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '4' ?> d-grid">
                     <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
                 </div>
             </div>
 
-            <?php if ($canUseFavourites): ?>
+            <?php if ($catalogueTab === 'models' && $canUseFavourites): ?>
                 <div class="row g-2 mt-1">
                     <div class="col-12">
                         <div class="form-check form-switch">
@@ -1620,10 +1900,13 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                 <span class="filter-panel__dot"></span>
                 <div class="filter-panel__title">RESERVATION WINDOW</div>
             </div>
+            <input type="hidden" name="tab" value="<?= h($catalogueTab) ?>">
             <input type="hidden" name="q" value="<?= h($searchRaw) ?>">
-            <input type="hidden" name="category" value="<?= h($categoryRaw) ?>">
+            <?php if ($catalogueTab === 'models' || $catalogueTab === 'accessories'): ?>
+                <input type="hidden" name="category" value="<?= h($categoryRaw) ?>">
+            <?php endif; ?>
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
-            <?php if ($favouritesOnly): ?>
+            <?php if ($catalogueTab === 'models' && $favouritesOnly): ?>
                 <input type="hidden" name="favourites_only" value="1">
             <?php endif; ?>
             <input type="hidden" name="prefetch" value="1">
@@ -1655,13 +1938,282 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
             <?php endif; ?>
         </form>
 
-        <?php if (empty($models) && !$modelErr): ?>
+        <?php
+            $catalogueIsEmpty = $catalogueTab === 'accessories'
+                ? empty($accessories)
+                : ($catalogueTab === 'kits' ? empty($kits) : empty($models));
+        ?>
+        <?php if ($catalogueIsEmpty && !$modelErr): ?>
             <div class="alert alert-info">
-                <?= $favouritesOnly ? 'No favourite models found for the selected filters.' : 'No models found. Try adjusting your filters.' ?>
+                <?php if ($catalogueTab === 'accessories'): ?>
+                    No accessories found. Try adjusting your filters.
+                <?php elseif ($catalogueTab === 'kits'): ?>
+                    No kits found. Try adjusting your filters.
+                <?php else: ?>
+                    <?= $favouritesOnly ? 'No favourite models found for the selected filters.' : 'No models found. Try adjusting your filters.' ?>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 
-        <?php if (!empty($models)): ?>
+        <?php if ($catalogueTab === 'accessories' && !empty($accessories)): ?>
+            <div class="row g-3">
+                <?php foreach ($accessories as $accessory): ?>
+                    <?php
+                        $accessoryId = (int)($accessory['id'] ?? 0);
+                        $name = (string)($accessory['name'] ?? 'Accessory');
+                        $manuName = is_array($accessory['manufacturer'] ?? null)
+                            ? (string)($accessory['manufacturer']['name'] ?? '')
+                            : (string)($accessory['manufacturer_name'] ?? '');
+                        $catName = is_array($accessory['category'] ?? null)
+                            ? (string)($accessory['category']['name'] ?? '')
+                            : (string)($accessory['category_name'] ?? '');
+                        $imagePath = $accessory['image'] ?? '';
+                        $notes = $accessory['notes'] ?? '';
+                        if (is_array($notes)) {
+                            $notes = $notes['text'] ?? '';
+                        }
+                        $availableUnits = 0;
+                        $freeNow = 0;
+                        $maxQty = 0;
+                        try {
+                            $availableUnits = snipeit_accessory_available_quantity_from_payload($accessory);
+                            $rangeStart = $windowActive ? $windowStartIso : $nowIso;
+                            $rangeEnd = $windowActive ? $windowEndIso : date('Y-m-d H:i:s', strtotime($nowIso) + 1);
+                            $pendingQty = booking_count_reserved_item_quantity(
+                                $pdo,
+                                'accessory',
+                                $accessoryId,
+                                $rangeStart,
+                                $rangeEnd,
+                                booking_blocking_reservation_statuses()
+                            );
+                            $freeNow = max(0, $availableUnits - $pendingQty);
+                            $maxQty = $freeNow;
+                        } catch (Throwable $e) {
+                            $availableUnits = 0;
+                            $freeNow = 0;
+                            $maxQty = 0;
+                        }
+
+                        $proxiedImage = '';
+                        if ($imagePath !== '') {
+                            $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
+                        }
+                    ?>
+                    <div class="col-md-4">
+                        <div class="card h-100 model-card">
+                            <?php if ($proxiedImage !== ''): ?>
+                                <button type="button"
+                                        class="model-image-wrapper model-image-wrapper--zoomable"
+                                        data-model-image-zoom="1"
+                                        data-zoom-src="<?= h($proxiedImage) ?>"
+                                        data-zoom-title="<?= h($name) ?>"
+                                        aria-label="Click to zoom image for <?= h($name) ?>">
+                                    <img src="<?= htmlspecialchars($proxiedImage) ?>"
+                                         alt=""
+                                         class="model-image img-fluid">
+                                </button>
+                            <?php else: ?>
+                                <div class="model-image-wrapper model-image-wrapper--placeholder">
+                                    <div class="model-image-placeholder">Accessory</div>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title"><?= label_safe($name) ?></h5>
+                                <p class="card-text small text-muted mb-2">
+                                    <?php if ($manuName !== ''): ?>
+                                        <span><strong>Manufacturer:</strong> <?= label_safe($manuName) ?></span><br>
+                                    <?php endif; ?>
+                                    <?php if ($catName !== ''): ?>
+                                        <span><strong>Category:</strong> <?= label_safe($catName) ?></span><br>
+                                    <?php endif; ?>
+                                    <span><strong>Requestable Units:</strong> <?= (int)$availableUnits ?></span><br>
+                                    <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= (int)$freeNow ?></span>
+                                    <?php if ($notes !== ''): ?>
+                                        <div class="mt-2 text-muted clamp-3"><?= label_safe($notes) ?></div>
+                                    <?php endif; ?>
+                                </p>
+
+                                <?php if ($isAuthenticated): ?>
+                                    <form method="post" action="basket_add.php" class="mt-auto add-to-basket-form">
+                                        <input type="hidden" name="item_type" value="accessory">
+                                        <input type="hidden" name="item_id" value="<?= $accessoryId ?>">
+                                        <?php if ($windowActive): ?>
+                                            <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                            <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                        <?php endif; ?>
+
+                                        <?php if ($freeNow > 0): ?>
+                                            <div class="row g-2 align-items-center mb-3">
+                                                <div class="col-12 col-sm-6">
+                                                    <label class="form-label mb-0 small">Quantity</label>
+                                                    <input type="number"
+                                                           name="quantity"
+                                                           class="form-control form-control-sm"
+                                                           value="1"
+                                                           min="1"
+                                                           max="<?= $maxQty ?>">
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                        <?php else: ?>
+                                            <div class="alert alert-secondary small mb-0">
+                                                <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                        <?php endif; ?>
+                                    </form>
+                                <?php else: ?>
+                                    <div class="mt-auto">
+                                        <?php if ($freeNow > 0): ?>
+                                            <form method="post" action="basket_add.php">
+                                                <input type="hidden" name="item_type" value="accessory">
+                                                <input type="hidden" name="item_id" value="<?= $accessoryId ?>">
+                                                <input type="hidden" name="quantity" value="1">
+                                                <?php if ($windowActive): ?>
+                                                    <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                                    <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                                <?php endif; ?>
+                                                <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <div class="alert alert-secondary small mb-0">
+                                                <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif ($catalogueTab === 'kits' && !empty($kits)): ?>
+            <div class="row g-3">
+                <?php foreach ($kits as $kit): ?>
+                    <?php
+                        $kitId = (int)($kit['id'] ?? 0);
+                        $kitName = (string)($kit['name'] ?? 'Kit');
+                        $kitSummary = '';
+                        $kitUnsupportedLabels = [];
+                        $kitCanAdd = true;
+                        $kitModelImageItems = [];
+                        try {
+                            $kitBreakdown = get_kit_booking_breakdown($kitId);
+                            $kitModelImageItems = catalogue_kit_model_image_items($kitBreakdown['models'] ?? []);
+                            $supportedParts = [];
+                            $supportedModelCount = count($kitBreakdown['models'] ?? []);
+                            $supportedAccessoryCount = count($kitBreakdown['accessories'] ?? []);
+                            if ($supportedModelCount > 0) {
+                                $supportedParts[] = $supportedModelCount . ' model' . ($supportedModelCount === 1 ? '' : 's');
+                            }
+                            if ($supportedAccessoryCount > 0) {
+                                $supportedParts[] = $supportedAccessoryCount . ' accessor' . ($supportedAccessoryCount === 1 ? 'y' : 'ies');
+                            }
+                            $kitSummary = !empty($supportedParts)
+                                ? implode(', ', $supportedParts)
+                                : 'No supported bookable items detected.';
+                            foreach (($kitBreakdown['unsupported_items'] ?? []) as $unsupported) {
+                                $typeLabel = trim((string)($unsupported['type'] ?? 'item'));
+                                $countLabel = (int)($unsupported['count'] ?? 0);
+                                $kitUnsupportedLabels[] = $countLabel > 0
+                                    ? ($typeLabel . ' x' . $countLabel)
+                                    : $typeLabel;
+                            }
+                            if (!empty($kitUnsupportedLabels) || empty($kitBreakdown['supported_items'] ?? [])) {
+                                $kitCanAdd = false;
+                            }
+                        } catch (Throwable $e) {
+                            $kitSummary = 'Unable to load kit contents right now.';
+                            $kitCanAdd = false;
+                        }
+                    ?>
+                    <div class="col-md-4">
+                        <div class="card h-100 model-card">
+                            <?php if (!empty($kitModelImageItems)): ?>
+                                <div class="model-image-wrapper model-image-wrapper--kit-grid">
+                                    <div class="kit-image-grid kit-image-grid--count-<?= count($kitModelImageItems) ?>">
+                                        <?php foreach ($kitModelImageItems as $imageItem): ?>
+                                            <div class="kit-image-grid__cell">
+                                                <img src="<?= h($imageItem['src']) ?>"
+                                                     alt=""
+                                                     title="<?= h($imageItem['label']) ?>"
+                                                     class="kit-image-grid__image">
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="model-image-wrapper model-image-wrapper--placeholder">
+                                    <div class="model-image-placeholder">Kit</div>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title"><?= label_safe($kitName) ?></h5>
+                                <p class="card-text small text-muted mb-2">
+                                    <span><strong>Contains:</strong> <?= h($kitSummary) ?></span><br>
+                                    <span><strong>Booking behaviour:</strong> Adds the kit's supported models and accessories to your basket.</span>
+                                </p>
+
+                                <?php if (!empty($kitUnsupportedLabels)): ?>
+                                    <div class="alert alert-warning small">
+                                        Unsupported kit contents: <?= h(implode(', ', $kitUnsupportedLabels)) ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($isAuthenticated): ?>
+                                    <form method="post" action="basket_add.php" class="mt-auto add-to-basket-form">
+                                        <input type="hidden" name="item_type" value="kit">
+                                        <input type="hidden" name="item_id" value="<?= $kitId ?>">
+                                        <?php if ($windowActive): ?>
+                                            <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                            <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                        <?php endif; ?>
+
+                                        <?php if ($kitCanAdd): ?>
+                                            <div class="row g-2 align-items-center mb-3">
+                                                <div class="col-12 col-sm-6">
+                                                    <label class="form-label mb-0 small">Quantity</label>
+                                                    <input type="number"
+                                                           name="quantity"
+                                                           class="form-control form-control-sm"
+                                                           value="1"
+                                                           min="1"
+                                                           max="100">
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled>Add to basket</button>
+                                        <?php endif; ?>
+                                    </form>
+                                <?php else: ?>
+                                    <div class="mt-auto">
+                                        <?php if ($kitCanAdd): ?>
+                                            <form method="post" action="basket_add.php">
+                                                <input type="hidden" name="item_type" value="kit">
+                                                <input type="hidden" name="item_id" value="<?= $kitId ?>">
+                                                <input type="hidden" name="quantity" value="1">
+                                                <?php if ($windowActive): ?>
+                                                    <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
+                                                    <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
+                                                <?php endif; ?>
+                                                <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled>Add to basket</button>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php elseif (!empty($models)): ?>
             <div class="row g-3">
                 <?php foreach ($models as $model): ?>
                     <?php
@@ -1881,6 +2433,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <form method="post"
                                           action="basket_add.php"
                                           class="mt-auto add-to-basket-form">
+                                        <input type="hidden" name="item_type" value="model">
+                                        <input type="hidden" name="item_id" value="<?= $modelId ?>">
                                         <input type="hidden" name="model_id" value="<?= $modelId ?>">
                                         <?php if ($windowActive): ?>
                                             <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
@@ -1953,6 +2507,8 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                                     <div class="mt-auto">
                                         <?php if ($isRequestable && $freeNow > 0): ?>
                                             <form method="post" action="basket_add.php">
+                                                <input type="hidden" name="item_type" value="model">
+                                                <input type="hidden" name="item_id" value="<?= $modelId ?>">
                                                 <input type="hidden" name="model_id" value="<?= $modelId ?>">
                                                 <?php if ($windowActive): ?>
                                                     <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
@@ -1991,14 +2547,17 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                     <ul class="pagination">
                         <?php
                         $baseQuery = [
+                            'tab'      => $catalogueTab,
                             'q'        => $searchRaw,
-                            'category' => $categoryRaw,
                             'sort'     => $sortRaw,
-                            'favourites_only' => $favouritesOnly ? '1' : '',
                             'start_datetime' => $windowStartRaw,
                             'end_datetime' => $windowEndRaw,
                             'prefetch' => 1,
                         ];
+                        if ($catalogueTab === 'models') {
+                            $baseQuery['category'] = $categoryRaw;
+                            $baseQuery['favourites_only'] = $favouritesOnly ? '1' : '';
+                        }
                         $baseQuery = array_filter($baseQuery, static function ($value): bool {
                             return trim((string)$value) !== '';
                         });
@@ -2013,6 +2572,7 @@ if (!empty($allowedCategoryMap) && !empty($categories)) {
                         <?php endfor; ?>
                     </ul>
                 </nav>
+            <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
         </div>
@@ -3065,6 +3625,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(function (data) {
                     if (!viewBasketBtn) return;
 
+                    if (data && data.ok === false) {
+                        showBasketToast(data.message || 'Could not add to basket');
+                        return;
+                    }
+
                     if (data && typeof data.basket_count !== 'undefined') {
                         const count = parseInt(data.basket_count, 10) || 0;
                         if (count > 0) {
@@ -3072,7 +3637,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                             viewBasketBtn.textContent = 'View basket';
                         }
-                        showBasketToast('Added to basket');
+                        showBasketToast(data.message || 'Added to basket');
                     }
                 })
                 .catch(function () {

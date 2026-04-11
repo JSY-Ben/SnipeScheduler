@@ -1,6 +1,6 @@
 <?php
 // quick_checkin.php
-// Standalone bulk check-in page (quick scan style).
+// Standalone quick check-in page (quick scan style).
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
@@ -9,6 +9,26 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
+
+$config = load_config();
+$quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick_checkout'] : [];
+$quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
+    ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
+    : 5;
+$showQuickCheckinEquipmentTab = array_key_exists('show_assets_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_assets_tab'])
+    : true;
+$showQuickCheckinAccessoriesTab = array_key_exists('show_accessories_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_accessories_tab'])
+    : true;
+$quickCheckinVisibleTabs = [];
+if ($showQuickCheckinEquipmentTab) {
+    $quickCheckinVisibleTabs[] = 'equipment';
+}
+if ($showQuickCheckinAccessoriesTab) {
+    $quickCheckinVisibleTabs[] = 'accessories';
+}
+$quickCheckinTabsEnabled = !empty($quickCheckinVisibleTabs);
 
 $active  = basename($_SERVER['PHP_SELF']);
 $isAdmin = !empty($currentUser['is_admin']);
@@ -46,21 +66,327 @@ if (($_GET['ajax'] ?? '') === 'asset_search') {
     exit;
 }
 
-if (!isset($_SESSION['quick_checkin_assets'])) {
-    $_SESSION['quick_checkin_assets'] = [];
+if (!isset($_SESSION['quick_checkin_items'])) {
+    $_SESSION['quick_checkin_items'] = [];
 }
-$checkinAssets = &$_SESSION['quick_checkin_assets'];
+$checkinItems = &$_SESSION['quick_checkin_items'];
+
+$selectorTabRaw = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? ($quickCheckinVisibleTabs[0] ?? 'equipment')))));
+$selectorTab = ($quickCheckinTabsEnabled && in_array($selectorTabRaw, $quickCheckinVisibleTabs, true))
+    ? $selectorTabRaw
+    : ($quickCheckinVisibleTabs[0] ?? 'equipment');
+$accessorySearchValue = trim((string)($_POST['accessory_search'] ?? ($_GET['accessory_search'] ?? '')));
+$accessoryUserValue = trim((string)($_POST['accessory_user'] ?? ($_GET['accessory_user'] ?? '')));
+$accessoryCategoryValue = trim((string)($_POST['accessory_category'] ?? ($_GET['accessory_category'] ?? '')));
+$browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1)));
 
 $messages = [];
 $errors   = [];
+$focusCheckinList = false;
 
-// Remove single asset
-if (isset($_GET['remove'])) {
-    $rid = (int)$_GET['remove'];
-    if ($rid > 0 && isset($checkinAssets[$rid])) {
-        unset($checkinAssets[$rid]);
+function qci_extract_record_image_path(array $record): string
+{
+    $candidates = [
+        $record['image_path'] ?? null,
+        $record['image'] ?? null,
+        $record['image_url'] ?? null,
+        $record['thumbnail'] ?? null,
+        $record['thumbnail_url'] ?? null,
+        is_array($record['image'] ?? null) ? ($record['image']['url'] ?? ($record['image']['path'] ?? ($record['image']['href'] ?? ''))) : null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (!is_string($candidate)) {
+            continue;
+        }
+
+        $value = trim($candidate);
+        if ($value !== '') {
+            return $value;
+        }
     }
-    header('Location: quick_checkin.php');
+
+    return '';
+}
+
+function qci_paginate_rows(array $rows, int $requestedPage, int $perPage): array
+{
+    $total = count($rows);
+    $safePerPage = max(1, $perPage);
+    $totalPages = max(1, (int)ceil($total / $safePerPage));
+    $page = min(max(1, $requestedPage), $totalPages);
+    $offset = ($page - 1) * $safePerPage;
+    $slice = array_slice($rows, $offset, $safePerPage);
+
+    return [
+        'rows' => $slice,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $safePerPage,
+        'total_pages' => $totalPages,
+    ];
+}
+
+function qci_render_pagination(array $pagination, array $baseParams): string
+{
+    $totalPages = (int)($pagination['total_pages'] ?? 1);
+    $currentPage = (int)($pagination['page'] ?? 1);
+    if ($totalPages <= 1) {
+        return '';
+    }
+
+    $baseParams = array_filter($baseParams, static function ($value): bool {
+        return trim((string)$value) !== '';
+    });
+    $buildUrl = static function (int $targetPage) use ($baseParams): string {
+        $params = $baseParams;
+        if ($targetPage > 1) {
+            $params['browse_page'] = $targetPage;
+        } else {
+            unset($params['browse_page']);
+        }
+
+        $query = http_build_query($params);
+        return 'quick_checkin.php' . ($query !== '' ? '?' . $query : '');
+    };
+
+    $window = 2;
+    $startPage = max(1, $currentPage - $window);
+    $endPage = min($totalPages, $currentPage + $window);
+    if (($endPage - $startPage + 1) < 5) {
+        if ($startPage === 1) {
+            $endPage = min($totalPages, $startPage + 4);
+        } elseif ($endPage === $totalPages) {
+            $startPage = max(1, $endPage - 4);
+        }
+    }
+
+    $html = '<nav aria-label="Quick check-in pagination"><ul class="pagination pagination-sm mb-0">';
+    $prevDisabled = $currentPage <= 1 ? ' disabled' : '';
+    $prevHref = $currentPage <= 1 ? '#' : h($buildUrl($currentPage - 1));
+    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link" href="' . $prevHref . '">Previous</a></li>';
+
+    for ($pageNum = $startPage; $pageNum <= $endPage; $pageNum++) {
+        $isActive = $pageNum === $currentPage;
+        $itemClass = 'page-item' . ($isActive ? ' active' : '');
+        $href = $isActive ? '#' : h($buildUrl($pageNum));
+        $html .= '<li class="' . $itemClass . '"><a class="page-link" href="' . $href . '">' . $pageNum . '</a></li>';
+    }
+
+    $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
+    $nextHref = $currentPage >= $totalPages ? '#' : h($buildUrl($currentPage + 1));
+    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link" href="' . $nextHref . '">Next</a></li>';
+    $html .= '</ul></nav>';
+
+    return $html;
+}
+
+function qci_image_proxy_url(string $imagePath): string
+{
+    $imagePath = trim($imagePath);
+    if ($imagePath === '') {
+        return '';
+    }
+
+    return 'image_proxy.php?src=' . urlencode($imagePath);
+}
+
+function qci_accessory_category_name(array $item): string
+{
+    $category = $item['category_name'] ?? ($item['category'] ?? '');
+    if (is_array($category)) {
+        $category = $category['name'] ?? '';
+    }
+
+    return trim((string)$category);
+}
+
+function qci_assigned_user_fields($assigned): array
+{
+    if (!is_array($assigned)) {
+        return [
+            'name' => trim((string)$assigned),
+            'email' => '',
+        ];
+    }
+
+    return [
+        'id' => (int)($assigned['id'] ?? 0),
+        'name' => trim((string)($assigned['name'] ?? '')),
+        'email' => trim((string)($assigned['email'] ?? ($assigned['username'] ?? ''))),
+    ];
+}
+
+function qci_assigned_user_label(array $assigned): string
+{
+    $name = trim((string)($assigned['name'] ?? ''));
+    $email = trim((string)($assigned['email'] ?? ''));
+    if ($name !== '' && $email !== '' && $name !== $email) {
+        return $name . " <{$email}>";
+    }
+
+    return $email !== '' ? $email : $name;
+}
+
+function qci_assigned_user_key(array $assigned): string
+{
+    $id = (int)($assigned['id'] ?? 0);
+    if ($id > 0) {
+        return 'id:' . $id;
+    }
+
+    $email = strtolower(trim((string)($assigned['email'] ?? '')));
+    if ($email !== '') {
+        return 'email:' . $email;
+    }
+
+    return 'name:' . strtolower(trim((string)($assigned['name'] ?? '')));
+}
+
+function qci_checkin_item_assigned_label(array $item): string
+{
+    $assignedName = $item['assigned_name'] ?? '';
+    $assignedEmail = $item['assigned_email'] ?? '';
+    if ($assignedEmail !== '') {
+        return $assignedName !== '' && $assignedName !== $assignedEmail
+            ? $assignedName . " <{$assignedEmail}>"
+            : $assignedEmail;
+    }
+
+    if ($assignedName !== '') {
+        return $assignedName;
+    }
+
+    return ($item['item_type'] ?? 'asset') === 'asset' ? 'Not checked out' : '';
+}
+
+function qci_accessory_checkin_key(array $accessory): string
+{
+    return (int)($accessory['id'] ?? 0) . '_' . (int)($accessory['accessory_checkout_id'] ?? 0);
+}
+
+function qci_accessory_checkin_item(array $accessory): array
+{
+    $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
+
+    return [
+        'id'         => (int)($accessory['id'] ?? 0),
+        'item_type'  => 'accessory',
+        'accessory_checkout_id' => (int)($accessory['accessory_checkout_id'] ?? 0),
+        'asset_tag'  => '',
+        'name'       => $accessory['name'] ?? '',
+        'model'      => $accessory['manufacturer_name'] ?? '',
+        'image'      => $accessory['image'] ?? '',
+        'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ''),
+        'category_name' => qci_accessory_category_name($accessory),
+        'status'     => '',
+        'assigned_id'    => $assigned['id'] ?? 0,
+        'assigned_email' => $assigned['email'] ?? '',
+        'assigned_name'  => $assigned['name'] ?? '',
+    ];
+}
+
+function qci_render_checkin_list(array $checkinItems, string $activeTab, string $extraClass = 'mt-4'): void
+{
+    $itemCount = count($checkinItems);
+    ?>
+    <div id="check-in-list"
+         class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact <?= h($extraClass) ?>"
+         tabindex="-1">
+        <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <span class="filter-panel__dot"></span>
+                <div class="filter-panel__title">CHECK-IN LIST</div>
+            </div>
+            <div class="quick-checkout-panel__meta">
+                <span class="quick-checkout-panel__count"><?= (int)$itemCount ?> item<?= $itemCount === 1 ? '' : 's' ?></span>
+            </div>
+        </div>
+        <div class="quick-checkout-panel__subtitle">Items stay here while you switch between tabs.</div>
+
+        <div class="quick-checkout-basket-surface">
+            <?php if (empty($checkinItems)): ?>
+                <div class="alert alert-secondary mb-0">
+                    No items in the check-in list yet. Add equipment or accessories above.
+                </div>
+            <?php else: ?>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Identifier</th>
+                                <th>Name</th>
+                                <th>Model</th>
+                                <th>Checked out to</th>
+                                <th style="width: 80px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($checkinItems as $itemKey => $item): ?>
+                                <?php $itemType = $item['item_type'] ?? 'asset'; ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($itemType === 'asset'): ?>
+                                            <span class="badge bg-primary">Asset</span>
+                                        <?php elseif ($itemType === 'accessory'): ?>
+                                            <span class="badge bg-secondary">Accessory</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($itemType === 'asset'): ?>
+                                            <?= h($item['asset_tag'] ?? '') ?>
+                                        <?php elseif ($itemType === 'accessory'): ?>
+                                            ID: <?= h($item['id'] ?? '') ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= h($item['name'] ?? '') ?></td>
+                                    <td><?= h($item['model'] ?? '') ?></td>
+                                    <td><?= h(qci_checkin_item_assigned_label($item)) ?></td>
+                                    <td>
+                                        <a href="quick_checkin.php?remove=<?= h((string)$itemKey) ?>&tab=<?= h($activeTab) ?>"
+                                           class="btn btn-sm btn-outline-danger">
+                                            Remove
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <form method="post" class="border-top pt-3">
+                    <input type="hidden" name="mode" value="checkin">
+                    <input type="hidden" name="active_tab" value="<?= h($activeTab) ?>">
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Note (optional)</label>
+                            <input type="text"
+                                   name="note"
+                                   class="form-control"
+                                   placeholder="Optional note to store with check-in">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary quick-checkout-submit-button">
+                        Check in all listed items
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
+
+// Remove single item
+if (isset($_GET['remove'])) {
+    $rid = (string)$_GET['remove'];
+    if ($rid !== '' && isset($checkinItems[$rid])) {
+        unset($checkinItems[$rid]);
+    }
+    $redirectTab = $_GET['tab'] ?? 'equipment';
+    header('Location: quick_checkin.php?tab=' . urlencode($redirectTab));
     exit;
 }
 
@@ -102,8 +428,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $assignedName = $assigned;
                 }
 
-                $checkinAssets[$assetId] = [
+                $checkinItems[$assetId] = [
                     'id'         => $assetId,
+                    'item_type'  => 'asset',
                     'asset_tag'  => $assetTag,
                     'name'       => $assetName,
                     'model'      => $modelName,
@@ -114,57 +441,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 $label = $modelName !== '' ? $modelName : $assetName;
                 $messages[] = "Added asset {$assetTag} ({$label}) to check-in list.";
+                $focusCheckinList = true;
             } catch (Throwable $e) {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
+            }
+        }
+    } elseif ($mode === 'add_accessory' || $mode === 'add_accessories') {
+        $selectedKeys = [];
+        if ($mode === 'add_accessories') {
+            foreach (($_POST['accessory_keys'] ?? []) as $rawKey) {
+                $key = trim((string)$rawKey);
+                if ($key !== '') {
+                    $selectedKeys[$key] = true;
+                }
+            }
+            if (empty($selectedKeys)) {
+                $errors[] = 'Select at least one accessory to add.';
+            }
+        } else {
+            $accessoryId = (int)($_POST['accessory_id'] ?? 0);
+            $accessoryCheckoutId = (int)($_POST['accessory_checkout_id'] ?? 0);
+            if ($accessoryId <= 0 || $accessoryCheckoutId <= 0) {
+                $errors[] = 'Invalid accessory ID.';
+            } else {
+                $selectedKeys[$accessoryId . '_' . $accessoryCheckoutId] = true;
+            }
+        }
+
+        if (empty($errors)) {
+            try {
+                $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
+                $added = 0;
+                foreach ($checkedOutAccessories as $accessory) {
+                    $accessoryKey = qci_accessory_checkin_key($accessory);
+                    if (!isset($selectedKeys[$accessoryKey])) {
+                        continue;
+                    }
+                    $checkinItems[$accessoryKey] = qci_accessory_checkin_item($accessory);
+                    $added++;
+                }
+                if ($added === 0) {
+                    throw new Exception('Selected accessories were not found in the checked out list.');
+                }
+                $messages[] = $added === 1
+                    ? 'Added 1 accessory to the check-in list.'
+                    : "Added {$added} accessories to the check-in list.";
+                $focusCheckinList = true;
+            } catch (Throwable $e) {
+                $errors[] = 'Could not add accessories: ' . $e->getMessage();
             }
         }
     } elseif ($mode === 'checkin') {
         $note = trim($_POST['note'] ?? '');
 
-        if (empty($checkinAssets)) {
-            $errors[] = 'There are no assets in the check-in list.';
+        if (empty($checkinItems)) {
+            $errors[] = 'There are no items in the check-in list.';
         } else {
-            $hadCheckinAssets = !empty($checkinAssets);
-            $staffEmail = $currentUser['email'] ?? '';
-            $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
-            $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-            $assetTags  = [];
-            $userBuckets = [];
-            $summaryBuckets = [];
-            $userLookupCache = [];
-            $userIdCache = [];
+            $itemsToCheckin = $checkinItems;
 
-            foreach ($checkinAssets as $asset) {
-                $assetId  = (int)$asset['id'];
-                $assetTag = $asset['asset_tag'] ?? '';
+            if (empty($itemsToCheckin)) {
+                $errors[] = 'There are no items in the check-in list.';
+            } else {
+                $hadCheckinItems = !empty($checkinItems);
+                $staffEmail = $currentUser['email'] ?? '';
+                $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
+                $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
+                $itemLabels  = [];
+                $userBuckets = [];
+                $summaryBuckets = [];
+                $userLookupCache = [];
+                $userIdCache = [];
+                $checkedInItemKeys = [];
+
+                foreach ($itemsToCheckin as $itemKey => $item) {
+                $itemType = $item['item_type'] ?? 'asset';
+                $itemId  = (int)$item['id'];
+                $itemName = $item['name'] ?? '';
                 try {
-                    $assignedEmail = $asset['assigned_email'] ?? '';
-                    $assignedName  = $asset['assigned_name'] ?? '';
-                    $assignedId    = (int)($asset['assigned_id'] ?? 0);
+                    $checkedInItemKeys[] = $itemKey;
+                    $assignedEmail = $item['assigned_email'] ?? '';
+                    $assignedName  = $item['assigned_name'] ?? '';
+                    $assignedId    = (int)($item['assigned_id'] ?? 0);
                     if (($assignedEmail === '' && $assignedName === '') || $assignedId === 0) {
-                        try {
-                            $freshAsset = snipeit_request('GET', 'hardware/' . $assetId);
-                            $freshAssigned = $freshAsset['assigned_to'] ?? null;
-                            if (empty($freshAssigned) && isset($freshAsset['assigned_to_fullname'])) {
-                                $freshAssigned = $freshAsset['assigned_to_fullname'];
+                        // For accessories, we might need to refresh data
+                        if ($itemType === 'accessory') {
+                            // Accessory assignment data should already be correct
+                        } elseif ($itemType === 'asset') {
+                            try {
+                                $freshAsset = snipeit_request('GET', 'hardware/' . $itemId);
+                                $freshAssigned = $freshAsset['assigned_to'] ?? null;
+                                if (empty($freshAssigned) && isset($freshAsset['assigned_to_fullname'])) {
+                                    $freshAssigned = $freshAsset['assigned_to_fullname'];
+                                }
+                                if (is_array($freshAssigned)) {
+                                    $assignedId    = (int)($freshAssigned['id'] ?? $assignedId);
+                                    $assignedEmail = $freshAssigned['email'] ?? ($freshAssigned['username'] ?? $assignedEmail);
+                                    $assignedName  = $freshAssigned['name'] ?? ($freshAssigned['username'] ?? ($freshAssigned['email'] ?? $assignedName));
+                                } elseif (is_string($freshAssigned) && $assignedName === '') {
+                                    $assignedName = $freshAssigned;
+                                }
+                            } catch (Throwable $e) {
+                                // Skip fresh lookup; proceed with stored assignment data.
                             }
-                            if (is_array($freshAssigned)) {
-                                $assignedId    = (int)($freshAssigned['id'] ?? $assignedId);
-                                $assignedEmail = $freshAssigned['email'] ?? ($freshAssigned['username'] ?? $assignedEmail);
-                                $assignedName  = $freshAssigned['name'] ?? ($freshAssigned['username'] ?? ($freshAssigned['email'] ?? $assignedName));
-                            } elseif (is_string($freshAssigned) && $assignedName === '') {
-                                $assignedName = $freshAssigned;
-                            }
-                        } catch (Throwable $e) {
-                            // Skip fresh lookup; proceed with stored assignment data.
                         }
                     }
 
-                    checkin_asset($assetId, $note);
-                    $messages[] = "Checked in asset {$assetTag}.";
-                    $model = $asset['model'] ?? '';
-                    $formatted = $model !== '' ? ($assetTag . ' (' . $model . ')') : $assetTag;
-                    $assetTags[] = $formatted;
+                    if ($itemType === 'asset') {
+                        checkin_asset($itemId, $note);
+                        $assetTag = $item['asset_tag'] ?? '';
+                        $messages[] = "Checked in asset {$assetTag}.";
+                        $model = $item['model'] ?? '';
+                        $formatted = $model !== '' ? ($assetTag . ' (' . $model . ')') : $assetTag;
+                        $itemLabels[] = $formatted;
+                    } elseif ($itemType === 'accessory') {
+                        $accessoryCheckoutId = (int)($item['accessory_checkout_id'] ?? 0);
+                        if ($accessoryCheckoutId > 0) {
+                            checkin_accessory($accessoryCheckoutId, $note);
+                            $messages[] = "Checked in accessory {$itemName}.";
+                            $formatted = $itemName;
+                            $itemLabels[] = $formatted;
+                        } else {
+                            throw new Exception('Invalid accessory checkout ID.');
+                        }
+                    }
 
                     if ($assignedEmail === '' && $assignedId > 0) {
                         if (isset($userIdCache[$assignedId])) {
@@ -240,7 +639,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($assignedEmail === '' && $assignedName === '' && $assignedId === 0) {
                         try {
-                            $history = snipeit_request('GET', 'hardware/' . $assetId . '/history');
+                            $history = snipeit_request('GET', 'hardware/' . $itemId . '/history');
                             $rows = $history['rows'] ?? [];
                             foreach ($rows as $row) {
                                 $action = strtolower((string)($row['action_type'] ?? ($row['action'] ?? '')));
@@ -322,13 +721,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $userBuckets[$assignedEmail]['assets'][] = $formatted;
                     }
                 } catch (Throwable $e) {
-                    $errors[] = "Failed to check in {$assetTag}: " . $e->getMessage();
+                    $itemLabel = $itemType === 'asset' ? ($item['asset_tag'] ?? '') : $itemName;
+                    $errors[] = "Failed to check in {$itemLabel}: " . $e->getMessage();
                 }
             }
             if (empty($errors)) {
-                $assetLineItems = array_map(static function (string $item): string {
+                $itemLineItems = array_map(static function (string $item): string {
                     return '- ' . $item;
-                }, array_values(array_filter($assetTags, static function (string $item): bool {
+                }, array_values(array_filter($itemLabels, static function (string $item): bool {
                     return $item !== '';
                 })));
 
@@ -357,7 +757,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 return $item !== '';
                             })));
                             $bodyLines = array_merge(
-                                ['The following assets have been checked in:'],
+                                ['The following items have been checked in:'],
                                 $userAssetLines,
                                 $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
                                 $note !== '' ? ["Note: {$note}"] : []
@@ -377,11 +777,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $staffBodyLines = [];
-                    $staffBodyLines[] = 'You checked in the following assets:';
+                    $staffBodyLines[] = 'You checked in the following items:';
                     if (!empty($perUserSummary)) {
                         $staffBodyLines = array_merge($staffBodyLines, $perUserSummary);
                     } else {
-                        $staffBodyLines = array_merge($staffBodyLines, $assetLineItems);
+                        $staffBodyLines = array_merge($staffBodyLines, $itemLineItems);
                     }
                     if ($note !== '') {
                         $staffBodyLines[] = "Note: {$note}";
@@ -391,8 +791,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     // Notify staff performing check-in.
-                    if ($sendStaffDefault && $staffEmail !== '' && !empty($assetTags)) {
-                        layout_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $staffBodyLines, $config);
+                    if ($sendStaffDefault && $staffEmail !== '' && !empty($itemLabels)) {
+                        layout_send_notification($staffEmail, $staffDisplayName, 'Items checked in', $staffBodyLines, $config);
                         $notifiedEmails[] = $staffEmail;
                     }
 
@@ -402,11 +802,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $notifiedEmails
                     );
                     $extraBodyLines = [];
-                    $extraBodyLines[] = 'The following assets were checked in:';
+                    $extraBodyLines[] = 'The following items were checked in:';
                     if (!empty($perUserSummary)) {
                         $extraBodyLines = array_merge($extraBodyLines, $perUserSummary);
                     } else {
-                        $extraBodyLines = array_merge($extraBodyLines, $assetLineItems);
+                        $extraBodyLines = array_merge($extraBodyLines, $itemLineItems);
                     }
                     if ($staffDisplayName !== '') {
                         $extraBodyLines[] = "Checked in by: {$staffDisplayName}";
@@ -421,7 +821,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         layout_send_notification(
                             $recipient['email'],
                             $recipient['name'],
-                            'Assets checked in',
+                            'Items checked in',
                             $extraBodyLines,
                             $config
                         );
@@ -431,16 +831,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $checkedInFrom = array_keys($summaryBuckets);
                 activity_log_event('quick_checkin', 'Quick checkin completed', [
                     'metadata' => [
-                        'assets' => $assetTags,
+                        'items' => $itemLabels,
                         'checked_in_from' => $checkedInFrom,
                         'note'   => $note,
                     ],
                 ]);
             }
-            if ($hadCheckinAssets) {
-                $checkinAssets = [];
+            if ($hadCheckinItems) {
+                foreach ($checkedInItemKeys as $itemKey) {
+                    unset($checkinItems[$itemKey]);
+                }
             }
         }
+    }
+}
+}
+
+$checkedOutAccessories = [];
+$checkedOutAccessoryPagination = qci_paginate_rows([], 1, $quickCheckoutItemsPerPage);
+$accessoryUsers = [];
+$accessoryCategories = [];
+if ($selectorTab === 'accessories') {
+    try {
+        $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
+
+        // Collect filter options before applying filters so each dropdown remains complete.
+        $userMap = [];
+        $categorySet = [];
+        foreach ($checkedOutAccessories as $item) {
+            $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
+            $assignedKey = qci_assigned_user_key($assigned);
+            if ($assignedKey !== 'name:') {
+                if (!isset($userMap[$assignedKey])) {
+                    $userMap[$assignedKey] = [
+                        'id' => (int)($assigned['id'] ?? 0),
+                        'name' => '',
+                        'email' => '',
+                    ];
+                }
+                if (($userMap[$assignedKey]['name'] ?? '') === '' && ($assigned['name'] ?? '') !== '') {
+                    $userMap[$assignedKey]['name'] = $assigned['name'];
+                }
+                if (($userMap[$assignedKey]['email'] ?? '') === '' && ($assigned['email'] ?? '') !== '') {
+                    $userMap[$assignedKey]['email'] = $assigned['email'];
+                }
+            }
+
+            $category = qci_accessory_category_name($item);
+            if ($category !== '') {
+                $categorySet[$category] = $category;
+            }
+        }
+        $accessoryUsers = array_values(array_filter(array_map('qci_assigned_user_label', $userMap)));
+        sort($accessoryUsers);
+        $accessoryCategories = array_values($categorySet);
+        sort($accessoryCategories);
+        
+        // Filter by search
+        if ($accessorySearchValue !== '') {
+            $searchLower = strtolower($accessorySearchValue);
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($searchLower) {
+                return stripos($item['name'] ?? '', $searchLower) !== false ||
+                       stripos($item['manufacturer_name'] ?? '', $searchLower) !== false ||
+                       stripos(qci_accessory_category_name($item), $searchLower) !== false;
+            });
+        }
+        
+        // Filter by user
+        if ($accessoryUserValue !== '') {
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryUserValue) {
+                $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
+                return $assigned['name'] === $accessoryUserValue ||
+                    $assigned['email'] === $accessoryUserValue ||
+                    qci_assigned_user_label($assigned) === $accessoryUserValue;
+            });
+        }
+        
+        // Filter by category
+        if ($accessoryCategoryValue !== '') {
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryCategoryValue) {
+                return qci_accessory_category_name($item) === $accessoryCategoryValue;
+            });
+        }
+
+        $checkedOutAccessoryPagination = qci_paginate_rows(
+            array_values($checkedOutAccessories),
+            $browsePage,
+            $quickCheckoutItemsPerPage
+        );
+        $checkedOutAccessories = $checkedOutAccessoryPagination['rows'] ?? [];
+    } catch (Throwable $e) {
+        $errors[] = 'Could not load checked out accessories: ' . $e->getMessage();
     }
 }
 ?>
@@ -455,7 +936,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4">
+<body class="p-4" data-focus-checkin-list="<?= $focusCheckinList ? '1' : '0' ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -490,99 +971,260 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Bulk check-in</h5>
+                <h5 class="card-title">Quick Checkin</h5>
                 <p class="card-text">
-                    Scan or type asset tags to add them to the check-in list. When ready, click check in.
+                    Use the available tabs below to view equipment or accessories for check-in.
                 </p>
+                <?php
+                    $equipmentTabUrl = 'quick_checkin.php';
+                    $accessoryTabParams = ['tab' => 'accessories'];
+                    if ($selectorTab === 'accessories') {
+                        if ($accessorySearchValue !== '') $accessoryTabParams['accessory_search'] = $accessorySearchValue;
+                        if ($accessoryUserValue !== '') $accessoryTabParams['accessory_user'] = $accessoryUserValue;
+                        if ($accessoryCategoryValue !== '') $accessoryTabParams['accessory_category'] = $accessoryCategoryValue;
+                    }
+                    $accessoryTabUrl = 'quick_checkin.php?' . http_build_query($accessoryTabParams);
+                ?>
 
-                <form method="post" class="row g-2 mb-3">
-                    <input type="hidden" name="mode" value="add_asset">
-                    <div class="col-md-6">
-                        <label class="form-label">Asset tag</label>
-                        <div class="position-relative asset-autocomplete-wrapper">
-                            <input type="text"
-                                   name="asset_tag"
-                                   class="form-control asset-autocomplete"
-                                   autocomplete="off"
-                                   placeholder="Scan or type asset tag..."
-                                   autofocus>
-                            <div class="list-group position-absolute w-100"
-                                 data-asset-suggestions
-                                 style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 d-grid align-items-end">
-                        <button type="submit" class="btn btn-outline-primary mt-4 mt-md-0">
-                            Add to check-in list
-                        </button>
-                    </div>
-                </form>
-
-                <?php if (empty($checkinAssets)): ?>
-                    <div class="alert alert-secondary">
-                        No assets in the check-in list yet. Scan or enter an asset tag above.
+                <?php if (!$quickCheckinTabsEnabled): ?>
+                    <div class="alert alert-info mb-3">
+                        All Quick Checkout/Checkin item tabs are currently hidden in Frontend settings.
                     </div>
                 <?php else: ?>
-                    <div class="table-responsive mb-3">
-                        <table class="table table-sm table-striped align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Asset Tag</th>
-                                    <th>Name</th>
-                                    <th>Model</th>
-                                    <th>Checked out to</th>
-                                    <th style="width: 80px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($checkinAssets as $asset): ?>
-                                    <tr>
-                                        <td><?= h($asset['asset_tag']) ?></td>
-                                        <td><?= h($asset['name']) ?></td>
-                                        <td><?= h($asset['model']) ?></td>
-                                        <?php
-                                            $assignedName = $asset['assigned_name'] ?? '';
-                                            $assignedEmail = $asset['assigned_email'] ?? '';
-                                            if ($assignedEmail !== '') {
-                                                $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                    ? $assignedName . " <{$assignedEmail}>"
-                                                    : $assignedEmail;
-                                            } elseif ($assignedName !== '') {
-                                                $assignedLabel = $assignedName;
-                                            } else {
-                                                $assignedLabel = 'Not checked out';
-                                            }
-                                        ?>
-                                        <td><?= h($assignedLabel) ?></td>
-                                        <td>
-                                            <a href="quick_checkin.php?remove=<?= (int)$asset['id'] ?>"
-                                               class="btn btn-sm btn-outline-danger">
-                                                Remove
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                <ul class="nav reservations-subtabs quick-checkin-tabs mb-3">
+                    <?php if ($showQuickCheckinEquipmentTab): ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?= $selectorTab === 'equipment' ? 'active' : '' ?>" href="<?= h($equipmentTabUrl) ?>">Equipment</a>
+                        </li>
+                    <?php endif; ?>
+                    <?php if ($showQuickCheckinAccessoriesTab): ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
+
+                <?php if ($selectorTab === 'equipment'): ?>
+                <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
+                    <div class="filter-panel__header d-flex align-items-center gap-3">
+                        <span class="filter-panel__dot"></span>
+                        <div>
+                            <div class="filter-panel__title">QUICK CHECKIN</div>
+                            <div class="quick-checkout-panel__intro">Scan or type asset tags to build the check-in list.</div>
+                        </div>
                     </div>
 
-                    <form method="post" class="border-top pt-3">
-                        <input type="hidden" name="mode" value="checkin">
-
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-12">
-                                <label class="form-label">Note (optional)</label>
-                                <input type="text"
-                                       name="note"
-                                       class="form-control"
-                                       placeholder="Optional note to store with check-in">
+                    <div class="quick-checkout-picker-surface">
+                        <form method="post" class="row g-2 mb-0">
+                            <input type="hidden" name="mode" value="add_asset">
+                            <input type="hidden" name="active_tab" value="equipment">
+                            <div class="col-md-6">
+                                <label class="form-label">Asset tag</label>
+                                <div class="position-relative asset-autocomplete-wrapper">
+                                    <div class="input-group filter-search">
+                                        <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </span>
+                                        <input type="text"
+                                               name="asset_tag"
+                                               class="form-control form-control-lg filter-search__input asset-autocomplete"
+                                               autocomplete="off"
+                                               placeholder="Scan or type asset tag..."
+                                               autofocus>
+                                    </div>
+                                    <div class="list-group position-absolute w-100"
+                                         data-asset-suggestions
+                                         style="z-index: 1050; display: none;"></div>
+                                </div>
                             </div>
-                        </div>
+                            <div class="col-md-3 quick-checkout-asset-submit">
+                                <button type="submit" class="btn btn-primary w-100 quick-checkout-asset-submit__button quick-checkout-submit-button">
+                                    Add to check-in list
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
 
-                        <button type="submit" class="btn btn-primary">
-                            Check in all listed assets
-                        </button>
-                    </form>
+                <?php qci_render_checkin_list($checkinItems, 'equipment', 'mt-4'); ?>
+                <?php elseif ($selectorTab === 'accessories'): ?>
+                <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
+                    <div class="filter-panel__header d-flex align-items-center gap-3">
+                        <span class="filter-panel__dot"></span>
+                        <div>
+                            <div class="filter-panel__title">SEARCH</div>
+                            <div class="quick-checkout-panel__intro">Browse and filter currently checked out accessories.</div>
+                        </div>
+                    </div>
+
+                    <div class="quick-checkout-picker-surface">
+                        <form method="get" class="row g-2 mb-3 align-items-end quick-checkin-accessory-filters" data-accessory-filter-form>
+                            <input type="hidden" name="tab" value="accessories">
+                            <div class="col-md-4">
+                                <label class="form-label">Search</label>
+                                <div class="input-group filter-search">
+                                    <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                            <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </span>
+                                    <input type="text"
+                                           name="accessory_search"
+                                           class="form-control filter-search__input"
+                                           placeholder="Search accessories..."
+                                           value="<?= h($accessorySearchValue) ?>">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">User</label>
+                                <div class="position-relative accessory-user-autocomplete-wrapper">
+                                    <input type="text"
+                                           name="accessory_user"
+                                           class="form-control accessory-user-autocomplete"
+                                           autocomplete="off"
+                                           placeholder="All users"
+                                           value="<?= h($accessoryUserValue) ?>"
+                                           data-accessory-user-filter
+                                           data-accessory-users="<?= h(json_encode(array_values($accessoryUsers))) ?>">
+                                    <div class="list-group position-absolute w-100"
+                                         data-accessory-user-suggestions
+                                         style="z-index: 1050; display: none;"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Category</label>
+                                <select name="accessory_category" class="form-select" data-accessory-category-filter>
+                                    <option value="">All categories</option>
+                                    <?php foreach ($accessoryCategories as $category): ?>
+                                        <option value="<?= h($category) ?>" <?= $accessoryCategoryValue === $category ? 'selected' : '' ?>><?= h($category) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2 quick-checkin-filter-submit">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
+                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="filter-panel__dot"></span>
+                            <div class="filter-panel__title">CHECKED OUT ACCESSORIES</div>
+                        </div>
+                        <div class="quick-checkout-panel__meta">
+                            <?php $checkedOutAccessoryTotal = (int)($checkedOutAccessoryPagination['total'] ?? count($checkedOutAccessories)); ?>
+                            <span class="quick-checkout-panel__count"><?= $checkedOutAccessoryTotal ?> <?= $checkedOutAccessoryTotal === 1 ? 'accessory' : 'accessories' ?></span>
+                        </div>
+                    </div>
+                    <div class="quick-checkout-panel__subtitle">Currently checked out accessories from Snipe-IT.</div>
+
+                    <div class="quick-checkout-basket-surface">
+                    <?php if (empty($checkedOutAccessories)): ?>
+                        <div class="alert alert-secondary mb-0">
+                            No checked out accessories found.
+                        </div>
+                    <?php else: ?>
+                        <form method="post" data-accessory-bulk-form>
+                            <input type="hidden" name="mode" value="add_accessories">
+                            <input type="hidden" name="active_tab" value="accessories">
+                            <input type="hidden" name="browse_page" value="<?= (int)($checkedOutAccessoryPagination['page'] ?? 1) ?>">
+                            <input type="hidden" name="accessory_search" value="<?= h($accessorySearchValue) ?>">
+                            <input type="hidden" name="accessory_user" value="<?= h($accessoryUserValue) ?>">
+                            <input type="hidden" name="accessory_category" value="<?= h($accessoryCategoryValue) ?>">
+                            <div class="table-responsive mb-3">
+                                <table class="table table-sm table-striped align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 42px;">
+                                                <input type="checkbox"
+                                                       class="form-check-input"
+                                                       data-accessory-select-all
+                                                       aria-label="Select all checked out accessories">
+                                            </th>
+                                            <th>Image</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Checked out to</th>
+                                            <th>Checked out since</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($checkedOutAccessories as $accessory): ?>
+                                            <?php $accessoryKey = qci_accessory_checkin_key($accessory); ?>
+                                            <?php $accessoryAlreadyListed = isset($checkinItems[$accessoryKey]); ?>
+                                            <tr class="<?= $accessoryAlreadyListed ? 'quick-checkin-row--disabled' : '' ?>">
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input"
+                                                           name="accessory_keys[]"
+                                                           value="<?= h($accessoryKey) ?>"
+                                                           data-accessory-select-row
+                                                           <?= $accessoryAlreadyListed ? 'disabled' : '' ?>
+                                                           aria-label="Select <?= h($accessory['name'] ?? 'accessory') ?>">
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                        $accessoryImageUrl = qci_image_proxy_url(qci_extract_record_image_path($accessory));
+                                                    ?>
+                                                    <?php if ($accessoryImageUrl !== ''): ?>
+                                                        <img src="<?= h($accessoryImageUrl) ?>"
+                                                             alt="<?= h(($accessory['name'] ?? 'Accessory') . ' image') ?>"
+                                                             class="report-model-thumb">
+                                                    <?php else: ?>
+                                                        <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?= h($accessory['name'] ?? '') ?></td>
+                                                <td><?= h(qci_accessory_category_name($accessory)) ?></td>
+                                                <?php
+                                                    $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
+                                                    if ($assigned['name'] !== '' || $assigned['email'] !== '') {
+                                                        $assignedLabel = qci_assigned_user_label($assigned);
+                                                    } else {
+                                                        $assignedLabel = '';
+                                                    }
+                                                ?>
+                                                <td><?= h($assignedLabel) ?></td>
+                                                <td><?= h(app_format_datetime($accessory['last_checkout'] ?? '')) ?></td>
+                                                <td>
+                                                    <button type="submit"
+                                                            name="accessory_keys[]"
+                                                            value="<?= h($accessoryKey) ?>"
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            <?= $accessoryAlreadyListed ? 'disabled' : '' ?>>
+                                                        <?= $accessoryAlreadyListed ? 'Added' : 'Add to Check-in list' ?>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="submit" class="btn btn-primary quick-checkout-submit-button" data-accessory-bulk-submit disabled>
+                                Add selected to check-in list
+                            </button>
+                            <div class="d-flex justify-content-end mt-3">
+                                <?= qci_render_pagination($checkedOutAccessoryPagination, [
+                                    'tab' => 'accessories',
+                                    'accessory_search' => $accessorySearchValue,
+                                    'accessory_user' => $accessoryUserValue,
+                                    'accessory_category' => $accessoryCategoryValue,
+                                ]) ?>
+                            </div>
+                        </form>
+                    <?php endif; ?>
+                    </div>
+                </div>
+                <?php qci_render_checkin_list($checkinItems, 'accessories', 'mt-4'); ?>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -591,6 +1233,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 <script>
 (function () {
+    if (document.body.dataset.focusCheckinList === '1') {
+        const checkinList = document.getElementById('check-in-list');
+        if (checkinList) {
+            checkinList.scrollIntoView({ behavior: 'auto', block: 'start' });
+            checkinList.focus({ preventScroll: true });
+        }
+    }
+
     const assetWrappers = document.querySelectorAll('.asset-autocomplete-wrapper');
     assetWrappers.forEach((wrapper) => {
         const input = wrapper.querySelector('.asset-autocomplete');
@@ -664,6 +1314,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             list.innerHTML = '';
         }
     });
+
+    const accessoryFilterForm = document.querySelector('[data-accessory-filter-form]');
+    if (accessoryFilterForm) {
+        const userInput = accessoryFilterForm.querySelector('[data-accessory-user-filter]');
+        const categorySelect = accessoryFilterForm.querySelector('[data-accessory-category-filter]');
+        const userSuggestionList = accessoryFilterForm.querySelector('[data-accessory-user-suggestions]');
+        let userOptions = [];
+        try {
+            userOptions = JSON.parse(userInput ? (userInput.dataset.accessoryUsers || '[]') : '[]');
+        } catch (e) {
+            userOptions = [];
+        }
+        userOptions = userOptions.map((value) => String(value || '').trim()).filter((value) => value !== '');
+        const userOptionSet = new Set(userOptions);
+        let pendingUserSubmit = null;
+
+        function submitAccessoryFilters() {
+            if (accessoryFilterForm.requestSubmit) {
+                accessoryFilterForm.requestSubmit();
+            } else {
+                accessoryFilterForm.submit();
+            }
+        }
+
+        if (categorySelect) {
+            categorySelect.addEventListener('change', submitAccessoryFilters);
+        }
+
+        if (userInput) {
+            userInput.addEventListener('input', () => {
+                const value = userInput.value.trim();
+                if (pendingUserSubmit) {
+                    clearTimeout(pendingUserSubmit);
+                    pendingUserSubmit = null;
+                }
+                if (value === '' || userOptionSet.has(value)) {
+                    pendingUserSubmit = setTimeout(submitAccessoryFilters, 150);
+                }
+                renderUserSuggestions(value);
+            });
+
+            userInput.addEventListener('change', () => {
+                const value = userInput.value.trim();
+                if (value === '' || userOptionSet.has(value)) {
+                    submitAccessoryFilters();
+                }
+            });
+
+            userInput.addEventListener('focus', () => {
+                renderUserSuggestions(userInput.value.trim());
+            });
+
+            userInput.addEventListener('blur', () => {
+                setTimeout(hideUserSuggestions, 150);
+            });
+        }
+
+        function renderUserSuggestions(query) {
+            if (!userSuggestionList) return;
+            const q = String(query || '').trim().toLowerCase();
+            const matches = userOptions
+                .filter((user) => q === '' || user.toLowerCase().includes(q))
+                .slice(0, 20);
+
+            userSuggestionList.innerHTML = '';
+            if (!matches.length) {
+                hideUserSuggestions();
+                return;
+            }
+
+            matches.forEach((user) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.textContent = user;
+                btn.dataset.value = user;
+
+                btn.addEventListener('click', () => {
+                    userInput.value = btn.dataset.value;
+                    hideUserSuggestions();
+                    submitAccessoryFilters();
+                });
+
+                userSuggestionList.appendChild(btn);
+            });
+
+            userSuggestionList.style.display = 'block';
+        }
+
+        function hideUserSuggestions() {
+            if (!userSuggestionList) return;
+            userSuggestionList.style.display = 'none';
+            userSuggestionList.innerHTML = '';
+        }
+    }
+
+    const accessoryBulkForm = document.querySelector('[data-accessory-bulk-form]');
+    if (accessoryBulkForm) {
+        const selectAll = accessoryBulkForm.querySelector('[data-accessory-select-all]');
+        const rowChecks = Array.from(accessoryBulkForm.querySelectorAll('[data-accessory-select-row]'));
+        const bulkSubmit = accessoryBulkForm.querySelector('[data-accessory-bulk-submit]');
+
+        function updateBulkAccessoryState() {
+            const selectedCount = rowChecks.filter((box) => box.checked).length;
+            if (bulkSubmit) {
+                bulkSubmit.disabled = selectedCount === 0;
+            }
+            if (selectAll) {
+                selectAll.checked = selectedCount > 0 && selectedCount === rowChecks.length;
+                selectAll.indeterminate = selectedCount > 0 && selectedCount < rowChecks.length;
+            }
+        }
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                rowChecks.forEach((box) => {
+                    box.checked = selectAll.checked;
+                });
+                updateBulkAccessoryState();
+            });
+        }
+
+        rowChecks.forEach((box) => {
+            box.addEventListener('change', updateBulkAccessoryState);
+        });
+
+        updateBulkAccessoryState();
+    }
 })();
 </script>
 <?php layout_footer(); ?>

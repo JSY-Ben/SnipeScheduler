@@ -176,7 +176,7 @@ if (!function_exists('app_parse_datetime_value')) {
         }
 
         try {
-            $dt = new DateTime($text);
+            $dt = $tz ? new DateTime($text, $tz) : new DateTime($text);
             if ($tz) {
                 $dt->setTimezone($tz);
             }

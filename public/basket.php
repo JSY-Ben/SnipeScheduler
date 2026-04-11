@@ -17,8 +17,8 @@ $currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
 $isOnBehalfBooking = is_array($bookingOverride) && $overrideEmail !== '' && $overrideEmail !== $currentEmail;
 $reservationPolicy = reservation_policy_get($config);
 
-// Basket: model_id => quantity
-$basket = $_SESSION['basket'] ?? [];
+// Basket: typed catalogue item key => quantity
+$basket = booking_session_basket_items($_SESSION['basket'] ?? []);
 
 // Preview availability dates (from GET) with sensible defaults
 $windowTz = app_get_timezone($config);
@@ -84,82 +84,85 @@ if ($previewStart && $previewEnd) {
 }
 
 $catalogueBackUrl = 'catalogue.php';
+$catalogueBackTab = strtolower(trim((string)($_SESSION['catalogue_active_tab'] ?? 'models')));
+$catalogueBackTab = in_array($catalogueBackTab, ['models', 'accessories', 'kits'], true) ? $catalogueBackTab : 'models';
 if ($previewStartRaw !== '' && $previewEndRaw !== '') {
     $catalogueBackUrl .= '?' . http_build_query([
+        'tab' => $catalogueBackTab,
         'start_datetime' => $previewStartRaw,
         'end_datetime'   => $previewEndRaw,
         'prefetch'       => 1,
     ]);
+} elseif ($catalogueBackTab !== 'models') {
+    $catalogueBackUrl .= '?' . http_build_query([
+        'tab' => $catalogueBackTab,
+        'prefetch' => 1,
+    ]);
 }
 
-$models   = [];
+$items    = [];
 $errorMsg = '';
 
 $totalItems      = 0;
-$distinctModels  = 0;
+$distinctItems   = 0;
 
-// Availability per model for preview: model_id => ['total' => X, 'booked' => Y, 'free' => Z]
+// Availability per item for preview: type:id => ['total' => X, 'booked' => Y, 'free' => Z]
 $availability = [];
 
 if (!empty($basket)) {
     try {
-        // Load model data and tally basic counts
-        foreach ($basket as $modelId => $qty) {
-            $modelId = (int)$modelId;
-            $qty     = (int)$qty;
+        foreach ($basket as $basketItem) {
+            $itemType = booking_normalize_item_type((string)($basketItem['type'] ?? 'model'));
+            $itemId = (int)($basketItem['id'] ?? 0);
+            $qty = (int)($basketItem['qty'] ?? 0);
+            if ($itemId <= 0 || $qty <= 0) {
+                continue;
+            }
 
-            // Count requestable assets for limits/availability
             $requestableCount = null;
             try {
-                $requestableCount = count_requestable_assets_by_model($modelId);
+                $requestableCount = booking_get_requestable_total_for_item($itemType, $itemId);
             } catch (Throwable $e) {
                 $requestableCount = null;
             }
 
-            $models[] = [
-                'id'                => $modelId,
-                'data'              => get_model($modelId),
+            $items[] = [
+                'key'               => booking_catalogue_item_key($itemType, $itemId),
+                'type'              => $itemType,
+                'id'                => $itemId,
+                'data'              => booking_fetch_catalogue_item_record($itemType, $itemId),
                 'qty'               => $qty,
                 'requestable_count' => $requestableCount,
             ];
             $totalItems     += $qty;
-            $distinctModels += 1;
+            $distinctItems += 1;
         }
 
-        // If we have valid preview dates, compute availability per model for that window
+        // If we have valid preview dates, compute availability per item for that window
         if ($previewStart && $previewEnd) {
-            foreach ($models as $entry) {
-                $mid = (int)$entry['id'];
+            foreach ($items as $entry) {
+                $itemType = booking_normalize_item_type((string)($entry['type'] ?? 'model'));
+                $itemId = (int)($entry['id'] ?? 0);
                 $requestableTotal = $entry['requestable_count'] ?? null;
-
-                // How many units already booked in that time range?
-                $sql = "
-                    SELECT
-                        COALESCE(SUM(CASE WHEN r.status IN ('pending','confirmed') THEN ri.quantity END), 0) AS pending_qty,
-                        COALESCE(SUM(CASE WHEN r.status = 'completed' THEN ri.quantity END), 0) AS completed_qty
-                    FROM reservation_items ri
-                    JOIN reservations r ON r.id = ri.reservation_id
-                    WHERE ri.model_id = :model_id
-                      AND r.status IN ('pending', 'confirmed', 'completed')
-                      AND (r.start_datetime < :end AND r.end_datetime > :start)
-                ";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([
-                    ':model_id' => $mid,
-                    ':start'    => $previewStart,
-                    ':end'      => $previewEnd,
-                ]);
-                $row          = $stmt->fetch();
-                $pendingQty   = $row ? (int)$row['pending_qty'] : 0;
-
-                // Checked-out assets from local cache
-                $activeCheckedOut = booking_count_effective_checked_out_assets($mid, $config, (int)$previewStartTs);
+                $pendingQty = booking_count_reserved_item_quantity(
+                    $pdo,
+                    $itemType,
+                    $itemId,
+                    $previewStart,
+                    $previewEnd,
+                    booking_blocking_reservation_statuses()
+                );
+                $activeCheckedOut = booking_count_effective_checked_out_for_item(
+                    $itemType,
+                    $itemId,
+                    $config,
+                    (int)$previewStartTs
+                );
                 $booked = $pendingQty + $activeCheckedOut;
 
-                // Total requestable units in Snipe-IT
                 if ($requestableTotal === null) {
                     try {
-                        $requestableTotal = count_requestable_assets_by_model($mid);
+                        $requestableTotal = booking_get_requestable_total_for_item($itemType, $itemId);
                     } catch (Throwable $e) {
                         $requestableTotal = 0;
                     }
@@ -171,7 +174,7 @@ if (!empty($basket)) {
                     $free = null; // unknown
                 }
 
-                $availability[$mid] = [
+                $availability[booking_catalogue_item_key($itemType, $itemId)] = [
                     'total'  => $requestableTotal,
                     'booked' => $booked,
                     'free'   => $free,
@@ -205,7 +208,7 @@ if (!empty($basket)) {
         <div class="page-header">
             <h1>Your basket</h1>
             <div class="page-subtitle">
-                Review models and quantities, check date-specific availability, and confirm your booking.
+                Review reserved items and quantities, check date-specific availability, and confirm your booking.
             </div>
         </div>
 
@@ -233,12 +236,12 @@ if (!empty($basket)) {
 
         <?php if (empty($basket)): ?>
             <div class="alert alert-info">
-                Your basket is empty. Add models from the <a href="catalogue.php">catalogue</a>.
+                Your basket is empty. Add items from the <a href="catalogue.php">catalogue</a>.
             </div>
         <?php else: ?>
             <div class="mb-3">
                 <span class="badge-summary">
-                    <?= $distinctModels ?> model(s), <?= $totalItems ?> item(s) total
+                    <?= $distinctItems ?> line item(s), <?= $totalItems ?> item(s) total
                 </span>
             </div>
 
@@ -275,7 +278,8 @@ if (!empty($basket)) {
                 <table class="table table-striped table-bookings align-middle">
                     <thead>
                         <tr>
-                            <th>Model</th>
+                            <th>Item</th>
+                            <th>Type</th>
                             <th>Manufacturer</th>
                             <th>Category</th>
                             <th>Requested qty</th>
@@ -284,17 +288,19 @@ if (!empty($basket)) {
                         </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($models as $entry): ?>
+                    <?php foreach ($items as $entry): ?>
                         <?php
-                            $model = $entry['data'];
-                            $mid   = (int)$entry['id'];
-                            $qty   = (int)$entry['qty'];
+                            $record = is_array($entry['data']) ? $entry['data'] : [];
+                            $itemType = booking_normalize_item_type((string)($entry['type'] ?? 'model'));
+                            $itemId = (int)($entry['id'] ?? 0);
+                            $qty = (int)($entry['qty'] ?? 0);
+                            $itemKey = (string)($entry['key'] ?? booking_catalogue_item_key($itemType, $itemId));
 
                             $availText = 'Not calculated yet';
                             $warnClass = '';
 
-                            if ($previewStart && $previewEnd && isset($availability[$mid])) {
-                                $a = $availability[$mid];
+                            if ($previewStart && $previewEnd && isset($availability[$itemKey])) {
+                                $a = $availability[$itemKey];
                                 if ($a['total'] > 0 && $a['free'] !== null) {
                                     $availText = $a['free'] . ' of ' . $a['total'] . ' units free';
                                     if ($qty > $a['free']) {
@@ -307,17 +313,33 @@ if (!empty($basket)) {
                                     $availText = 'Availability unknown (no total count from Snipe-IT)';
                                 }
                             }
+
+                            $manufacturerName = '';
+                            $categoryName = '';
+                            if ($itemType === 'model') {
+                                $manufacturerName = (string)($record['manufacturer']['name'] ?? '');
+                                $categoryName = (string)($record['category']['name'] ?? '');
+                            } else {
+                                $manufacturerName = is_array($record['manufacturer'] ?? null)
+                                    ? (string)($record['manufacturer']['name'] ?? '')
+                                    : (string)($record['manufacturer_name'] ?? '');
+                                $categoryName = is_array($record['category'] ?? null)
+                                    ? (string)($record['category']['name'] ?? '')
+                                    : (string)($record['category_name'] ?? '');
+                            }
                         ?>
                         <tr>
-                            <td><?= h($model['name'] ?? 'Model') ?></td>
-                            <td><?= h($model['manufacturer']['name'] ?? '') ?></td>
-                            <td><?= h($model['category']['name'] ?? '') ?></td>
+                            <td><?= h($record['name'] ?? 'Item') ?></td>
+                            <td><?= h(ucfirst($itemType)) ?></td>
+                            <td><?= h($manufacturerName) ?></td>
+                            <td><?= h($categoryName) ?></td>
                             <td>
                                 <form method="post"
                                       action="basket_quantity.php"
                                       class="basket-qty-form"
-                                      aria-label="Adjust quantity for <?= h($model['name'] ?? 'model') ?>">
-                                    <input type="hidden" name="model_id" value="<?= $mid ?>">
+                                      aria-label="Adjust quantity for <?= h($record['name'] ?? 'item') ?>">
+                                    <input type="hidden" name="item_type" value="<?= h($itemType) ?>">
+                                    <input type="hidden" name="item_id" value="<?= $itemId ?>">
                                     <button type="submit"
                                             name="direction"
                                             value="down"
@@ -338,7 +360,7 @@ if (!empty($basket)) {
                             </td>
                             <td class="<?= $warnClass ?>"><?= htmlspecialchars($availText) ?></td>
                             <td>
-                                <a href="basket_remove.php?model_id=<?= (int)$model['id'] ?>"
+                                <a href="basket_remove.php?item_type=<?= rawurlencode($itemType) ?>&item_id=<?= $itemId ?>"
                                    class="btn btn-sm btn-outline-danger">
                                     Remove
                                 </a>

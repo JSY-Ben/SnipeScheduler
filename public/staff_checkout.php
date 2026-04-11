@@ -103,6 +103,24 @@ function display_datetime(?string $iso): string
     return app_format_datetime($iso);
 }
 
+function staff_checkout_pluralize_item_name(string $name, int $count): string
+{
+    $name = trim($name);
+    if ($name === '' || $count === 1) {
+        return $name;
+    }
+
+    if (preg_match('/s$/i', $name)) {
+        return $name;
+    }
+
+    if (preg_match('/[^aeiou]y$/i', $name)) {
+        return substr($name, 0, -1) . 'ies';
+    }
+
+    return $name . 's';
+}
+
 function reservation_checkout_asset_default_location(array $asset): string
 {
     $candidates = [
@@ -370,8 +388,12 @@ if ($selectedReservationId) {
             $presetSelections = $storedSelections;
         }
         foreach ($selectedItems as $item) {
-            $mid          = (int)($item['model_id'] ?? 0);
-            $qty          = (int)($item['qty'] ?? 0);
+            $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+            $mid = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
+            $qty = (int)($item['qty'] ?? 0);
+            if ($itemType !== 'model') {
+                continue;
+            }
             if ($mid > 0 && $qty > 0) {
                 $modelLimits[$mid] = $qty;
                 try {
@@ -417,9 +439,10 @@ if ($selectedReservationId) {
             $windowEnd = $selectedStartDt->format('Y-m-d H:i:s');
 
             foreach ($selectedItems as $item) {
-                $mid = (int)($item['model_id'] ?? 0);
+                $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+                $mid = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
                 $qty = (int)($item['qty'] ?? 0);
-                if ($mid <= 0 || $qty <= 0) {
+                if ($itemType !== 'model' || $mid <= 0 || $qty <= 0) {
                     continue;
                 }
 
@@ -471,23 +494,26 @@ if ($selectedReservationId) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
 
-    if (isset($_POST['remove_model_id_all']) || isset($_POST['remove_slot'])) {
-        $removeAll = isset($_POST['remove_model_id_all']);
-        $removeModelId = 0;
+    if (isset($_POST['remove_model_id_all']) || isset($_POST['remove_accessory_id_all']) || isset($_POST['remove_slot'])) {
+        $removeAll = isset($_POST['remove_model_id_all']) || isset($_POST['remove_accessory_id_all']);
+        $removeItemType = isset($_POST['remove_accessory_id_all']) ? 'accessory' : 'model';
+        $removeItemId = 0;
         $removeSlot = null;
-        if ($removeAll) {
-            $removeModelId = (int)($_POST['remove_model_id_all'] ?? 0);
+        if (isset($_POST['remove_accessory_id_all'])) {
+            $removeItemId = (int)($_POST['remove_accessory_id_all'] ?? 0);
+        } elseif (isset($_POST['remove_model_id_all'])) {
+            $removeItemId = (int)($_POST['remove_model_id_all'] ?? 0);
         } elseif (isset($_POST['remove_slot'])) {
             $rawSlot = trim((string)$_POST['remove_slot']);
             if (preg_match('/^(\\d+):(\\d+)$/', $rawSlot, $m)) {
-                $removeModelId = (int)$m[1];
+                $removeItemId = (int)$m[1];
                 $removeSlot = (int)$m[2];
             }
         }
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation before removing items.';
-        } elseif ($removeModelId <= 0) {
-            $checkoutErrors[] = 'Invalid model to remove.';
+        } elseif ($removeItemId <= 0) {
+            $checkoutErrors[] = 'Invalid item to remove.';
         } else {
             $submittedSelections = $_POST['selected_assets'] ?? [];
             $normalizedSelections = [];
@@ -505,21 +531,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            if ($removeAll) {
-                unset($normalizedSelections[$removeModelId]);
-            } elseif (isset($normalizedSelections[$removeModelId])) {
-                if ($removeSlot !== null && $removeSlot >= 0 && isset($normalizedSelections[$removeModelId][$removeSlot])) {
-                    array_splice($normalizedSelections[$removeModelId], $removeSlot, 1);
+            if ($removeItemType === 'model') {
+                if ($removeAll) {
+                    unset($normalizedSelections[$removeItemId]);
+                } elseif (isset($normalizedSelections[$removeItemId])) {
+                    if ($removeSlot !== null && $removeSlot >= 0 && isset($normalizedSelections[$removeItemId][$removeSlot])) {
+                        array_splice($normalizedSelections[$removeItemId], $removeSlot, 1);
+                    } else {
+                        array_pop($normalizedSelections[$removeItemId]);
+                    }
+                    $normalizedSelections[$removeItemId] = array_values($normalizedSelections[$removeItemId]);
                 } else {
-                    array_pop($normalizedSelections[$removeModelId]);
+                    unset($normalizedSelections[$removeItemId]);
                 }
-                $normalizedSelections[$removeModelId] = array_values($normalizedSelections[$removeModelId]);
             }
             if ($selectedReservationId) {
                 $_SESSION['reservation_selected_assets'][$selectedReservationId] = $normalizedSelections;
             }
 
             try {
+                $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':remove_item_type', ':remove_item_id');
                 $totalStmt = $pdo->prepare("
                     SELECT COALESCE(SUM(quantity), 0)
                       FROM reservation_items
@@ -532,12 +563,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     SELECT quantity
                       FROM reservation_items
                      WHERE reservation_id = :rid
-                       AND model_id = :mid
+                       AND {$itemMatchSql}
                      LIMIT 1
                 ");
                 $stmt->execute([
                     ':rid' => $selectedReservationId,
-                    ':mid' => $removeModelId,
+                    ':remove_item_type' => $removeItemType,
+                    ':remove_item_id' => $removeItemId,
                 ]);
                 $currentQty = (int)$stmt->fetchColumn();
 
@@ -556,23 +588,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $del = $pdo->prepare("
                         DELETE FROM reservation_items
                          WHERE reservation_id = :rid
-                           AND model_id = :mid
+                           AND {$itemMatchSql}
                     ");
                     $del->execute([
                         ':rid' => $selectedReservationId,
-                        ':mid' => $removeModelId,
+                        ':remove_item_type' => $removeItemType,
+                        ':remove_item_id' => $removeItemId,
                     ]);
                 } else {
                     $upd = $pdo->prepare("
                         UPDATE reservation_items
                            SET quantity = :qty
                          WHERE reservation_id = :rid
-                           AND model_id = :mid
+                           AND {$itemMatchSql}
                     ");
                     $upd->execute([
                         ':qty' => $currentQty - 1,
                         ':rid' => $selectedReservationId,
-                        ':mid' => $removeModelId,
+                        ':remove_item_type' => $removeItemType,
+                        ':remove_item_id' => $removeItemId,
                     ]);
                 }
 
@@ -669,6 +703,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $checkoutErrors[] = 'Could not add asset: ' . $e->getMessage();
             }
         }
+    } elseif ($mode === 'update_accessory_quantities') {
+        if (!$selectedReservation) {
+            $checkoutErrors[] = 'Please select a reservation before updating accessory quantities.';
+        } else {
+            $submittedSelections = $_POST['selected_assets'] ?? [];
+            if ($selectedReservationId && is_array($submittedSelections)) {
+                $normalizedSelections = [];
+                foreach ($submittedSelections as $midRaw => $choices) {
+                    $mid = (int)$midRaw;
+                    if ($mid <= 0 || !is_array($choices)) {
+                        continue;
+                    }
+                    $normalizedSelections[$mid] = [];
+                    foreach ($choices as $idx => $choice) {
+                        $normalizedSelections[$mid][(int)$idx] = (int)$choice;
+                    }
+                    $normalizedSelections[$mid] = array_values($normalizedSelections[$mid]);
+                }
+                $_SESSION['reservation_selected_assets'][$selectedReservationId] = $normalizedSelections;
+            }
+
+            $postedQuantities = $_POST['accessory_quantities'] ?? [];
+            if (!is_array($postedQuantities)) {
+                $postedQuantities = [];
+            }
+
+            try {
+                $updatedCount = 0;
+                foreach ($selectedItems as $item) {
+                    $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+                    $itemId = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
+                    if ($itemType !== 'accessory' || $itemId <= 0 || !array_key_exists((string)$itemId, $postedQuantities)) {
+                        continue;
+                    }
+
+                    $currentQty = max(1, (int)($item['qty'] ?? 1));
+                    $newQty = (int)$postedQuantities[(string)$itemId];
+                    if ($newQty <= 0) {
+                        throw new RuntimeException('Accessory quantities must be at least 1. Use Remove all to remove an accessory.');
+                    }
+
+                    $availableQty = count_available_accessory_units($itemId);
+                    if ($newQty > $availableQty) {
+                        $itemName = trim((string)($item['name'] ?? ('Accessory #' . $itemId)));
+                        throw new RuntimeException("Only {$availableQty} {$itemName} available for checkout.");
+                    }
+
+                    if ($newQty === $currentQty) {
+                        continue;
+                    }
+
+                    $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':item_type', ':item_id');
+                    $stmt = $pdo->prepare("
+                        UPDATE reservation_items
+                           SET quantity = :qty
+                         WHERE reservation_id = :rid
+                           AND {$itemMatchSql}
+                    ");
+                    $stmt->execute([
+                        ':qty' => $newQty,
+                        ':rid' => $selectedReservationId,
+                        ':item_type' => 'accessory',
+                        ':item_id' => $itemId,
+                    ]);
+                    $updatedCount++;
+                }
+
+                if ($updatedCount > 0) {
+                    $checkoutMessages[] = 'Accessory quantities updated.';
+                } else {
+                    $checkoutMessages[] = 'No accessory quantity changes were needed.';
+                }
+
+                if ($selectedReservationId) {
+                    $_SESSION['selected_reservation_fresh'] = 1;
+                }
+
+                header('Location: ' . $selfUrl);
+                exit;
+            } catch (Throwable $e) {
+                $checkoutErrors[] = 'Could not update accessory quantities: ' . $e->getMessage();
+            }
+        }
     } elseif ($mode === 'reservation_checkout') {
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation before checking out.';
@@ -685,12 +802,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $selectedAssetsInput = $_POST['selected_assets'] ?? [];
+            $accessoryQuantityInput = $_POST['accessory_quantities'] ?? [];
+            if (!is_array($accessoryQuantityInput)) {
+                $accessoryQuantityInput = [];
+            }
             $assetsToCheckout    = [];
 
             // Validate selections against required quantities
             foreach ($selectedItems as $item) {
-                $mid    = (int)$item['model_id'];
-                $qty    = (int)$item['qty'];
+                $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+                $itemId = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
+                $qty = (int)($item['qty'] ?? 0);
+                if ($itemId <= 0 || $qty <= 0) {
+                    continue;
+                }
+
+                if ($itemType === 'accessory') {
+                    if (array_key_exists((string)$itemId, $accessoryQuantityInput)) {
+                        $postedQty = (int)$accessoryQuantityInput[(string)$itemId];
+                        if ($postedQty <= 0) {
+                            $checkoutErrors[] = "Accessory quantity for {$item['name']} must be at least 1.";
+                            continue;
+                        }
+
+                        try {
+                            $availableQty = count_available_accessory_units($itemId);
+                            if ($postedQty > $availableQty) {
+                                $checkoutErrors[] = "Only {$availableQty} {$item['name']} available for checkout.";
+                                continue;
+                            }
+
+                            if ($postedQty !== $qty) {
+                                $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':item_type', ':item_id');
+                                $stmt = $pdo->prepare("
+                                    UPDATE reservation_items
+                                       SET quantity = :qty
+                                     WHERE reservation_id = :rid
+                                       AND {$itemMatchSql}
+                                ");
+                                $stmt->execute([
+                                    ':qty' => $postedQty,
+                                    ':rid' => $selectedReservationId,
+                                    ':item_type' => 'accessory',
+                                    ':item_id' => $itemId,
+                                ]);
+                                $qty = $postedQty;
+                            }
+                        } catch (Throwable $e) {
+                            $checkoutErrors[] = 'Could not update accessory quantity before checkout: ' . $e->getMessage();
+                            continue;
+                        }
+                    }
+
+                    $assetsToCheckout[] = [
+                        'type' => 'accessory',
+                        'item_id' => $itemId,
+                        'qty' => $qty,
+                        'item_name' => $item['name'] ?? ('Accessory #' . $itemId),
+                    ];
+                    continue;
+                }
+
+                $mid = $itemId;
                 $choices = $modelAssets[$mid] ?? [];
                 $choicesById = [];
                 foreach ($choices as $c) {
@@ -721,8 +894,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $seen[$assetIdSel] = true;
                     $assetsToCheckout[] = [
-                        'asset_id'   => $assetIdSel,
-                        'asset_tag'  => $choicesById[$assetIdSel]['asset_tag'] ?? ('ID ' . $assetIdSel),
+                        'type' => 'model',
+                        'asset_id' => $assetIdSel,
+                        'asset_tag' => $choicesById[$assetIdSel]['asset_tag'] ?? ('ID ' . $assetIdSel),
                         'model_name' => $item['name'] ?? '',
                     ];
                 }
@@ -759,18 +933,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             throw new Exception('Matched user has no valid ID.');
                         }
 
+                        $checkedOutLabels = [];
                         foreach ($assetsToCheckout as $a) {
+                            $checkoutType = booking_normalize_item_type((string)($a['type'] ?? 'model'));
+                            if ($checkoutType === 'accessory') {
+                                $accessoryId = (int)($a['item_id'] ?? 0);
+                                $accessoryQty = max(1, (int)($a['qty'] ?? 1));
+                                $accessoryName = trim((string)($a['item_name'] ?? ('Accessory #' . $accessoryId)));
+                                checkout_accessory_to_user($accessoryId, $userId, $accessoryQty, $note);
+                                $label = $accessoryQty > 1 ? ($accessoryName . ' (x' . $accessoryQty . ')') : $accessoryName;
+                                $checkoutMessages[] = "Checked out {$label} to {$userName}.";
+                                $checkedOutLabels[] = $label;
+                                continue;
+                            }
+
                             checkout_asset_to_user((int)$a['asset_id'], $userId, $note, $selectedEnd);
                             $checkoutMessages[] = "Checked out asset {$a['asset_tag']} to {$userName}.";
+                            $tag = $a['asset_tag'] ?? '';
+                            $model = $a['model_name'] ?? '';
+                            $checkedOutLabels[] = $model !== '' ? "{$tag} ({$model})" : $tag;
                         }
 
-                        // Mark reservation as checked out and store asset tags
-                        $assetTags = array_map(function ($a) {
-                            $tag   = $a['asset_tag'] ?? '';
-                            $model = $a['model_name'] ?? '';
-                            return $model !== '' ? "{$tag} ({$model})" : $tag;
-                        }, $assetsToCheckout);
-                        $assetsText = implode(', ', array_filter($assetTags));
+                        $assetsText = implode(', ', array_filter($checkedOutLabels));
 
                         $upd = $pdo->prepare("
                             UPDATE reservations
@@ -792,7 +976,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'subject_id'   => $selectedReservationId,
                             'metadata'     => [
                                 'checked_out_to' => $userName,
-                                'assets'         => $assetTags,
+                                'assets'         => $checkedOutLabels,
                                 'note'           => $note,
                             ],
                         ]);
@@ -805,7 +989,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $dueDate    = $selectedReservation['end_datetime'] ?? '';
                         $dueDisplay = $dueDate ? display_datetime($dueDate) : 'N/A';
 
-                        $assetLines = $assetsText !== '' ? $assetsText : implode(', ', array_filter($assetTags));
+                        $assetLines = $assetsText !== '' ? $assetsText : implode(', ', array_filter($checkedOutLabels));
                         $bodyLines = [
                             "Reservation #{$selectedReservationId} has been checked out.",
                             "Items: {$assetLines}",
@@ -1095,7 +1279,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                         <div><strong>Selected:</strong> #<?= (int)$selectedReservation['id'] ?> – <?= h($selectedReservation['user_name'] ?? '') ?></div>
                         <div>When: <?= h(display_datetime($selectedReservation['start_datetime'] ?? '')) ?> → <?= h(display_datetime($selectedReservation['end_datetime'] ?? '')) ?></div>
                         <?php if (!empty($selectedItems)): ?>
-                            <div>Models &amp; quantities: <?= h(build_items_summary_text($selectedItems)) ?></div>
+                            <div>Items &amp; quantities: <?= h(build_items_summary_text($selectedItems)) ?></div>
                         <?php else: ?>
                             <div>This reservation has no items recorded.</div>
                         <?php endif; ?>
@@ -1175,7 +1359,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                 <div class="card-body">
                     <h5 class="card-title">Reservation checkout</h5>
                     <p class="card-text">
-                        Choose assets for each model in reservation #<?= (int)$selectedReservation['id'] ?>.
+                        Choose concrete assets for model lines and confirm accessory quantities for reservation #<?= (int)$selectedReservation['id'] ?>.
                     </p>
 
                     <form method="post" action="<?= h($selfUrl) ?>">
@@ -1234,13 +1418,23 @@ $active  = basename($_SERVER['PHP_SELF']);
 
                         <?php foreach ($selectedItems as $item): ?>
                             <?php
-                                $mid     = (int)$item['model_id'];
-                                $qty     = (int)$item['qty'];
+                                $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+                                $mid = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
+                                $qty = (int)($item['qty'] ?? 0);
                                 $options = $modelAssets[$mid] ?? [];
-                                $imagePath = $item['image'] ?? '';
+                                $imagePath = (string)($item['image'] ?? '');
                                 $proxiedImage = $imagePath !== ''
                                     ? 'image_proxy.php?src=' . urlencode($imagePath)
                                     : '';
+                                $itemName = trim((string)($item['name'] ?? (ucfirst($itemType) . ' #' . $mid)));
+                                $accessoryAvailableQty = 0;
+                                if ($itemType === 'accessory' && $mid > 0) {
+                                    try {
+                                        $accessoryAvailableQty = count_available_accessory_units($mid);
+                                    } catch (Throwable $e) {
+                                        $accessoryAvailableQty = 0;
+                                    }
+                                }
                             ?>
                             <div class="mb-3">
                                 <table class="table table-sm align-middle reservation-model-table">
@@ -1259,23 +1453,63 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                     <?php endif; ?>
                                                     <div class="reservation-model-title">
                                                         <div class="form-label mb-1">
-                                                            <?= h($item['name'] ?? ('Model #' . $mid)) ?> (need <?= $qty ?>)
+                                                            <?= h($itemName) ?> (need <?= $qty ?>)
                                                         </div>
-                                                        <div class="mt-2">
-                                                            <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
-                                                            <button type="submit"
-                                                                    name="remove_model_id_all"
-                                                                    value="<?= $mid ?>"
-                                                                    class="btn btn-sm btn-outline-danger"
-                                                                    <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
-                                                                Remove all
-                                                            </button>
-                                                        </div>
+                                                        <?php if ($itemType === 'model'): ?>
+                                                            <div class="mt-2">
+                                                                <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
+                                                                <button type="submit"
+                                                                        name="remove_model_id_all"
+                                                                        value="<?= $mid ?>"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                    Remove all
+                                                                </button>
+                                                            </div>
+                                                        <?php elseif ($itemType === 'accessory'): ?>
+                                                            <div class="mt-2">
+                                                                <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
+                                                                <button type="submit"
+                                                                        name="remove_accessory_id_all"
+                                                                        value="<?= $mid ?>"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                    Remove all
+                                                                </button>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
-                                                <?php if (empty($options)): ?>
+                                                <?php if ($itemType === 'accessory'): ?>
+                                                    <div class="alert alert-info mb-0">
+                                                        <div class="d-flex flex-wrap align-items-end gap-2">
+                                                            <div>
+                                                                <label class="form-label mb-1" for="accessory_qty_<?= $mid ?>">
+                                                                    Quantity to checkout
+                                                                </label>
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       id="accessory_qty_<?= $mid ?>"
+                                                                       name="accessory_quantities[<?= $mid ?>]"
+                                                                       value="<?= (int)$qty ?>"
+                                                                       min="1"
+                                                                       max="<?= max(1, (int)$accessoryAvailableQty, (int)$qty) ?>"
+                                                                       step="1">
+                                                            </div>
+                                                            <button type="submit"
+                                                                    name="mode"
+                                                                    value="update_accessory_quantities"
+                                                                    class="btn btn-sm btn-outline-primary">
+                                                                Update quantity
+                                                            </button>
+                                                            <div class="small text-muted">
+                                                                <?= (int)$accessoryAvailableQty ?> <?= h(staff_checkout_pluralize_item_name($itemName, $accessoryAvailableQty)) ?> available now.
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                <?php elseif (empty($options)): ?>
                                                     <div class="alert alert-warning mb-0">
                                                         No assets found in Snipe-IT for this model.
                                                     </div>
@@ -1327,7 +1561,7 @@ $active  = basename($_SERVER['PHP_SELF']);
 <?php endforeach; ?>
 
                         <button type="submit" name="mode" value="reservation_checkout" class="btn btn-primary">
-                            Check out selected assets for this reservation
+                            Check out selected items for this reservation
                         </button>
                     </form>
                 </div>

@@ -19,6 +19,10 @@ if (!defined('CATALOGUE_ITEMS_PER_PAGE')) {
     define('CATALOGUE_ITEMS_PER_PAGE', SNIPEIT_API_PAGE_LIMIT);
 }
 
+if (!defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')) {
+    define('QUICK_CHECKOUT_ITEMS_PER_PAGE', 5);
+}
+
 // ---------------------------------------------------------------------
 // Main config array (keep your existing values here)
 // ---------------------------------------------------------------------
@@ -196,12 +200,30 @@ return [
         // Restrict which Snipe-IT asset statuses count toward catalogue and basket availability.
         // Leave empty to include all statuses.
         'allowed_status_labels' => [],
+        // Show the Models tab on the catalogue page.
+        'show_models_tab' => true,
+        // Show the Accessories tab on the catalogue page.
+        'show_accessories_tab' => true,
+        // Show the Kits tab on the catalogue page.
+        'show_kits_tab' => true,
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
         // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.
         'checked_out_affects_future_availability' => true,
         // Allow non-logged-in users to view Dashboard/Catalogue (booking actions still require login).
         'allow_public_view' => false,
+    ],
+
+    'quick_checkout' => [
+        // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
+        // Leave empty to show all accessory categories.
+        'allowed_accessory_categories' => [],
+        // Show the Equipment tab on the Quick Checkout and Quick Checkin pages.
+        'show_assets_tab' => true,
+        // Show the Accessories tab on the Quick Checkout and Quick Checkin pages.
+        'show_accessories_tab' => true,
+        // Show the Kits tab on the Quick Checkout page.
+        'show_kits_tab' => true,
     ],
 
     'smtp' => [

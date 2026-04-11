@@ -41,6 +41,9 @@ $timezoneOptions = timezone_identifiers_list();
 $categoryOptions    = [];
 $categoryFetchNotice = '';
 $categoryFetchError = '';
+$quickCheckoutAccessoryCategoryOptions = [];
+$quickCheckoutAccessoryCategoryFetchNotice = '';
+$quickCheckoutAccessoryCategoryFetchError = '';
 $statusOptions = [];
 $statusFetchNotice = '';
 $statusFetchError = '';
@@ -67,6 +70,20 @@ try {
             $categoryOptions    = [];
             $categoryFetchError = $e->getMessage();
         }
+    }
+}
+try {
+    $quickCheckoutAccessoryCategoryOptions = fetch_accessory_categories_from_snipeit(false);
+} catch (Throwable $e) {
+    try {
+        $quickCheckoutAccessoryCategoryOptions = fetch_accessory_categories_from_snipeit();
+        if (!empty($quickCheckoutAccessoryCategoryOptions)) {
+            $quickCheckoutAccessoryCategoryFetchNotice = 'Could not refresh live accessory categories from Snipe-IT; showing cached API results.';
+        } else {
+            $quickCheckoutAccessoryCategoryFetchError = $e->getMessage();
+        }
+    } catch (Throwable $cachedApiError) {
+        $quickCheckoutAccessoryCategoryFetchError = $e->getMessage();
     }
 }
 try {
@@ -97,6 +114,7 @@ try {
 $definedValues = [
     'SNIPEIT_API_PAGE_LIMIT'    => defined('SNIPEIT_API_PAGE_LIMIT') ? SNIPEIT_API_PAGE_LIMIT : 12,
     'CATALOGUE_ITEMS_PER_PAGE'  => defined('CATALOGUE_ITEMS_PER_PAGE') ? CATALOGUE_ITEMS_PER_PAGE : 12,
+    'QUICK_CHECKOUT_ITEMS_PER_PAGE' => defined('QUICK_CHECKOUT_ITEMS_PER_PAGE') ? QUICK_CHECKOUT_ITEMS_PER_PAGE : 5,
 ];
 
 function layout_test_db_connection(array $db): string
@@ -384,6 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $pageLimit   = $definedValues['SNIPEIT_API_PAGE_LIMIT'];
     $cataloguePP = max(1, (int)$post('catalogue_items_per_page', $definedValues['CATALOGUE_ITEMS_PER_PAGE']));
+    $quickCheckoutPP = max(1, (int)$post('quick_checkout_items_per_page', $definedValues['QUICK_CHECKOUT_ITEMS_PER_PAGE']));
 
     $useRawSecrets = $action !== 'save';
 
@@ -624,6 +643,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app['reservation_blackout_bypass_quick_checkout'] = isset($_POST['app_res_blackout_bypass_quick_checkout']);
 
     $catalogue = $config['catalogue'] ?? [];
+    $catalogue['show_models_tab'] = isset($_POST['catalogue_show_models_tab']);
+    $catalogue['show_accessories_tab'] = isset($_POST['catalogue_show_accessories_tab']);
+    $catalogue['show_kits_tab'] = isset($_POST['catalogue_show_kits_tab']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -655,6 +677,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $catalogue['allowed_status_labels'] = [];
     }
 
+    $quickCheckout = $config['quick_checkout'] ?? [];
+    $quickCheckoutAccessoryAllowedRaw = $_POST['quick_checkout_allowed_accessory_categories'] ?? [];
+    $quickCheckout['allowed_accessory_categories'] = snipeit_normalize_category_filter_values(
+        is_array($quickCheckoutAccessoryAllowedRaw) ? $quickCheckoutAccessoryAllowedRaw : []
+    );
+    $quickCheckout['show_assets_tab'] = isset($_POST['quick_checkout_show_assets_tab']);
+    $quickCheckout['show_accessories_tab'] = isset($_POST['quick_checkout_show_accessories_tab']);
+    $quickCheckout['show_kits_tab'] = isset($_POST['quick_checkout_show_kits_tab']);
+    unset($quickCheckout['allowed_kit_categories']);
+
     $smtp = $config['smtp'] ?? [];
     $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
     $smtp['port']       = (int)$post('smtp_port', $smtp['port'] ?? 587);
@@ -675,6 +707,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newConfig['microsoft_oauth'] = $ms;
     $newConfig['app']        = $app;
     $newConfig['catalogue']  = $catalogue;
+    $newConfig['quick_checkout'] = $quickCheckout;
     $newConfig['smtp']       = $smtp;
 
     // Keep posted values in the form
@@ -682,6 +715,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $definedValues = [
         'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
         'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
+        'QUICK_CHECKOUT_ITEMS_PER_PAGE' => $quickCheckoutPP,
     ];
 
     if ($action === 'test_db') {
@@ -744,6 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $content = layout_build_config_file($newConfig, [
             'SNIPEIT_API_PAGE_LIMIT'   => $pageLimit,
             'CATALOGUE_ITEMS_PER_PAGE' => $cataloguePP,
+            'QUICK_CHECKOUT_ITEMS_PER_PAGE' => $quickCheckoutPP,
         ]);
 
         if (!is_dir(CONFIG_PATH)) {
@@ -849,6 +884,10 @@ if (!is_array($allowedCategoryIds)) {
     $allowedCategoryIds = [];
 }
 $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
+
+$quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
+    $cfg(['quick_checkout', 'allowed_accessory_categories'], [])
+);
 
 $allowedStatusLabels = $cfg(['catalogue', 'allowed_status_labels'], []);
 if (!is_array($allowedStatusLabels)) {
@@ -1321,6 +1360,42 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-check form-switch">
                                     <input class="form-check-input"
                                            type="checkbox"
+                                           name="catalogue_show_models_tab"
+                                           id="catalogue_show_models_tab"
+                                        <?= $cfg(['catalogue', 'show_models_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_models_tab">
+                                        Display Equipment tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_accessories_tab"
+                                           id="catalogue_show_accessories_tab"
+                                        <?= $cfg(['catalogue', 'show_accessories_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_accessories_tab">
+                                        Display Accessories tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_kits_tab"
+                                           id="catalogue_show_kits_tab"
+                                        <?= $cfg(['catalogue', 'show_kits_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_kits_tab">
+                                        Display Kits tab
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
                                            name="catalogue_checked_out_affects_future_availability"
                                            id="catalogue_checked_out_affects_future_availability"
                                         <?= $cfg(['catalogue', 'checked_out_affects_future_availability'], true) ? 'checked' : '' ?>>
@@ -1370,6 +1445,58 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
+                        <h5 class="card-title mb-1">Quick Checkout/Checkin Display Settings</h5>
+                        <p class="text-muted small mb-3">Control how many items appear per page on Quick Checkout and Quick Checkin, and which tabs are shown.</p>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Items per page</label>
+                                <input type="number" name="quick_checkout_items_per_page" min="1" class="form-control" value="<?= (int)$definedValues['QUICK_CHECKOUT_ITEMS_PER_PAGE'] ?>">
+                                <div class="form-text">Adjust how many accessory or kit rows appear on each Quick Checkout or Quick Checkin page.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_assets_tab"
+                                           id="quick_checkout_show_assets_tab"
+                                        <?= $cfg(['quick_checkout', 'show_assets_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_assets_tab">
+                                        Display Equipment tab on Quick Checkout and Quick Checkin
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_accessories_tab"
+                                           id="quick_checkout_show_accessories_tab"
+                                        <?= $cfg(['quick_checkout', 'show_accessories_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_accessories_tab">
+                                        Display Accessories tab on Quick Checkout and Quick Checkin
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="quick_checkout_show_kits_tab"
+                                           id="quick_checkout_show_kits_tab"
+                                        <?= $cfg(['quick_checkout', 'show_kits_tab'], true) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="quick_checkout_show_kits_tab">
+                                        Display Kits tab on Quick Checkout
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue categories</h5>
                         <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue and skipped by the catalogue cache sync. Leave everything unticked to show all categories.</p>
                         <?php if ($categoryFetchNotice): ?>
@@ -1389,6 +1516,11 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <?php
                                     $cid = (int)($cat['id'] ?? 0);
                                     $cname = $cat['name'] ?? '';
+                                    $categoryType = snipeit_extract_category_type($cat);
+                                    $categoryLabel = trim((string)$cname);
+                                    if ($categoryLabel === '') {
+                                        $categoryLabel = 'Unnamed category';
+                                    }
                                     if ($cid <= 0) {
                                         continue;
                                     }
@@ -1402,7 +1534,10 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                    value="<?= $cid ?>"
                                                 <?= in_array($cid, $allowedCategoryIds, true) ? 'checked' : '' ?>>
                                             <label class="form-check-label" for="cat_filter_<?= $cid ?>">
-                                                <?= h($cname) ?>
+                                                <?= h($categoryLabel) ?>
+                                                <?php if ($categoryType !== ''): ?>
+                                                    <span class="fw-bold small">(<?= h($categoryType) ?>)</span>
+                                                <?php endif; ?>
                                             </label>
                                         </div>
                                     </div>
@@ -1411,6 +1546,56 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             <div class="form-text mt-2">Tip: leave all unchecked to allow every category to show in the dropdown.</div>
                         <?php endif; ?>
 
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Quick Checkout categories</h5>
+                        <p class="text-muted small mb-3">Choose which categories appear on the Quick Checkout Accessories tab. Leave everything unticked to show all accessory categories.</p>
+
+                        <h6 class="fw-semibold mb-2">Accessory categories</h6>
+                        <?php if ($quickCheckoutAccessoryCategoryFetchNotice): ?>
+                            <div class="alert alert-warning small mb-3">
+                                <?= h($quickCheckoutAccessoryCategoryFetchNotice) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($quickCheckoutAccessoryCategoryFetchError): ?>
+                            <div class="alert alert-warning small mb-3">
+                                Could not load accessory categories from Snipe-IT: <?= h($quickCheckoutAccessoryCategoryFetchError) ?>
+                            </div>
+                        <?php elseif (empty($quickCheckoutAccessoryCategoryOptions)): ?>
+                            <div class="text-muted small">No accessory categories available.</div>
+                        <?php else: ?>
+                            <div class="row g-2">
+                                <?php foreach ($quickCheckoutAccessoryCategoryOptions as $option): ?>
+                                    <?php
+                                    $optionValue = (string)($option['value'] ?? '');
+                                    $optionLabel = (string)($option['label'] ?? '');
+                                    if ($optionValue === '' || $optionLabel === '') {
+                                        continue;
+                                    }
+                                    $optionId = 'quick_checkout_accessory_cat_' . substr(md5($optionValue), 0, 12);
+                                    ?>
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="quick_checkout_allowed_accessory_categories[]"
+                                                   id="<?= h($optionId) ?>"
+                                                   value="<?= h($optionValue) ?>"
+                                                <?= in_array($optionValue, $quickCheckoutAllowedAccessoryCategories, true) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="<?= h($optionId) ?>">
+                                                <?= h($optionLabel) ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text mt-2">Tip: leave all unchecked to allow every accessory category to show.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

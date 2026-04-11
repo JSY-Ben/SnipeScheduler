@@ -60,12 +60,28 @@ a.btn.btn-link:visited {
 }
 
 input[type="checkbox"] {
-    accent-color: var(--primary);
+    accent-color: var(--primary) !important;
+}
+
+.form-check-input {
+    accent-color: var(--primary) !important;
 }
 
 .form-check-input:checked {
     background-color: var(--primary);
     border-color: var(--primary);
+}
+
+.form-check-input[type=checkbox]:indeterminate {
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+    accent-color: var(--primary) !important;
+    --bs-form-check-bg-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e") !important;
+    background-image: var(--bs-form-check-bg-image) !important;
+}
+
+#bulk-renew-button {
+    border-radius: var(--bs-border-radius) !important;
 }
 
 .page-shell {
@@ -492,6 +508,53 @@ button.model-image-wrapper {
     outline-offset: -3px;
 }
 
+.model-image-wrapper--kit-grid {
+    align-items: stretch;
+    padding: 8px;
+}
+
+.kit-image-grid {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    gap: 6px;
+}
+
+.kit-image-grid--count-1 {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.kit-image-grid--count-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.kit-image-grid--count-3,
+.kit-image-grid--count-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.kit-image-grid__cell {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+.kit-image-grid__image {
+    width: 100%;
+    height: 100%;
+    padding: 5px;
+    object-fit: contain;
+}
+
 /* Actual images: scale down to fit, never crop */
 .model-image {
     max-width: 100%;
@@ -599,6 +662,10 @@ button.model-image-wrapper {
     width: min(980px, 100%);
 }
 
+.catalogue-modal--upgrade .catalogue-modal__dialog {
+    width: min(640px, 100%);
+}
+
 .catalogue-modal--image-zoom .catalogue-modal__dialog {
     width: min(980px, 100%);
 }
@@ -643,6 +710,32 @@ button.model-image-wrapper {
     background: rgba(var(--primary-soft-rgb), 0.08);
     line-height: 1.55;
     white-space: pre-wrap;
+}
+
+.upgrade-modal__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.6rem;
+}
+
+.upgrade-modal__item {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: rgba(var(--primary-soft-rgb), 0.08);
+}
+
+.upgrade-modal__item strong {
+    color: var(--text);
+}
+
+.upgrade-modal__item span {
+    color: var(--muted);
+    font-size: 0.88rem;
 }
 
 .model-details-section + .model-details-section {
@@ -1499,6 +1592,227 @@ form .form-select {
     background: linear-gradient(135deg, var(--primary), var(--primary-strong));
     border-color: var(--primary-strong) var(--primary-strong) #fff;
     box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.2);
+}
+
+/* --------------------------------------------------
+   Quick checkout
+-------------------------------------------------- */
+
+.quick-checkout-tabs {
+    margin-bottom: 1rem;
+}
+
+.quick-checkout-panel {
+    position: relative;
+}
+
+.quick-checkout-panel.filter-panel.quick-checkout-panel--picker,
+.quick-checkout-panel.filter-panel.quick-checkout-panel--picker .quick-checkout-picker-surface {
+    overflow: visible;
+}
+
+.quick-checkout-panel--picker {
+    z-index: 5;
+}
+
+.quick-checkout-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.quick-checkout-panel__meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.quick-checkout-panel__count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.quick-checkout-panel__intro {
+    font-size: 0.92rem;
+    color: rgba(255, 255, 255, 0.82);
+    font-weight: 500;
+}
+
+.quick-checkout-panel__header--basket {
+    margin-bottom: 0.45rem;
+}
+
+.quick-checkout-panel__subtitle {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.quick-checkout-panel__count {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.quick-checkout-basket-surface {
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--text);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+}
+
+.quick-checkout-picker-surface {
+    padding: 1rem;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--text);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+}
+
+.quick-checkout-panel.filter-panel .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.72);
+    color: #fff;
+}
+
+.quick-checkout-panel.filter-panel .btn-outline-light:hover,
+.quick-checkout-panel.filter-panel .btn-outline-light:active,
+.quick-checkout-panel.filter-panel .btn-outline-light:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #fff;
+    color: #fff;
+}
+
+.quick-checkout-basket-surface .form-label,
+.quick-checkout-basket-surface .form-text {
+    color: var(--muted);
+}
+
+.quick-checkout-picker-surface .form-label,
+.quick-checkout-picker-surface .form-text {
+    color: var(--muted);
+}
+
+.quick-checkout-panel .report-model-cell {
+    gap: 0.7rem;
+}
+
+.quick-checkout-panel .report-model-thumb {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 0.45rem;
+    padding: 3px;
+}
+
+.quick-checkout-panel .report-model-thumb--placeholder {
+    font-size: 0.8rem;
+}
+
+.quick-checkin-row--disabled {
+    opacity: 0.5;
+}
+
+.quick-checkin-row--disabled .btn,
+.quick-checkin-row--disabled .form-check-input {
+    pointer-events: none;
+}
+
+.quick-checkout-asset-submit {
+    display: flex;
+    align-items: flex-end;
+}
+
+.quick-checkout-panel.filter-panel .quick-checkout-asset-submit__button {
+    height: auto;
+    min-height: 0;
+}
+
+.quick-checkin-accessory-filters > [class*="col-"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.quick-checkin-filter-submit {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.quick-checkout-panel.filter-panel .quick-checkin-filter-submit .btn {
+    height: auto;
+    min-height: 0;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
+.quick-checkout-browser {
+    padding: 0;
+    margin-bottom: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.quick-checkout-browser-table th {
+    white-space: nowrap;
+}
+
+.quick-checkout-inline-form {
+    min-width: 180px;
+}
+
+.quick-checkout-inline-form .form-control {
+    max-width: 88px;
+}
+
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    border-color: rgba(var(--primary-rgb), 0.5);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(var(--primary-rgb), 0.18);
+}
+
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:hover,
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:active,
+.quick-checkout-panel.filter-panel .quick-checkout-submit-button:focus-visible {
+    background: linear-gradient(120deg, var(--primary-strong), var(--primary-soft));
+    border-color: rgba(var(--primary-rgb), 0.55);
+    color: #ffffff;
+}
+
+@media (max-width: 575.98px) {
+    .quick-checkout-panel__header,
+    .quick-checkout-panel__meta {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .quick-checkout-panel__subtitle {
+        margin-bottom: 0.85rem;
+    }
+
+    .quick-checkout-inline-form {
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .quick-checkout-inline-form .form-control,
+    .quick-checkout-inline-form .btn {
+        width: 100%;
+        max-width: none;
+    }
 }
 
 /* --------------------------------------------------
