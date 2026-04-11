@@ -1521,9 +1521,6 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     if ($categoryLabel === '') {
                                         $categoryLabel = 'Unnamed category';
                                     }
-                                    if ($categoryType !== '') {
-                                        $categoryLabel .= ' (' . $categoryType . ')';
-                                    }
                                     if ($cid <= 0) {
                                         continue;
                                     }
@@ -1538,6 +1535,9 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 <?= in_array($cid, $allowedCategoryIds, true) ? 'checked' : '' ?>>
                                             <label class="form-check-label" for="cat_filter_<?= $cid ?>">
                                                 <?= h($categoryLabel) ?>
+                                                <?php if ($categoryType !== ''): ?>
+                                                    <span class="fw-bold small">(<?= h($categoryType) ?>)</span>
+                                                <?php endif; ?>
                                             </label>
                                         </div>
                                     </div>
