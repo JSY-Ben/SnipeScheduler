@@ -884,19 +884,19 @@ if ($selectorTab === 'accessories') {
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">User</label>
-                                <input type="text"
-                                       name="accessory_user"
-                                       class="form-control"
-                                       list="accessory-user-options"
-                                       autocomplete="off"
-                                       placeholder="All users"
-                                       value="<?= h($accessoryUserValue) ?>"
-                                       data-accessory-user-filter>
-                                <datalist id="accessory-user-options">
-                                    <?php foreach ($accessoryUsers as $user): ?>
-                                        <option value="<?= h($user) ?>"></option>
-                                    <?php endforeach; ?>
-                                </datalist>
+                                <div class="position-relative accessory-user-autocomplete-wrapper">
+                                    <input type="text"
+                                           name="accessory_user"
+                                           class="form-control accessory-user-autocomplete"
+                                           autocomplete="off"
+                                           placeholder="All users"
+                                           value="<?= h($accessoryUserValue) ?>"
+                                           data-accessory-user-filter
+                                           data-accessory-users="<?= h(json_encode(array_values($accessoryUsers))) ?>">
+                                    <div class="list-group position-absolute w-100"
+                                         data-accessory-user-suggestions
+                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Category</label>
@@ -1182,9 +1182,14 @@ if ($selectorTab === 'accessories') {
     if (accessoryFilterForm) {
         const userInput = accessoryFilterForm.querySelector('[data-accessory-user-filter]');
         const categorySelect = accessoryFilterForm.querySelector('[data-accessory-category-filter]');
-        const userOptions = Array.from(document.querySelectorAll('#accessory-user-options option'))
-            .map((option) => option.value.trim())
-            .filter((value) => value !== '');
+        const userSuggestionList = accessoryFilterForm.querySelector('[data-accessory-user-suggestions]');
+        let userOptions = [];
+        try {
+            userOptions = JSON.parse(userInput ? (userInput.dataset.accessoryUsers || '[]') : '[]');
+        } catch (e) {
+            userOptions = [];
+        }
+        userOptions = userOptions.map((value) => String(value || '').trim()).filter((value) => value !== '');
         const userOptionSet = new Set(userOptions);
         let pendingUserSubmit = null;
 
@@ -1210,6 +1215,7 @@ if ($selectorTab === 'accessories') {
                 if (value === '' || userOptionSet.has(value)) {
                     pendingUserSubmit = setTimeout(submitAccessoryFilters, 150);
                 }
+                renderUserSuggestions(value);
             });
 
             userInput.addEventListener('change', () => {
@@ -1218,6 +1224,52 @@ if ($selectorTab === 'accessories') {
                     submitAccessoryFilters();
                 }
             });
+
+            userInput.addEventListener('focus', () => {
+                renderUserSuggestions(userInput.value.trim());
+            });
+
+            userInput.addEventListener('blur', () => {
+                setTimeout(hideUserSuggestions, 150);
+            });
+        }
+
+        function renderUserSuggestions(query) {
+            if (!userSuggestionList) return;
+            const q = String(query || '').trim().toLowerCase();
+            const matches = userOptions
+                .filter((user) => q === '' || user.toLowerCase().includes(q))
+                .slice(0, 20);
+
+            userSuggestionList.innerHTML = '';
+            if (!matches.length) {
+                hideUserSuggestions();
+                return;
+            }
+
+            matches.forEach((user) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.textContent = user;
+                btn.dataset.value = user;
+
+                btn.addEventListener('click', () => {
+                    userInput.value = btn.dataset.value;
+                    hideUserSuggestions();
+                    submitAccessoryFilters();
+                });
+
+                userSuggestionList.appendChild(btn);
+            });
+
+            userSuggestionList.style.display = 'block';
+        }
+
+        function hideUserSuggestions() {
+            if (!userSuggestionList) return;
+            userSuggestionList.style.display = 'none';
+            userSuggestionList.innerHTML = '';
         }
     }
 })();
