@@ -147,6 +147,114 @@ function qci_assigned_user_key(array $assigned): string
     return 'name:' . strtolower(trim((string)($assigned['name'] ?? '')));
 }
 
+function qci_checkin_item_assigned_label(array $item): string
+{
+    $assignedName = $item['assigned_name'] ?? '';
+    $assignedEmail = $item['assigned_email'] ?? '';
+    if ($assignedEmail !== '') {
+        return $assignedName !== '' && $assignedName !== $assignedEmail
+            ? $assignedName . " <{$assignedEmail}>"
+            : $assignedEmail;
+    }
+
+    if ($assignedName !== '') {
+        return $assignedName;
+    }
+
+    return ($item['item_type'] ?? 'asset') === 'asset' ? 'Not checked out' : '';
+}
+
+function qci_render_checkin_list(array $checkinItems, string $activeTab, string $extraClass = 'mt-4'): void
+{
+    $itemCount = count($checkinItems);
+    ?>
+    <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact <?= h($extraClass) ?>">
+        <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <span class="filter-panel__dot"></span>
+                <div class="filter-panel__title">CHECK-IN LIST</div>
+            </div>
+            <div class="quick-checkout-panel__meta">
+                <span class="quick-checkout-panel__count"><?= (int)$itemCount ?> item<?= $itemCount === 1 ? '' : 's' ?></span>
+            </div>
+        </div>
+        <div class="quick-checkout-panel__subtitle">Items stay here while you switch between tabs.</div>
+
+        <div class="quick-checkout-basket-surface">
+            <?php if (empty($checkinItems)): ?>
+                <div class="alert alert-secondary mb-0">
+                    No items in the check-in list yet. Add equipment or accessories above.
+                </div>
+            <?php else: ?>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Identifier</th>
+                                <th>Name</th>
+                                <th>Model</th>
+                                <th>Checked out to</th>
+                                <th style="width: 80px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($checkinItems as $itemKey => $item): ?>
+                                <?php $itemType = $item['item_type'] ?? 'asset'; ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($itemType === 'asset'): ?>
+                                            <span class="badge bg-primary">Asset</span>
+                                        <?php elseif ($itemType === 'accessory'): ?>
+                                            <span class="badge bg-secondary">Accessory</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($itemType === 'asset'): ?>
+                                            <?= h($item['asset_tag'] ?? '') ?>
+                                        <?php elseif ($itemType === 'accessory'): ?>
+                                            ID: <?= h($item['id'] ?? '') ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= h($item['name'] ?? '') ?></td>
+                                    <td><?= h($item['model'] ?? '') ?></td>
+                                    <td><?= h(qci_checkin_item_assigned_label($item)) ?></td>
+                                    <td>
+                                        <a href="quick_checkin.php?remove=<?= h((string)$itemKey) ?>&tab=<?= h($activeTab) ?>"
+                                           class="btn btn-sm btn-outline-danger">
+                                            Remove
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <form method="post" class="border-top pt-3">
+                    <input type="hidden" name="mode" value="checkin">
+                    <input type="hidden" name="active_tab" value="<?= h($activeTab) ?>">
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Note (optional)</label>
+                            <input type="text"
+                                   name="note"
+                                   class="form-control"
+                                   placeholder="Optional note to store with check-in">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary quick-checkout-submit-button">
+                        Check in all listed items
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
+}
+
 // Remove single item
 if (isset($_GET['remove'])) {
     $rid = (string)$_GET['remove'];
@@ -258,19 +366,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($checkinItems)) {
             $errors[] = 'There are no items in the check-in list.';
         } else {
-            $activeTab = $_POST['active_tab'] ?? 'equipment';
             $itemsToCheckin = $checkinItems;
-            
-            // Filter items based on active tab
-            if ($activeTab === 'equipment') {
-                $itemsToCheckin = array_filter($checkinItems, function($item) {
-                    return ($item['item_type'] ?? 'asset') === 'asset';
-                });
-            }
-            // For accessories tab, process all items
-            
+
             if (empty($itemsToCheckin)) {
-                $errors[] = 'There are no ' . ($activeTab === 'equipment' ? 'assets' : 'items') . ' in the check-in list.';
+                $errors[] = 'There are no items in the check-in list.';
             } else {
                 $hadCheckinItems = !empty($checkinItems);
                 $staffEmail = $currentUser['email'] ?? '';
@@ -746,9 +845,6 @@ if ($selectorTab === 'accessories') {
                         if ($accessoryCategoryValue !== '') $accessoryTabParams['accessory_category'] = $accessoryCategoryValue;
                     }
                     $accessoryTabUrl = 'quick_checkin.php?' . http_build_query($accessoryTabParams);
-                    $checkinEntryCount = $selectorTab === 'equipment' 
-                        ? count(array_filter($checkinItems, function($item) { return ($item['item_type'] ?? 'asset') === 'asset'; }))
-                        : count($checkinItems);
                 ?>
 
                 <ul class="nav reservations-subtabs quick-checkin-tabs mb-3">
@@ -805,93 +901,7 @@ if ($selectorTab === 'accessories') {
                     </div>
                 </div>
 
-                <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
-                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="filter-panel__dot"></span>
-                            <div class="filter-panel__title">CHECK-IN LIST</div>
-                        </div>
-                        <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__count"><?= (int)$checkinEntryCount ?> item<?= $checkinEntryCount === 1 ? '' : 's' ?></span>
-                        </div>
-                    </div>
-                    <div class="quick-checkout-panel__subtitle">Items stay here until you check them in.</div>
-
-                    <div class="quick-checkout-basket-surface">
-                    <?php 
-                        $assetsInCheckinList = array_filter($checkinItems, function($item) { 
-                            return ($item['item_type'] ?? 'asset') === 'asset'; 
-                        });
-                    ?>
-                    <?php if (empty($assetsInCheckinList)): ?>
-                        <div class="alert alert-secondary mb-0">
-                            No assets in the check-in list yet. Scan or enter an asset tag above.
-                        </div>
-                    <?php else: ?>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-sm table-striped align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Asset Tag</th>
-                                        <th>Name</th>
-                                        <th>Model</th>
-                                        <th>Checked out to</th>
-                                        <th style="width: 80px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($assetsInCheckinList as $item): ?>
-                                        <tr>
-                                            <td><?= h($item['asset_tag']) ?></td>
-                                            <td><?= h($item['name']) ?></td>
-                                            <td><?= h($item['model']) ?></td>
-                                            <?php
-                                                $assignedName = $item['assigned_name'] ?? '';
-                                                $assignedEmail = $item['assigned_email'] ?? '';
-                                                if ($assignedEmail !== '') {
-                                                    $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                        ? $assignedName . " <{$assignedEmail}>"
-                                                        : $assignedEmail;
-                                                } elseif ($assignedName !== '') {
-                                                    $assignedLabel = $assignedName;
-                                                } else {
-                                                    $assignedLabel = 'Not checked out';
-                                                }
-                                            ?>
-                                            <td><?= h($assignedLabel) ?></td>
-                                            <td>
-                                                <a href="quick_checkin.php?remove=<?= (int)$item['id'] ?>&tab=equipment"
-                                                   class="btn btn-sm btn-outline-danger">
-                                                    Remove
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <form method="post" class="border-top pt-3">
-                            <input type="hidden" name="mode" value="checkin">
-                            <input type="hidden" name="active_tab" value="equipment">
-
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-12">
-                                    <label class="form-label">Note (optional)</label>
-                                    <input type="text"
-                                           name="note"
-                                           class="form-control"
-                                           placeholder="Optional note to store with check-in">
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary quick-checkout-submit-button">
-                                Check in all listed assets
-                            </button>
-                        </form>
-                    <?php endif; ?>
-                    </div>
-                </div>
+                <?php qci_render_checkin_list($checkinItems, 'equipment', 'mt-4'); ?>
                 <?php elseif ($selectorTab === 'accessories'): ?>
                 <div class="quick-checkout-panel quick-checkout-panel--picker filter-panel filter-panel--compact">
                     <div class="filter-panel__header d-flex align-items-center gap-3">
@@ -953,109 +963,6 @@ if ($selectorTab === 'accessories') {
                         </form>
                     </div>
                 </div>
-
-                <?php if (!empty($checkinItems)): ?>
-                <div class="quick-checkout-panel quick-checkout-panel--basket filter-panel filter-panel--compact mt-4">
-                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="filter-panel__dot"></span>
-                            <div class="filter-panel__title">CHECK-IN LIST</div>
-                        </div>
-                        <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__count"><?= count($checkinItems) ?> item<?= count($checkinItems) === 1 ? '' : 's' ?></span>
-                        </div>
-                    </div>
-                    <div class="quick-checkout-panel__subtitle">Items ready for check-in.</div>
-
-                    <div class="quick-checkout-basket-surface">
-                        <div class="table-responsive mb-3">
-                            <table class="table table-sm table-striped align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Type</th>
-                                        <th>Identifier</th>
-                                        <th>Name</th>
-                                        <th>Model</th>
-                                        <th>Checked out to</th>
-                                        <th style="width: 80px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($checkinItems as $itemKey => $item): ?>
-                                        <tr>
-                                            <td>
-                                                <?php if ($item['item_type'] === 'asset'): ?>
-                                                    <span class="badge bg-primary">Asset</span>
-                                                <?php elseif ($item['item_type'] === 'accessory'): ?>
-                                                    <span class="badge bg-secondary">Accessory</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <?php if ($item['item_type'] === 'asset'): ?>
-                                                    <?= h($item['asset_tag'] ?? '') ?>
-                                                <?php elseif ($item['item_type'] === 'accessory'): ?>
-                                                    ID: <?= h($item['id'] ?? '') ?>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= h($item['name'] ?? '') ?></td>
-                                            <td><?= h($item['model'] ?? '') ?></td>
-                                            <?php
-                                                if ($item['item_type'] === 'asset') {
-                                                    $assignedName = $item['assigned_name'] ?? '';
-                                                    $assignedEmail = $item['assigned_email'] ?? '';
-                                                    if ($assignedEmail !== '') {
-                                                        $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                            ? $assignedName . " <{$assignedEmail}>"
-                                                            : $assignedEmail;
-                                                    } elseif ($assignedName !== '') {
-                                                        $assignedLabel = $assignedName;
-                                                    } else {
-                                                        $assignedLabel = 'Not checked out';
-                                                    }
-                                                } elseif ($item['item_type'] === 'accessory') {
-                                                    $assignedName = $item['assigned_name'] ?? '';
-                                                    $assignedEmail = $item['assigned_email'] ?? '';
-                                                    $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                        ? $assignedName . " <{$assignedEmail}>"
-                                                        : ($assignedEmail ?: $assignedName);
-                                                } else {
-                                                    $assignedLabel = '';
-                                                }
-                                            ?>
-                                            <td><?= h($assignedLabel) ?></td>
-                                            <td>
-                                                <a href="quick_checkin.php?remove=<?= h((string)$itemKey) ?>&tab=accessories"
-                                                   class="btn btn-sm btn-outline-danger">
-                                                    Remove
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <form method="post" class="border-top pt-3">
-                            <input type="hidden" name="mode" value="checkin">
-                            <input type="hidden" name="active_tab" value="accessories">
-
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-12">
-                                    <label class="form-label">Note (optional)</label>
-                                    <input type="text"
-                                           name="note"
-                                           class="form-control"
-                                           placeholder="Optional note to store with check-in">
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary quick-checkout-submit-button">
-                                Check in all listed items
-                            </button>
-                        </form>
-                    </div>
-                </div>
-                <?php endif; ?>
 
                 <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
                     <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
@@ -1131,6 +1038,7 @@ if ($selectorTab === 'accessories') {
                     <?php endif; ?>
                     </div>
                 </div>
+                <?php qci_render_checkin_list($checkinItems, 'accessories', 'mt-4'); ?>
                 <?php endif; ?>
             </div>
         </div>
