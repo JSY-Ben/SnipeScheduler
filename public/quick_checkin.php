@@ -62,8 +62,8 @@ $errors   = [];
 
 // Remove single item
 if (isset($_GET['remove'])) {
-    $rid = (int)$_GET['remove'];
-    if ($rid > 0 && isset($checkinItems[$rid])) {
+    $rid = (string)$_GET['remove'];
+    if ($rid !== '' && isset($checkinItems[$rid])) {
         unset($checkinItems[$rid]);
     }
     $redirectTab = $_GET['tab'] ?? 'equipment';
@@ -133,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Invalid accessory ID.';
         } else {
             try {
+                $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
                 // Find the accessory in the checked out list
                 $found = false;
                 foreach ($checkedOutAccessories as $accessory) {
@@ -191,12 +192,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $summaryBuckets = [];
                 $userLookupCache = [];
                 $userIdCache = [];
+                $checkedInItemKeys = [];
 
-                foreach ($itemsToCheckin as $item) {
+                foreach ($itemsToCheckin as $itemKey => $item) {
                 $itemType = $item['item_type'] ?? 'asset';
                 $itemId  = (int)$item['id'];
                 $itemName = $item['name'] ?? '';
                 try {
+                    $checkedInItemKeys[] = $itemKey;
                     $assignedEmail = $item['assigned_email'] ?? '';
                     $assignedName  = $item['assigned_name'] ?? '';
                     $assignedId    = (int)($item['assigned_id'] ?? 0);
@@ -317,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     if ($assignedEmail === '' && $assignedName === '' && $assignedId === 0) {
                         try {
-                            $history = snipeit_request('GET', 'hardware/' . $assetId . '/history');
+                            $history = snipeit_request('GET', 'hardware/' . $itemId . '/history');
                             $rows = $history['rows'] ?? [];
                             foreach ($rows as $row) {
                                 $action = strtolower((string)($row['action_type'] ?? ($row['action'] ?? '')));
@@ -459,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!empty($perUserSummary)) {
                         $staffBodyLines = array_merge($staffBodyLines, $perUserSummary);
                     } else {
-                        $staffBodyLines = array_merge($staffBodyLines, $assetLineItems);
+                        $staffBodyLines = array_merge($staffBodyLines, $itemLineItems);
                     }
                     if ($note !== '') {
                         $staffBodyLines[] = "Note: {$note}";
@@ -469,7 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     // Notify staff performing check-in.
-                    if ($sendStaffDefault && $staffEmail !== '' && !empty($assetTags)) {
+                    if ($sendStaffDefault && $staffEmail !== '' && !empty($itemLabels)) {
                         layout_send_notification($staffEmail, $staffDisplayName, 'Items checked in', $staffBodyLines, $config);
                         $notifiedEmails[] = $staffEmail;
                     }
@@ -484,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!empty($perUserSummary)) {
                         $extraBodyLines = array_merge($extraBodyLines, $perUserSummary);
                     } else {
-                        $extraBodyLines = array_merge($extraBodyLines, $assetLineItems);
+                        $extraBodyLines = array_merge($extraBodyLines, $itemLineItems);
                     }
                     if ($staffDisplayName !== '') {
                         $extraBodyLines[] = "Checked in by: {$staffDisplayName}";
@@ -509,17 +512,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $checkedInFrom = array_keys($summaryBuckets);
                 activity_log_event('quick_checkin', 'Quick checkin completed', [
                     'metadata' => [
-                        'assets' => $assetTags,
+                        'items' => $itemLabels,
                         'checked_in_from' => $checkedInFrom,
                         'note'   => $note,
                     ],
                 ]);
             }
             if ($hadCheckinItems) {
-                $checkinItems = [];
+                foreach ($checkedInItemKeys as $itemKey) {
+                    unset($checkinItems[$itemKey]);
+                }
             }
         }
     }
+}
 }
 
 $checkedOutAccessories = [];
@@ -866,7 +872,7 @@ if ($selectorTab === 'accessories') {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($checkinItems as $item): ?>
+                                    <?php foreach ($checkinItems as $itemKey => $item): ?>
                                         <tr>
                                             <td>
                                                 <?php if ($item['item_type'] === 'asset'): ?>
@@ -898,23 +904,18 @@ if ($selectorTab === 'accessories') {
                                                         $assignedLabel = 'Not checked out';
                                                     }
                                                 } elseif ($item['item_type'] === 'accessory') {
-                                                    $assigned = $item['assigned_to'] ?? [];
-                                                    if (is_array($assigned)) {
-                                                        $assignedName = $assigned['name'] ?? '';
-                                                        $assignedEmail = $assigned['email'] ?? '';
-                                                        $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                            ? $assignedName . " <{$assignedEmail}>"
-                                                            : ($assignedEmail ?: $assignedName);
-                                                    } else {
-                                                        $assignedLabel = (string)$assigned;
-                                                    }
+                                                    $assignedName = $item['assigned_name'] ?? '';
+                                                    $assignedEmail = $item['assigned_email'] ?? '';
+                                                    $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
+                                                        ? $assignedName . " <{$assignedEmail}>"
+                                                        : ($assignedEmail ?: $assignedName);
                                                 } else {
                                                     $assignedLabel = '';
                                                 }
                                             ?>
                                             <td><?= h($assignedLabel) ?></td>
                                             <td>
-                                                <a href="quick_checkin.php?remove=<?= (int)$item['id'] ?>&tab=accessories"
+                                                <a href="quick_checkin.php?remove=<?= h((string)$itemKey) ?>&tab=accessories"
                                                    class="btn btn-sm btn-outline-danger">
                                                     Remove
                                                 </a>
@@ -1007,10 +1008,10 @@ if ($selectorTab === 'accessories') {
                                             <td><?= h($accessory['last_checkout'] ?? '') ?></td>
                                             <td>
                                                 <form method="post" class="d-inline">
-                                                    <input type="hidden" name="action" value="add_accessory">
+                                                    <input type="hidden" name="mode" value="add_accessory">
                                                     <input type="hidden" name="accessory_id" value="<?= h($accessory['id'] ?? '') ?>">
                                                     <input type="hidden" name="accessory_checkout_id" value="<?= h($accessory['accessory_checkout_id'] ?? '') ?>">
-                                                    <input type="hidden" name="tab" value="accessories">
+                                                    <input type="hidden" name="active_tab" value="accessories">
                                                     <button type="submit" class="btn btn-sm btn-outline-primary">Add to Check-in list</button>
                                                 </form>
                                             </td>
