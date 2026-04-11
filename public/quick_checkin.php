@@ -943,7 +943,7 @@ if ($selectorTab === 'accessories') {
                     <div class="filter-panel__header d-flex align-items-center gap-3">
                         <span class="filter-panel__dot"></span>
                         <div>
-                            <div class="filter-panel__title">CHECKED OUT ACCESSORIES</div>
+                            <div class="filter-panel__title">SEARCH</div>
                             <div class="quick-checkout-panel__intro">Browse and filter currently checked out accessories.</div>
                         </div>
                     </div>
