@@ -1631,7 +1631,8 @@ if ($selectorTab === 'accessories') {
                                                    name="browse_search"
                                                    class="form-control form-control-lg filter-search__input"
                                                    value="<?= h($browseSearchValue) ?>"
-                                                   placeholder="Search by accessory name or manufacturer">
+                                                   placeholder="Search by accessory name or manufacturer"
+                                                   autofocus>
                                         </div>
                                     </div>
                                     <div class="col-md-3">
