@@ -253,6 +253,133 @@ function http_get_json(string $url, array $headers = []): array
     return $data;
 }
 
+function catalogue_extract_image_path_from_value($value): string
+{
+    if (is_array($value)) {
+        $candidates = [
+            $value['url'] ?? null,
+            $value['src'] ?? null,
+            $value['href'] ?? null,
+            $value['path'] ?? null,
+            $value['image'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            $path = catalogue_extract_image_path_from_value($candidate);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+
+        return '';
+    }
+
+    return trim((string)$value);
+}
+
+function catalogue_extract_record_image_path(array $row): string
+{
+    $candidates = [
+        $row['image'] ?? null,
+        $row['image_url'] ?? null,
+        $row['image_path'] ?? null,
+        $row['thumbnail'] ?? null,
+        $row['thumbnail_url'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $path = catalogue_extract_image_path_from_value($candidate);
+        if ($path !== '') {
+            return $path;
+        }
+    }
+
+    foreach (['model', 'asset_model'] as $nestedKey) {
+        if (isset($row[$nestedKey]) && is_array($row[$nestedKey])) {
+            $path = catalogue_extract_record_image_path($row[$nestedKey]);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+    }
+
+    return '';
+}
+
+function catalogue_kit_model_row_id(array $row): int
+{
+    foreach (['id', 'model_id', 'item_id'] as $field) {
+        if (isset($row[$field]) && is_numeric($row[$field])) {
+            return max(0, (int)$row[$field]);
+        }
+    }
+
+    foreach (['model', 'asset_model'] as $nestedKey) {
+        if (isset($row[$nestedKey]) && is_array($row[$nestedKey])) {
+            $id = catalogue_kit_model_row_id($row[$nestedKey]);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+    }
+
+    return 0;
+}
+
+function catalogue_kit_model_image_items(array $modelRows): array
+{
+    static $cachedModelById = [];
+
+    $items = [];
+    $seen = [];
+    foreach ($modelRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $modelId = catalogue_kit_model_row_id($row);
+        $seenKey = $modelId > 0 ? ('id:' . $modelId) : ('row:' . count($seen));
+        if (isset($seen[$seenKey])) {
+            continue;
+        }
+        $seen[$seenKey] = true;
+
+        $name = trim((string)($row['name'] ?? ($row['model']['name'] ?? 'Model')));
+        $imagePath = catalogue_extract_record_image_path($row);
+
+        if ($imagePath === '' && $modelId > 0) {
+            if (!array_key_exists($modelId, $cachedModelById)) {
+                try {
+                    $cachedModelById[$modelId] = snipeit_get_cached_model($modelId);
+                } catch (Throwable $e) {
+                    $cachedModelById[$modelId] = null;
+                }
+            }
+
+            if (is_array($cachedModelById[$modelId])) {
+                $imagePath = catalogue_extract_record_image_path($cachedModelById[$modelId]);
+                if ($name === 'Model') {
+                    $name = trim((string)($cachedModelById[$modelId]['name'] ?? $name));
+                }
+            }
+        }
+
+        if ($imagePath === '') {
+            continue;
+        }
+
+        $items[] = [
+            'src' => 'image_proxy.php?src=' . urlencode($imagePath),
+            'label' => $name !== '' ? $name : 'Model',
+        ];
+
+        if (count($items) >= 4) {
+            break;
+        }
+    }
+
+    return $items;
+}
+
 function google_directory_search(string $q, array $config): array
 {
     $dirCfg = $config['google_directory'] ?? [];
@@ -1972,8 +2099,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $kitSummary = '';
                         $kitUnsupportedLabels = [];
                         $kitCanAdd = true;
+                        $kitModelImageItems = [];
                         try {
                             $kitBreakdown = get_kit_booking_breakdown($kitId);
+                            $kitModelImageItems = catalogue_kit_model_image_items($kitBreakdown['models'] ?? []);
                             $supportedParts = [];
                             $supportedModelCount = count($kitBreakdown['models'] ?? []);
                             $supportedAccessoryCount = count($kitBreakdown['accessories'] ?? []);
@@ -2003,9 +2132,24 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card">
-                            <div class="model-image-wrapper model-image-wrapper--placeholder">
-                                <div class="model-image-placeholder">Kit</div>
-                            </div>
+                            <?php if (!empty($kitModelImageItems)): ?>
+                                <div class="model-image-wrapper model-image-wrapper--kit-grid">
+                                    <div class="kit-image-grid kit-image-grid--count-<?= count($kitModelImageItems) ?>">
+                                        <?php foreach ($kitModelImageItems as $imageItem): ?>
+                                            <div class="kit-image-grid__cell">
+                                                <img src="<?= h($imageItem['src']) ?>"
+                                                     alt=""
+                                                     title="<?= h($imageItem['label']) ?>"
+                                                     class="kit-image-grid__image">
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="model-image-wrapper model-image-wrapper--placeholder">
+                                    <div class="model-image-placeholder">Kit</div>
+                                </div>
+                            <?php endif; ?>
 
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title"><?= label_safe($kitName) ?></h5>
