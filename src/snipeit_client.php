@@ -2926,10 +2926,45 @@ function get_bookable_accessories(
     ];
 }
 
+function snipeit_find_accessory_in_collection(int $accessoryId, bool $allowResponseCache = true): ?array
+{
+    static $lookups = [];
+
+    if ($accessoryId <= 0) {
+        return null;
+    }
+
+    $cacheKey = $allowResponseCache ? 'cached' : 'fresh';
+    if (!array_key_exists($cacheKey, $lookups)) {
+        $lookups[$cacheKey] = [];
+        try {
+            foreach (fetch_all_accessories_from_snipeit('', $allowResponseCache) as $accessory) {
+                if (!is_array($accessory)) {
+                    continue;
+                }
+
+                $id = (int)($accessory['id'] ?? 0);
+                if ($id > 0 && !isset($lookups[$cacheKey][$id])) {
+                    $lookups[$cacheKey][$id] = $accessory;
+                }
+            }
+        } catch (Throwable $e) {
+            $lookups[$cacheKey] = [];
+        }
+    }
+
+    return $lookups[$cacheKey][$accessoryId] ?? null;
+}
+
 function get_accessory(int $accessoryId): array
 {
     if ($accessoryId <= 0) {
         throw new InvalidArgumentException('Invalid accessory ID');
+    }
+
+    $collectionAccessory = snipeit_find_accessory_in_collection($accessoryId);
+    if ($collectionAccessory !== null) {
+        return $collectionAccessory;
     }
 
     return snipeit_request('GET', 'accessories/' . $accessoryId);
@@ -2946,7 +2981,10 @@ function count_available_accessory_units(int $accessoryId): int
         return $cache[$accessoryId];
     }
 
-    $accessory = get_accessory($accessoryId);
+    $accessory = snipeit_find_accessory_in_collection($accessoryId);
+    if ($accessory === null) {
+        $accessory = get_accessory($accessoryId);
+    }
     $cache[$accessoryId] = snipeit_accessory_available_quantity_from_payload($accessory);
 
     return $cache[$accessoryId];
