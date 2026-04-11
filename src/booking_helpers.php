@@ -195,6 +195,44 @@ function booking_fetch_catalogue_item_record(string $type, int $itemId): ?array
     }
 }
 
+function booking_extract_catalogue_item_image_path(array $record): string
+{
+    $candidates = [
+        $record['image'] ?? null,
+        $record['image_path'] ?? null,
+        $record['image_url'] ?? null,
+        $record['thumbnail'] ?? null,
+        $record['thumbnail_url'] ?? null,
+        $record['photo'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_array($candidate)) {
+            foreach (['url', 'src', 'href', 'path', 'image'] as $key) {
+                $nested = trim((string)($candidate[$key] ?? ''));
+                if ($nested !== '') {
+                    return $nested;
+                }
+            }
+            continue;
+        }
+
+        $value = trim((string)$candidate);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    if (isset($record['category']) && is_array($record['category'])) {
+        $categoryImage = booking_extract_catalogue_item_image_path($record['category']);
+        if ($categoryImage !== '') {
+            return $categoryImage;
+        }
+    }
+
+    return '';
+}
+
 function booking_get_requestable_total_for_item(string $type, int $itemId): int
 {
     $type = booking_normalize_item_type($type);
@@ -396,12 +434,11 @@ function booking_count_effective_checked_out_assets(int $modelId, array $config,
  *
  * Returns an array of:
  *   [
- *     ['model_id' => 123, 'name' => 'Canon 5D', 'qty' => 2, 'image' => '/uploads/models/...'],
+ *     ['type' => 'model', 'item_id' => 123, 'name' => 'Canon 5D', 'qty' => 2, 'image' => '/uploads/models/...'],
  *     ...
  *   ]
  *
- * Assumes reservation_items has: reservation_id, model_id, quantity.
- * Uses Snipe-IT get_model($modelId) to resolve names.
+ * Uses Snipe-IT catalogue records to resolve names and images where possible.
  */
 function get_reservation_items_with_names(PDO $pdo, int $reservationId): array
 {
@@ -446,9 +483,7 @@ function get_reservation_items_with_names(PDO $pdo, int $reservationId): array
         if ($name === '') {
             $name = $fallbackName;
         }
-        $image = $itemType === 'model'
-            ? trim((string)($record['image'] ?? ''))
-            : '';
+        $image = is_array($record) ? booking_extract_catalogue_item_image_path($record) : '';
 
         $items[] = [
             'type' => $itemType,

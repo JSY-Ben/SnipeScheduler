@@ -103,6 +103,24 @@ function display_datetime(?string $iso): string
     return app_format_datetime($iso);
 }
 
+function staff_checkout_pluralize_item_name(string $name, int $count): string
+{
+    $name = trim($name);
+    if ($name === '' || $count === 1) {
+        return $name;
+    }
+
+    if (preg_match('/s$/i', $name)) {
+        return $name;
+    }
+
+    if (preg_match('/[^aeiou]y$/i', $name)) {
+        return substr($name, 0, -1) . 'ies';
+    }
+
+    return $name . 's';
+}
+
 function reservation_checkout_asset_default_location(array $asset): string
 {
     $candidates = [
@@ -1270,10 +1288,19 @@ $active  = basename($_SERVER['PHP_SELF']);
                                 $mid = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
                                 $qty = (int)($item['qty'] ?? 0);
                                 $options = $modelAssets[$mid] ?? [];
-                                $imagePath = $itemType === 'model' ? ($item['image'] ?? '') : '';
+                                $imagePath = (string)($item['image'] ?? '');
                                 $proxiedImage = $imagePath !== ''
                                     ? 'image_proxy.php?src=' . urlencode($imagePath)
                                     : '';
+                                $itemName = trim((string)($item['name'] ?? (ucfirst($itemType) . ' #' . $mid)));
+                                $accessoryAvailableQty = 0;
+                                if ($itemType === 'accessory' && $mid > 0) {
+                                    try {
+                                        $accessoryAvailableQty = count_available_accessory_units($mid);
+                                    } catch (Throwable $e) {
+                                        $accessoryAvailableQty = 0;
+                                    }
+                                }
                             ?>
                             <div class="mb-3">
                                 <table class="table table-sm align-middle reservation-model-table">
@@ -1292,7 +1319,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                     <?php endif; ?>
                                                     <div class="reservation-model-title">
                                                         <div class="form-label mb-1">
-                                                            <?= h($item['name'] ?? (ucfirst($itemType) . ' #' . $mid)) ?> (need <?= $qty ?>)
+                                                            <?= h($itemName) ?> (need <?= $qty ?>)
                                                         </div>
                                                         <?php if ($itemType === 'model'): ?>
                                                             <div class="mt-2">
@@ -1312,7 +1339,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                             <td>
                                                 <?php if ($itemType === 'accessory'): ?>
                                                     <div class="alert alert-info mb-0">
-                                                        This will check out <?= $qty ?> accessory unit<?= $qty === 1 ? '' : 's' ?> directly in Snipe-IT.
+                                                        This will checkout <?= (int)$qty ?> of your <?= (int)$accessoryAvailableQty ?> <?= h(staff_checkout_pluralize_item_name($itemName, $accessoryAvailableQty)) ?>.
                                                     </div>
                                                 <?php elseif (empty($options)): ?>
                                                     <div class="alert alert-warning mb-0">
