@@ -1682,8 +1682,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         <select name="category" class="form-select">
                             <option value="">All categories</option>
                             <?php
-                            $categoryList = $catalogueTab === 'accessories' ? $accessoryCategories : $categories;
-                            foreach ($categoryList as $cat): ?>
+                            foreach ($categories as $cat): ?>
                                 <?php
                                 $cid   = (int)($cat['id'] ?? 0);
                                 $cname = $cat['name'] ?? '';

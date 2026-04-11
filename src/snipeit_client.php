@@ -1367,6 +1367,23 @@ function get_bookable_models(
  * @return array
  * @throws Exception
  */
+function get_model_categories(): array
+{
+    $cached = snipeit_get_cached_model_categories();
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    return fetch_model_categories_from_snipeit();
+}
+
+/**
+ * Fetch all accessory categories from Snipe-IT.
+ * Always returned A–Z by name (client-side sort).
+ *
+ * @return array
+ * @throws Exception
+ */
 function get_accessory_categories(): array
 {
     $cached = snipeit_get_cached_accessory_categories();
