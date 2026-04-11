@@ -1606,6 +1606,15 @@ form .form-select {
     position: relative;
 }
 
+.quick-checkout-panel.filter-panel.quick-checkout-panel--picker,
+.quick-checkout-panel.filter-panel.quick-checkout-panel--picker .quick-checkout-picker-surface {
+    overflow: visible;
+}
+
+.quick-checkout-panel--picker {
+    z-index: 5;
+}
+
 .quick-checkout-panel__header {
     display: flex;
     justify-content: space-between;

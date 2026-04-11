@@ -120,6 +120,17 @@ function qci_assigned_user_fields($assigned): array
     ];
 }
 
+function qci_assigned_user_label(array $assigned): string
+{
+    $name = trim((string)($assigned['name'] ?? ''));
+    $email = trim((string)($assigned['email'] ?? ''));
+    if ($name !== '' && $email !== '' && $name !== $email) {
+        return $name . " <{$email}>";
+    }
+
+    return $email !== '' ? $email : $name;
+}
+
 // Remove single item
 if (isset($_GET['remove'])) {
     $rid = (string)$_GET['remove'];
@@ -602,11 +613,9 @@ if ($selectorTab === 'accessories') {
         $categorySet = [];
         foreach ($checkedOutAccessories as $item) {
             $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
-            if ($assigned['name'] !== '') {
-                $userSet[$assigned['name']] = $assigned['name'];
-            }
-            if ($assigned['email'] !== '') {
-                $userSet[$assigned['email']] = $assigned['email'];
+            $assignedLabel = qci_assigned_user_label($assigned);
+            if ($assignedLabel !== '') {
+                $userSet[$assignedLabel] = $assignedLabel;
             }
 
             $category = qci_accessory_category_name($item);
@@ -633,7 +642,9 @@ if ($selectorTab === 'accessories') {
         if ($accessoryUserValue !== '') {
             $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryUserValue) {
                 $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
-                return $assigned['name'] === $accessoryUserValue || $assigned['email'] === $accessoryUserValue;
+                return $assigned['name'] === $accessoryUserValue ||
+                    $assigned['email'] === $accessoryUserValue ||
+                    qci_assigned_user_label($assigned) === $accessoryUserValue;
             });
         }
         
@@ -754,7 +765,7 @@ if ($selectorTab === 'accessories') {
                                     </div>
                                     <div class="list-group position-absolute w-100"
                                          data-asset-suggestions
-                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
+                                         style="z-index: 1050; display: none;"></div>
                                 </div>
                             </div>
                             <div class="col-md-3 quick-checkout-asset-submit">
@@ -895,7 +906,11 @@ if ($selectorTab === 'accessories') {
                                            data-accessory-users="<?= h(json_encode(array_values($accessoryUsers))) ?>">
                                     <div class="list-group position-absolute w-100"
                                          data-accessory-user-suggestions
+<<<<<<< HEAD
                                          style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
+=======
+                                         style="z-index: 1050; display: none;"></div>
+>>>>>>> 85bbbea (Allow overflow on autocomplete)
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -1068,11 +1083,7 @@ if ($selectorTab === 'accessories') {
                                             <?php
                                                 $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
                                                 if ($assigned['name'] !== '' || $assigned['email'] !== '') {
-                                                    $assignedName = $assigned['name'];
-                                                    $assignedEmail = $assigned['email'];
-                                                    $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
-                                                        ? $assignedName . " <{$assignedEmail}>"
-                                                        : ($assignedEmail ?: $assignedName);
+                                                    $assignedLabel = qci_assigned_user_label($assigned);
                                                 } else {
                                                     $assignedLabel = '';
                                                 }
