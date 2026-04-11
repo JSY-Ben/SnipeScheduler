@@ -900,6 +900,10 @@ document.addEventListener('DOMContentLoaded', function () {
             control.disabled = control.dataset.initiallyDisabled === '1' || accessorySelected;
             control.title = accessorySelected ? accessoryRenewMessage : '';
         });
+        if (bulkRenewButton) {
+            bulkRenewButton.classList.toggle('btn-outline-secondary', accessorySelected);
+            bulkRenewButton.classList.toggle('btn-outline-primary', !accessorySelected);
+        }
 
         if (selectAll) {
             selectAll.checked = enabledBoxes.length > 0 && checkedBoxes.length === enabledBoxes.length;
