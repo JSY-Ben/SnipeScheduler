@@ -782,6 +782,7 @@ function snipeit_get_cached_model_categories(): ?array
             $categories[] = [
                 'id' => (int)($row['id'] ?? 0),
                 'name' => (string)($row['name'] ?? ''),
+                'category_type' => 'asset',
                 'requestable_count' => (int)($row['requestable_count'] ?? 0),
             ];
         }
@@ -1027,6 +1028,51 @@ function snipeit_extract_category_name(array $row): string
     foreach ($candidates as $candidate) {
         if (is_string($candidate) && trim($candidate) !== '') {
             return trim($candidate);
+        }
+    }
+
+    return '';
+}
+
+function snipeit_normalize_category_type($categoryType): string
+{
+    $type = snipeit_extract_display_name($categoryType);
+    if ($type === '') {
+        return '';
+    }
+
+    $type = strtolower(str_replace(['_', '-'], ' ', $type));
+    $type = trim((string)preg_replace('/\s+/', ' ', $type));
+
+    $aliases = [
+        'asset model' => 'asset',
+        'assets' => 'asset',
+        'hardware' => 'asset',
+        'accessories' => 'accessory',
+        'licenses' => 'license',
+        'components' => 'component',
+        'consumables' => 'consumable',
+    ];
+
+    return $aliases[$type] ?? $type;
+}
+
+function snipeit_extract_category_type(array $row): string
+{
+    $category = $row['category'] ?? null;
+    $candidates = [];
+    if (is_array($category)) {
+        $candidates[] = $category['category_type'] ?? null;
+        $candidates[] = $category['categoryType'] ?? null;
+    }
+
+    $candidates[] = $row['category_type'] ?? null;
+    $candidates[] = $row['categoryType'] ?? null;
+
+    foreach ($candidates as $candidate) {
+        $type = snipeit_normalize_category_type($candidate);
+        if ($type !== '') {
+            return $type;
         }
     }
 

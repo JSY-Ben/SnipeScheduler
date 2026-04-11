@@ -1516,6 +1516,14 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <?php
                                     $cid = (int)($cat['id'] ?? 0);
                                     $cname = $cat['name'] ?? '';
+                                    $categoryType = snipeit_extract_category_type($cat);
+                                    $categoryLabel = trim((string)$cname);
+                                    if ($categoryLabel === '') {
+                                        $categoryLabel = 'Unnamed category';
+                                    }
+                                    if ($categoryType !== '') {
+                                        $categoryLabel .= ' (' . $categoryType . ')';
+                                    }
                                     if ($cid <= 0) {
                                         continue;
                                     }
@@ -1529,7 +1537,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                    value="<?= $cid ?>"
                                                 <?= in_array($cid, $allowedCategoryIds, true) ? 'checked' : '' ?>>
                                             <label class="form-check-label" for="cat_filter_<?= $cid ?>">
-                                                <?= h($cname) ?>
+                                                <?= h($categoryLabel) ?>
                                             </label>
                                         </div>
                                     </div>
