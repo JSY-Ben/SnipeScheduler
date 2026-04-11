@@ -59,6 +59,7 @@ $accessoryCategoryValue = trim((string)($_POST['accessory_category'] ?? ($_GET['
 
 $messages = [];
 $errors   = [];
+$focusCheckinList = false;
 
 function qci_extract_record_image_path(array $record): string
 {
@@ -194,7 +195,9 @@ function qci_render_checkin_list(array $checkinItems, string $activeTab, string 
 {
     $itemCount = count($checkinItems);
     ?>
-    <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact <?= h($extraClass) ?>">
+    <div id="check-in-list"
+         class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact <?= h($extraClass) ?>"
+         tabindex="-1">
         <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
             <div class="d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
@@ -343,6 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 $label = $modelName !== '' ? $modelName : $assetName;
                 $messages[] = "Added asset {$assetTag} ({$label}) to check-in list.";
+                $focusCheckinList = true;
             } catch (Throwable $e) {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
@@ -387,6 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messages[] = $added === 1
                     ? 'Added 1 accessory to the check-in list.'
                     : "Added {$added} accessories to the check-in list.";
+                $focusCheckinList = true;
             } catch (Throwable $e) {
                 $errors[] = 'Could not add accessories: ' . $e->getMessage();
             }
@@ -828,7 +833,7 @@ if ($selectorTab === 'accessories') {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4">
+<body class="p-4" data-focus-checkin-list="<?= $focusCheckinList ? '1' : '0' ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -1099,6 +1104,14 @@ if ($selectorTab === 'accessories') {
 </div>
 <script>
 (function () {
+    if (document.body.dataset.focusCheckinList === '1') {
+        const checkinList = document.getElementById('check-in-list');
+        if (checkinList) {
+            checkinList.scrollIntoView({ behavior: 'auto', block: 'start' });
+            checkinList.focus({ preventScroll: true });
+        }
+    }
+
     const assetWrappers = document.querySelectorAll('.asset-autocomplete-wrapper');
     assetWrappers.forEach((wrapper) => {
         const input = wrapper.querySelector('.asset-autocomplete');
