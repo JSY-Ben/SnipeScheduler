@@ -494,23 +494,26 @@ if ($selectedReservationId) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode = $_POST['mode'] ?? '';
 
-    if (isset($_POST['remove_model_id_all']) || isset($_POST['remove_slot'])) {
-        $removeAll = isset($_POST['remove_model_id_all']);
-        $removeModelId = 0;
+    if (isset($_POST['remove_model_id_all']) || isset($_POST['remove_accessory_id_all']) || isset($_POST['remove_slot'])) {
+        $removeAll = isset($_POST['remove_model_id_all']) || isset($_POST['remove_accessory_id_all']);
+        $removeItemType = isset($_POST['remove_accessory_id_all']) ? 'accessory' : 'model';
+        $removeItemId = 0;
         $removeSlot = null;
-        if ($removeAll) {
-            $removeModelId = (int)($_POST['remove_model_id_all'] ?? 0);
+        if (isset($_POST['remove_accessory_id_all'])) {
+            $removeItemId = (int)($_POST['remove_accessory_id_all'] ?? 0);
+        } elseif (isset($_POST['remove_model_id_all'])) {
+            $removeItemId = (int)($_POST['remove_model_id_all'] ?? 0);
         } elseif (isset($_POST['remove_slot'])) {
             $rawSlot = trim((string)$_POST['remove_slot']);
             if (preg_match('/^(\\d+):(\\d+)$/', $rawSlot, $m)) {
-                $removeModelId = (int)$m[1];
+                $removeItemId = (int)$m[1];
                 $removeSlot = (int)$m[2];
             }
         }
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation before removing items.';
-        } elseif ($removeModelId <= 0) {
-            $checkoutErrors[] = 'Invalid model to remove.';
+        } elseif ($removeItemId <= 0) {
+            $checkoutErrors[] = 'Invalid item to remove.';
         } else {
             $submittedSelections = $_POST['selected_assets'] ?? [];
             $normalizedSelections = [];
@@ -528,21 +531,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            if ($removeAll) {
-                unset($normalizedSelections[$removeModelId]);
-            } elseif (isset($normalizedSelections[$removeModelId])) {
-                if ($removeSlot !== null && $removeSlot >= 0 && isset($normalizedSelections[$removeModelId][$removeSlot])) {
-                    array_splice($normalizedSelections[$removeModelId], $removeSlot, 1);
+            if ($removeItemType === 'model') {
+                if ($removeAll) {
+                    unset($normalizedSelections[$removeItemId]);
+                } elseif (isset($normalizedSelections[$removeItemId])) {
+                    if ($removeSlot !== null && $removeSlot >= 0 && isset($normalizedSelections[$removeItemId][$removeSlot])) {
+                        array_splice($normalizedSelections[$removeItemId], $removeSlot, 1);
+                    } else {
+                        array_pop($normalizedSelections[$removeItemId]);
+                    }
+                    $normalizedSelections[$removeItemId] = array_values($normalizedSelections[$removeItemId]);
                 } else {
-                    array_pop($normalizedSelections[$removeModelId]);
+                    unset($normalizedSelections[$removeItemId]);
                 }
-                $normalizedSelections[$removeModelId] = array_values($normalizedSelections[$removeModelId]);
             }
             if ($selectedReservationId) {
                 $_SESSION['reservation_selected_assets'][$selectedReservationId] = $normalizedSelections;
             }
 
             try {
+                $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':remove_item_type', ':remove_item_id');
                 $totalStmt = $pdo->prepare("
                     SELECT COALESCE(SUM(quantity), 0)
                       FROM reservation_items
@@ -555,12 +563,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     SELECT quantity
                       FROM reservation_items
                      WHERE reservation_id = :rid
-                       AND model_id = :mid
+                       AND {$itemMatchSql}
                      LIMIT 1
                 ");
                 $stmt->execute([
                     ':rid' => $selectedReservationId,
-                    ':mid' => $removeModelId,
+                    ':remove_item_type' => $removeItemType,
+                    ':remove_item_id' => $removeItemId,
                 ]);
                 $currentQty = (int)$stmt->fetchColumn();
 
@@ -579,23 +588,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $del = $pdo->prepare("
                         DELETE FROM reservation_items
                          WHERE reservation_id = :rid
-                           AND model_id = :mid
+                           AND {$itemMatchSql}
                     ");
                     $del->execute([
                         ':rid' => $selectedReservationId,
-                        ':mid' => $removeModelId,
+                        ':remove_item_type' => $removeItemType,
+                        ':remove_item_id' => $removeItemId,
                     ]);
                 } else {
                     $upd = $pdo->prepare("
                         UPDATE reservation_items
                            SET quantity = :qty
                          WHERE reservation_id = :rid
-                           AND model_id = :mid
+                           AND {$itemMatchSql}
                     ");
                     $upd->execute([
                         ':qty' => $currentQty - 1,
                         ':rid' => $selectedReservationId,
-                        ':mid' => $removeModelId,
+                        ':remove_item_type' => $removeItemType,
+                        ':remove_item_id' => $removeItemId,
                     ]);
                 }
 
@@ -1326,6 +1337,17 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                 <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
                                                                 <button type="submit"
                                                                         name="remove_model_id_all"
+                                                                        value="<?= $mid ?>"
+                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                    Remove all
+                                                                </button>
+                                                            </div>
+                                                        <?php elseif ($itemType === 'accessory'): ?>
+                                                            <div class="mt-2">
+                                                                <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
+                                                                <button type="submit"
+                                                                        name="remove_accessory_id_all"
                                                                         value="<?= $mid ?>"
                                                                         class="btn btn-sm btn-outline-danger"
                                                                         <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>

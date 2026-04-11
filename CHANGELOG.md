@@ -1,24 +1,51 @@
 # Changelog
 
-## [v1.5.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.0) - 18/03/2026
+## [v1.5.1-Beta](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.1-Beta) - 12/04/2026
 
 ### Please Read before Installing
 
-This release has a database upgrade, so requires running the upgrade script.
+This version has some significant changes to the app, significant enough that i'm releasing this as a labelled Beta version for now. Please make backups of all your files before upgrading to this version, and report any issues as you find them.
 
-After updating the files, please do the following:
+This release has database upgrades, so requires running the upgrade script.
+
+After updating the files, you will be warned when logging in that you will need to run the upgrade script. However, if you'd prefer to do this manually,  please do the following:
 
 1) Run the upgrade script at [www.yourinstallation.com/install/upgrade](url) through a browser.
 
-### New catalogue booking types
+2) Use the new SQL backup button on the upgrade page to download a database backup before applying the upgrades.
 
-1) The Catalogue now has separate `Models`, `Accessories`, and `Kits` tabs.
+### New Features
 
-2) Accessories can now be added to the basket, reserved, and checked out directly to users from the staff checkout page.
+1) We have now implemented the ability to book and manage Snipe-IT `Accessories`, and `Kits` in SnipeScheduler. Assets/Models now have their own tab called `Equipment`
 
-3) Kits can now be added from the Catalogue. Supported kit contents are expanded into their underlying models and accessories when added to the basket.
+Accessories can now be added to the basket, reserved, checked out, and checked back in alongside Assets/Models.
 
-4) The database upgrade page now includes a button to download a `.sql` backup of the current booking database before you run upgrades.
+Kits can now be added to the basket from the Catalogue. Supported kit contents are expanded into their underlying equipment and accessories when added to the basket.
+
+Catalogue tab visibility can now be controlled from settings, so installations can choose whether to show Equipment, Accessories, and Kits.
+
+2) Quick Checkout and Check In now support Equipment, Accessories, and Kits as separate tabs
+
+Quick Checkout and Checkin can now show or hide its Assets, Accessories, and Kits tabs from settings.
+
+Accessories can be checked out and in directly from Quick Checkout/in, with quantity handling and availability checks.
+
+Kits can be added to Quick Checkout and are expanded into their underlying equipment and accessory items.
+
+Equipment and Accessories now share the same check-in list. You can switch between tabs and add both types of item to one persistent list before checking everything in together.
+
+3) Accessories are now included in the 'Checked Out Reservations' area. Checked-out accessories can be checked in individually or in bulk alongside equipment.
+
+4) Admin users are warned when pending upgrade scripts need to be run.
+
+
+### Bug Fixes
+
+1) Reservation controls now apply when editing reservations, not just when creating them.
+
+2) Daylight Saving Time handling has been corrected for reservation date comparisons.
+
+Of course, pleae report any issues you may have on the Github Issues page.
 
 ## [v1.4.4](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.4.4) - 12/03/2026
 
