@@ -703,6 +703,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $checkoutErrors[] = 'Could not add asset: ' . $e->getMessage();
             }
         }
+    } elseif ($mode === 'update_accessory_quantities') {
+        if (!$selectedReservation) {
+            $checkoutErrors[] = 'Please select a reservation before updating accessory quantities.';
+        } else {
+            $submittedSelections = $_POST['selected_assets'] ?? [];
+            if ($selectedReservationId && is_array($submittedSelections)) {
+                $normalizedSelections = [];
+                foreach ($submittedSelections as $midRaw => $choices) {
+                    $mid = (int)$midRaw;
+                    if ($mid <= 0 || !is_array($choices)) {
+                        continue;
+                    }
+                    $normalizedSelections[$mid] = [];
+                    foreach ($choices as $idx => $choice) {
+                        $normalizedSelections[$mid][(int)$idx] = (int)$choice;
+                    }
+                    $normalizedSelections[$mid] = array_values($normalizedSelections[$mid]);
+                }
+                $_SESSION['reservation_selected_assets'][$selectedReservationId] = $normalizedSelections;
+            }
+
+            $postedQuantities = $_POST['accessory_quantities'] ?? [];
+            if (!is_array($postedQuantities)) {
+                $postedQuantities = [];
+            }
+
+            try {
+                $updatedCount = 0;
+                foreach ($selectedItems as $item) {
+                    $itemType = booking_normalize_item_type((string)($item['type'] ?? 'model'));
+                    $itemId = (int)($item['item_id'] ?? ($item['model_id'] ?? 0));
+                    if ($itemType !== 'accessory' || $itemId <= 0 || !array_key_exists((string)$itemId, $postedQuantities)) {
+                        continue;
+                    }
+
+                    $currentQty = max(1, (int)($item['qty'] ?? 1));
+                    $newQty = (int)$postedQuantities[(string)$itemId];
+                    if ($newQty <= 0) {
+                        throw new RuntimeException('Accessory quantities must be at least 1. Use Remove all to remove an accessory.');
+                    }
+
+                    $availableQty = count_available_accessory_units($itemId);
+                    if ($newQty > $availableQty) {
+                        $itemName = trim((string)($item['name'] ?? ('Accessory #' . $itemId)));
+                        throw new RuntimeException("Only {$availableQty} {$itemName} available for checkout.");
+                    }
+
+                    if ($newQty === $currentQty) {
+                        continue;
+                    }
+
+                    $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':item_type', ':item_id');
+                    $stmt = $pdo->prepare("
+                        UPDATE reservation_items
+                           SET quantity = :qty
+                         WHERE reservation_id = :rid
+                           AND {$itemMatchSql}
+                    ");
+                    $stmt->execute([
+                        ':qty' => $newQty,
+                        ':rid' => $selectedReservationId,
+                        ':item_type' => 'accessory',
+                        ':item_id' => $itemId,
+                    ]);
+                    $updatedCount++;
+                }
+
+                if ($updatedCount > 0) {
+                    $checkoutMessages[] = 'Accessory quantities updated.';
+                } else {
+                    $checkoutMessages[] = 'No accessory quantity changes were needed.';
+                }
+
+                if ($selectedReservationId) {
+                    $_SESSION['selected_reservation_fresh'] = 1;
+                }
+
+                header('Location: ' . $selfUrl);
+                exit;
+            } catch (Throwable $e) {
+                $checkoutErrors[] = 'Could not update accessory quantities: ' . $e->getMessage();
+            }
+        }
     } elseif ($mode === 'reservation_checkout') {
         if (!$selectedReservation) {
             $checkoutErrors[] = 'Please select a reservation before checking out.';
@@ -719,6 +802,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $selectedAssetsInput = $_POST['selected_assets'] ?? [];
+            $accessoryQuantityInput = $_POST['accessory_quantities'] ?? [];
+            if (!is_array($accessoryQuantityInput)) {
+                $accessoryQuantityInput = [];
+            }
             $assetsToCheckout    = [];
 
             // Validate selections against required quantities
@@ -731,6 +818,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($itemType === 'accessory') {
+                    if (array_key_exists((string)$itemId, $accessoryQuantityInput)) {
+                        $postedQty = (int)$accessoryQuantityInput[(string)$itemId];
+                        if ($postedQty <= 0) {
+                            $checkoutErrors[] = "Accessory quantity for {$item['name']} must be at least 1.";
+                            continue;
+                        }
+
+                        try {
+                            $availableQty = count_available_accessory_units($itemId);
+                            if ($postedQty > $availableQty) {
+                                $checkoutErrors[] = "Only {$availableQty} {$item['name']} available for checkout.";
+                                continue;
+                            }
+
+                            if ($postedQty !== $qty) {
+                                $itemMatchSql = booking_reservation_item_match_sql($pdo, '', ':item_type', ':item_id');
+                                $stmt = $pdo->prepare("
+                                    UPDATE reservation_items
+                                       SET quantity = :qty
+                                     WHERE reservation_id = :rid
+                                       AND {$itemMatchSql}
+                                ");
+                                $stmt->execute([
+                                    ':qty' => $postedQty,
+                                    ':rid' => $selectedReservationId,
+                                    ':item_type' => 'accessory',
+                                    ':item_id' => $itemId,
+                                ]);
+                                $qty = $postedQty;
+                            }
+                        } catch (Throwable $e) {
+                            $checkoutErrors[] = 'Could not update accessory quantity before checkout: ' . $e->getMessage();
+                            continue;
+                        }
+                    }
+
                     $assetsToCheckout[] = [
                         'type' => 'accessory',
                         'item_id' => $itemId,
@@ -1361,7 +1484,30 @@ $active  = basename($_SERVER['PHP_SELF']);
                                             <td>
                                                 <?php if ($itemType === 'accessory'): ?>
                                                     <div class="alert alert-info mb-0">
-                                                        This will checkout <?= (int)$qty ?> of your <?= (int)$accessoryAvailableQty ?> <?= h(staff_checkout_pluralize_item_name($itemName, $accessoryAvailableQty)) ?>.
+                                                        <div class="d-flex flex-wrap align-items-end gap-2">
+                                                            <div>
+                                                                <label class="form-label mb-1" for="accessory_qty_<?= $mid ?>">
+                                                                    Quantity to checkout
+                                                                </label>
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm"
+                                                                       id="accessory_qty_<?= $mid ?>"
+                                                                       name="accessory_quantities[<?= $mid ?>]"
+                                                                       value="<?= (int)$qty ?>"
+                                                                       min="1"
+                                                                       max="<?= max(1, (int)$accessoryAvailableQty, (int)$qty) ?>"
+                                                                       step="1">
+                                                            </div>
+                                                            <button type="submit"
+                                                                    name="mode"
+                                                                    value="update_accessory_quantities"
+                                                                    class="btn btn-sm btn-outline-primary">
+                                                                Update quantity
+                                                            </button>
+                                                            <div class="small text-muted">
+                                                                <?= (int)$accessoryAvailableQty ?> <?= h(staff_checkout_pluralize_item_name($itemName, $accessoryAvailableQty)) ?> available now.
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 <?php elseif (empty($options)): ?>
                                                     <div class="alert alert-warning mb-0">
