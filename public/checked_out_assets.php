@@ -229,6 +229,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'Select valid equipment to check in.';
         }
+    } elseif (isset($_POST['checkin_accessory_checkout'])) {
+        $rawCheckinValue = trim((string)$_POST['checkin_accessory_checkout']);
+        $accessoryId = 0;
+        $accessoryCheckoutId = 0;
+        if (preg_match('/^(\d+):(\d+)$/', $rawCheckinValue, $matches)) {
+            $accessoryId = (int)$matches[1];
+            $accessoryCheckoutId = (int)$matches[2];
+        }
+
+        if ($accessoryId > 0 && $accessoryCheckoutId > 0) {
+            try {
+                checkin_accessory($accessoryCheckoutId);
+                $messages[] = "Checked in accessory #{$accessoryId}.";
+                activity_log_event('accessory_checked_in', 'Checked out accessory checked in', [
+                    'subject_type' => 'accessory',
+                    'subject_id'   => $accessoryId,
+                    'metadata'     => [
+                        'accessory_checkout_id' => $accessoryCheckoutId,
+                    ],
+                ]);
+            } catch (Throwable $e) {
+                $error = 'Could not check in accessory: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'Select a valid accessory row to check in.';
+        }
     } elseif (isset($_POST['renew_asset_id'])) {
         // Renew single
         $renewId = (int)$_POST['renew_asset_id'];
@@ -612,7 +638,7 @@ function layout_checked_out_url(string $base, array $params): string
                         Check in selected equipment
                     </button>
                 </div>
-                <div class="text-muted small mb-2">Accessory rows are included here and in Overdue, but renew/check-in actions on this page still apply only to equipment rows.</div>
+                <div class="text-muted small mb-2">Accessory rows can be checked in individually; renew and bulk actions still apply only to equipment rows.</div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="select-all-assets">
                     <label class="form-check-label" for="select-all-assets">
@@ -640,6 +666,9 @@ function layout_checked_out_url(string $base, array $params): string
                                     $rowType = checked_out_row_type_key($a);
                                     $isAccessory = $rowType === 'accessory';
                                     $aid = (int)($a['id'] ?? 0);
+                                    $accessoryId = $isAccessory ? (int)($a['accessory_id'] ?? $aid) : 0;
+                                    $accessoryCheckoutId = $isAccessory ? (int)($a['accessory_checkout_id'] ?? 0) : 0;
+                                    $canCheckinAccessory = $isAccessory && $accessoryId > 0 && $accessoryCheckoutId > 0;
                                     $identifier = checked_out_row_identifier($a);
                                     $name = checked_out_row_name($a);
                                     $details = checked_out_row_details($a);
@@ -689,7 +718,16 @@ function layout_checked_out_url(string $base, array $params): string
                                     </td>
                                     <td>
                                         <?php if ($isAccessory): ?>
-                                            <span class="text-muted small">View only</span>
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <button type="submit"
+                                                        name="checkin_accessory_checkout"
+                                                        value="<?= h($accessoryId . ':' . $accessoryCheckoutId) ?>"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        onclick="return confirm('Check in this accessory in Snipe-IT?');"
+                                                        <?php if (!$canCheckinAccessory): ?>disabled<?php endif; ?>>
+                                                    Check In
+                                                </button>
+                                            </div>
                                         <?php else: ?>
                                             <div class="d-flex flex-wrap gap-2">
                                                 <button type="submit"

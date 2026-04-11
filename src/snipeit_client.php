@@ -2693,7 +2693,9 @@ function fetch_checked_out_accessories_from_snipeit(bool $allowResponseCache = t
         }
 
         if (empty($rows)) {
-            $fallbackItem = snipeit_normalize_checked_out_accessory_row($accessory, $accessory);
+            $fallbackRow = $accessory;
+            unset($fallbackRow['id']);
+            $fallbackItem = snipeit_normalize_checked_out_accessory_row($accessory, $fallbackRow);
             if ($fallbackItem !== null) {
                 $results[] = $fallbackItem;
             }
@@ -3035,6 +3037,40 @@ function checkout_accessory_to_user(int $accessoryId, int $userId, int $quantity
     $hasExplicitError = is_array($messagesField) && isset($messagesField['error']);
     if ($status !== 'success' || $hasExplicitError) {
         throw new Exception('Snipe-IT accessory checkout did not succeed: ' . $message);
+    }
+}
+
+function checkin_accessory(int $accessoryCheckoutId, string $note = ''): void
+{
+    if ($accessoryCheckoutId <= 0) {
+        throw new InvalidArgumentException('Invalid accessory checkout ID.');
+    }
+
+    $payload = [];
+    if ($note !== '') {
+        $payload['note'] = $note;
+    }
+
+    // Snipe-IT's accessory check-in route is named with {accessory}, but expects
+    // the checked-out accessory row ID returned by accessories/{id}/checkedout.
+    $resp = snipeit_request('POST', 'accessories/' . $accessoryCheckoutId . '/checkin', $payload, false);
+    $status = $resp['status'] ?? 'success';
+    $messagesField = $resp['messages'] ?? ($resp['message'] ?? '');
+    $flatMessages = [];
+    if (is_array($messagesField)) {
+        array_walk_recursive($messagesField, static function ($val) use (&$flatMessages): void {
+            if (is_string($val) && trim($val) !== '') {
+                $flatMessages[] = $val;
+            }
+        });
+    } elseif (is_string($messagesField) && trim($messagesField) !== '') {
+        $flatMessages[] = $messagesField;
+    }
+
+    $message = $flatMessages ? implode('; ', $flatMessages) : 'Unknown API response';
+    $hasExplicitError = is_array($messagesField) && isset($messagesField['error']);
+    if ($status !== 'success' || $hasExplicitError) {
+        throw new Exception('Snipe-IT accessory check-in did not succeed: ' . $message);
     }
 }
 
