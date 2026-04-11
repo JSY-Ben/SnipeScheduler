@@ -47,6 +47,241 @@ if (!function_exists('layout_app_name')) {
     }
 }
 
+if (!function_exists('layout_html_escape')) {
+    function layout_html_escape(?string $value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('layout_upgrade_description_from_sql')) {
+    function layout_upgrade_description_from_sql(string $path, string $version): string
+    {
+        $lines = is_file($path) ? @file($path, FILE_IGNORE_NEW_LINES) : false;
+        if (is_array($lines)) {
+            foreach (array_slice($lines, 0, 20) as $line) {
+                $line = trim((string)$line);
+                if (preg_match('/^--\s*Upgrade:\s*(.+)$/i', $line, $matches)) {
+                    return trim((string)$matches[1]);
+                }
+            }
+
+            foreach (array_slice($lines, 0, 20) as $line) {
+                $line = trim((string)$line);
+                if (preg_match('/^--\s*(.+)$/', $line, $matches)) {
+                    $comment = trim((string)$matches[1]);
+                    if ($comment !== '' && stripos($comment, 'compatible with') !== 0) {
+                        return $comment;
+                    }
+                }
+            }
+        }
+
+        $label = preg_replace('/^v?\d+(?:\.\d+)*(?:-[a-z]+)?-/i', '', $version);
+        $label = is_string($label) && $label !== '' ? $label : $version;
+        $label = preg_replace('/([a-z])([A-Z])/', '$1 $2', $label);
+        $label = str_replace(['_', '-'], ' ', (string)$label);
+        $label = trim((string)preg_replace('/\s+/', ' ', (string)$label));
+
+        return $label !== '' ? ucfirst($label) : $version;
+    }
+}
+
+if (!function_exists('layout_database_upgrade_scripts')) {
+    function layout_database_upgrade_scripts(): array
+    {
+        $upgradeDir = APP_ROOT . '/public/install/upgrade';
+        $files = glob($upgradeDir . '/*.sql') ?: [];
+        sort($files);
+
+        $scripts = [];
+        foreach ($files as $file) {
+            $version = basename($file, '.sql');
+            $scripts[] = [
+                'version' => $version,
+                'path' => $file,
+                'description' => layout_upgrade_description_from_sql($file, $version),
+            ];
+        }
+
+        return $scripts;
+    }
+}
+
+if (!function_exists('layout_pending_database_upgrades')) {
+    function layout_pending_database_upgrades(): array
+    {
+        $scripts = layout_database_upgrade_scripts();
+        $appliedVersions = [];
+        $loadError = '';
+
+        try {
+            require_once SRC_PATH . '/db.php';
+            global $pdo;
+
+            $rows = $pdo->query('SELECT version FROM schema_version ORDER BY applied_at ASC')->fetchAll(PDO::FETCH_COLUMN);
+            $appliedVersions = array_map('strval', $rows);
+        } catch (Throwable $e) {
+            $loadError = $e->getMessage();
+        }
+
+        $pending = [];
+        foreach ($scripts as $script) {
+            if (!in_array($script['version'], $appliedVersions, true)) {
+                $pending[] = $script;
+            }
+        }
+
+        return [
+            'pending' => $pending,
+            'load_error' => $loadError,
+        ];
+    }
+}
+
+if (!function_exists('layout_is_install_upgrade_page')) {
+    function layout_is_install_upgrade_page(): bool
+    {
+        $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+        return (bool)preg_match('#/install/upgrade/(?:index\.php)?$#', $scriptName)
+            || (bool)preg_match('#/install/upgrade$#', $scriptName);
+    }
+}
+
+if (!function_exists('layout_upgrade_page_url')) {
+    function layout_upgrade_page_url(): string
+    {
+        $scriptName = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+        $scriptDir = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+        $leaf = $scriptDir !== '' ? basename($scriptDir) : '';
+
+        if ($leaf === 'upgrade' && basename(dirname($scriptDir)) === 'install') {
+            return 'index.php';
+        }
+
+        if ($leaf === 'install') {
+            return 'upgrade/';
+        }
+
+        return 'install/upgrade/';
+    }
+}
+
+if (!function_exists('layout_render_pending_upgrade_modal')) {
+    function layout_render_pending_upgrade_modal(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        if (empty($_SESSION['show_pending_upgrade_modal'])) {
+            return;
+        }
+        unset($_SESSION['show_pending_upgrade_modal']);
+
+        $sessionUser = $_SESSION['user'] ?? [];
+        if (empty($sessionUser['is_admin']) || layout_is_install_upgrade_page()) {
+            return;
+        }
+
+        $upgradeStatus = layout_pending_database_upgrades();
+        $pending = $upgradeStatus['pending'] ?? [];
+        if (empty($pending)) {
+            return;
+        }
+
+        $upgradeUrl = layout_html_escape(layout_upgrade_page_url());
+        $loadError = trim((string)($upgradeStatus['load_error'] ?? ''));
+
+        echo '<div id="pending-upgrade-modal"'
+            . ' class="catalogue-modal catalogue-modal--upgrade"'
+            . ' role="dialog"'
+            . ' aria-modal="true"'
+            . ' aria-hidden="true"'
+            . ' aria-labelledby="pending-upgrade-title"'
+            . ' hidden>';
+        echo '<div class="catalogue-modal__backdrop" data-pending-upgrade-close></div>';
+        echo '<div class="catalogue-modal__dialog" role="document">';
+        echo '<div class="catalogue-modal__header">';
+        echo '<h2 id="pending-upgrade-title" class="catalogue-modal__title">Database Upgrade Pending</h2>';
+        echo '<button type="button" class="btn btn-sm btn-outline-secondary" data-pending-upgrade-close>Close</button>';
+        echo '</div>';
+        echo '<div class="catalogue-modal__body">';
+        echo '<p class="text-muted mb-3">The booking database has pending upgrade scripts. Review them before running the upgrade.</p>';
+
+        if ($loadError !== '') {
+            echo '<div class="alert alert-warning small mb-3">'
+                . 'Could not read the applied upgrade history, so all upgrade scripts are listed for review.'
+                . '</div>';
+        }
+
+        echo '<ul class="upgrade-modal__list">';
+        foreach ($pending as $item) {
+            $version = layout_html_escape((string)($item['version'] ?? ''));
+            $description = layout_html_escape((string)($item['description'] ?? ''));
+            echo '<li class="upgrade-modal__item">';
+            echo '<strong>' . $version . '</strong>';
+            if ($description !== '') {
+                echo '<span>' . $description . '</span>';
+            }
+            echo '</li>';
+        }
+        echo '</ul>';
+        echo '<div class="d-flex flex-wrap justify-content-end gap-2 mt-4">';
+        echo '<button type="button" class="btn btn-outline-secondary" data-pending-upgrade-close>Remind me later</button>';
+        echo '<a class="btn btn-primary" href="' . $upgradeUrl . '">Open upgrade page</a>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
+        echo <<<'SCRIPT'
+<script>
+(function () {
+    const openModal = function () {
+        const modal = document.getElementById('pending-upgrade-modal');
+        if (!modal) return;
+
+        const closeModal = function () {
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('catalogue-modal-open');
+            window.setTimeout(function () {
+                modal.hidden = true;
+            }, 220);
+        };
+
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('catalogue-modal-open');
+        window.requestAnimationFrame(function () {
+            modal.classList.add('is-open');
+            const action = modal.querySelector('a.btn-primary');
+            if (action && typeof action.focus === 'function') {
+                action.focus();
+            }
+        });
+
+        modal.querySelectorAll('[data-pending-upgrade-close]').forEach(function (button) {
+            button.addEventListener('click', closeModal);
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                closeModal();
+            }
+        });
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', openModal);
+    } else {
+        openModal();
+    }
+})();
+</script>
+SCRIPT;
+    }
+}
+
 /**
  * Normalize a hex color string to #rrggbb.
  */
@@ -261,6 +496,8 @@ if (!function_exists('layout_footer')) {
         $versionEsc  = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
         $flatpickrCfg = app_flatpickr_settings(layout_cached_config());
         $flatpickrCfgJson = json_encode($flatpickrCfg, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+
+        layout_render_pending_upgrade_modal();
 
         echo '<script src="assets/nav.js"></script>';
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';

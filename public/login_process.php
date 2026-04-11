@@ -91,6 +91,15 @@ $redirectWithError = static function (string $message) {
     exit;
 };
 
+$queuePendingUpgradeModal = static function (bool $isAdmin): void {
+    if ($isAdmin) {
+        $_SESSION['show_pending_upgrade_modal'] = true;
+        return;
+    }
+
+    unset($_SESSION['show_pending_upgrade_modal']);
+};
+
 $upsertUser = static function (PDO $pdo, string $email, string $fullName): int {
     $userTable = 'users';
     $userIdCol = 'user_id';
@@ -274,6 +283,7 @@ if ($provider === 'google') {
         'is_admin'     => $isAdmin,
         'is_staff'     => $isStaff,
     ];
+    $queuePendingUpgradeModal($isAdmin);
 
     activity_log_event('user_login', 'User logged in', [
         'metadata' => [
@@ -477,6 +487,7 @@ if ($provider === 'microsoft') {
         'is_admin'     => $isAdmin,
         'is_staff'     => $isStaff,
     ];
+    $queuePendingUpgradeModal($isAdmin);
 
     activity_log_event('user_login', 'User logged in', [
         'metadata' => [
@@ -685,6 +696,7 @@ $_SESSION['user'] = [
     'is_admin'     => $isAdmin,
     'is_staff'     => $isStaff,
 ];
+$queuePendingUpgradeModal($isAdmin);
 
 activity_log_event('user_login', 'User logged in', [
     'metadata' => [

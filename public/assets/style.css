@@ -599,6 +599,10 @@ button.model-image-wrapper {
     width: min(980px, 100%);
 }
 
+.catalogue-modal--upgrade .catalogue-modal__dialog {
+    width: min(640px, 100%);
+}
+
 .catalogue-modal--image-zoom .catalogue-modal__dialog {
     width: min(980px, 100%);
 }
@@ -643,6 +647,32 @@ button.model-image-wrapper {
     background: rgba(var(--primary-soft-rgb), 0.08);
     line-height: 1.55;
     white-space: pre-wrap;
+}
+
+.upgrade-modal__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.6rem;
+}
+
+.upgrade-modal__item {
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: rgba(var(--primary-soft-rgb), 0.08);
+}
+
+.upgrade-modal__item strong {
+    color: var(--text);
+}
+
+.upgrade-modal__item span {
+    color: var(--muted);
+    font-size: 0.88rem;
 }
 
 .model-details-section + .model-details-section {

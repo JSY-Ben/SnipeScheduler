@@ -269,6 +269,85 @@ function snipeit_catalogue_cache_tables_exist(bool $refresh = false): bool
     return $exists;
 }
 
+function snipeit_catalogue_cache_tables_exist_for(array $tableNames, bool $refresh = false): bool
+{
+    static $existsByKey = [];
+
+    $tableNames = array_values(array_filter(array_map(static function ($tableName): string {
+        $clean = preg_replace('/[^A-Za-z0-9_]+/', '', (string)$tableName);
+        return is_string($clean) ? $clean : '';
+    }, $tableNames), 'strlen'));
+    sort($tableNames);
+    $cacheKey = implode('|', $tableNames);
+
+    if ($cacheKey === '') {
+        return false;
+    }
+
+    if (array_key_exists($cacheKey, $existsByKey) && !$refresh) {
+        return $existsByKey[$cacheKey];
+    }
+
+    $existsByKey[$cacheKey] = false;
+    if (!app_version_is_at_least('1.4.0')) {
+        return false;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        foreach (array_merge(['catalogue_cache_meta'], $tableNames) as $tableName) {
+            $pdo->query("SELECT 1 FROM `{$tableName}` LIMIT 1");
+        }
+        $existsByKey[$cacheKey] = true;
+    } catch (Throwable $e) {
+        $existsByKey[$cacheKey] = false;
+    }
+
+    return $existsByKey[$cacheKey];
+}
+
+function snipeit_catalogue_accessory_cache_tables_exist(bool $refresh = false): bool
+{
+    return snipeit_catalogue_cache_tables_exist_for(['catalogue_accessory_cache'], $refresh);
+}
+
+function snipeit_catalogue_kit_cache_tables_exist(bool $refresh = false): bool
+{
+    return snipeit_catalogue_cache_tables_exist_for(['catalogue_kit_cache', 'catalogue_kit_item_cache'], $refresh);
+}
+
+function snipeit_catalogue_named_cache_is_synced(string $cacheKey, array $tableNames): bool
+{
+    if (!snipeit_catalogue_cache_tables_exist_for($tableNames)) {
+        return false;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare('SELECT synced_at FROM catalogue_cache_meta WHERE cache_key = :cache_key LIMIT 1');
+        $stmt->execute([':cache_key' => $cacheKey]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        return !empty($row['synced_at']);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function snipeit_catalogue_accessory_cache_is_synced(): bool
+{
+    return snipeit_catalogue_named_cache_is_synced('catalogue_accessories', ['catalogue_accessory_cache']);
+}
+
+function snipeit_catalogue_kit_cache_is_synced(): bool
+{
+    return snipeit_catalogue_named_cache_is_synced('catalogue_kits', ['catalogue_kit_cache', 'catalogue_kit_item_cache']);
+}
+
 /**
  * Check whether the local catalogue cache is available and has been populated.
  *
@@ -575,6 +654,96 @@ function snipeit_build_cached_asset_payload(array $row): array
     return $payload;
 }
 
+function snipeit_build_cached_accessory_payload(array $row): array
+{
+    $payload = [];
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    $accessoryId = (int)($row['accessory_id'] ?? 0);
+    $categoryId = isset($row['category_id']) ? (int)$row['category_id'] : 0;
+    $categoryName = trim((string)($row['category_name'] ?? ''));
+    $manufacturerName = trim((string)($row['manufacturer_name'] ?? ''));
+
+    $payload['id'] = $accessoryId;
+    $payload['name'] = $payload['name'] ?? ($row['accessory_name'] ?? '');
+    $payload['image'] = $payload['image'] ?? ($row['image_path'] ?? '');
+    $payload['notes'] = $payload['notes'] ?? ($row['notes_text'] ?? '');
+    $payload['qty'] = isset($payload['qty']) && is_numeric($payload['qty'])
+        ? (int)$payload['qty']
+        : (int)($row['total_quantity'] ?? 0);
+    $payload['available_qty'] = isset($payload['available_qty']) && is_numeric($payload['available_qty'])
+        ? (int)$payload['available_qty']
+        : (int)($row['available_quantity'] ?? 0);
+
+    if (!isset($payload['manufacturer']) || !is_array($payload['manufacturer'])) {
+        $payload['manufacturer'] = [];
+    }
+    if ($manufacturerName !== '') {
+        $payload['manufacturer']['name'] = $manufacturerName;
+    }
+
+    if (!isset($payload['category']) || !is_array($payload['category'])) {
+        $payload['category'] = [];
+    }
+    if ($categoryId > 0) {
+        $payload['category']['id'] = $categoryId;
+    }
+    if ($categoryName !== '') {
+        $payload['category']['name'] = $categoryName;
+    }
+
+    return $payload;
+}
+
+function snipeit_build_cached_kit_payload(array $row): array
+{
+    $payload = [];
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    $payload['id'] = (int)($row['kit_id'] ?? 0);
+    $payload['name'] = $payload['name'] ?? ($row['kit_name'] ?? '');
+    $payload['image'] = $payload['image'] ?? ($row['image_path'] ?? '');
+    $payload['notes'] = $payload['notes'] ?? ($row['notes_text'] ?? '');
+
+    return $payload;
+}
+
+function snipeit_build_cached_kit_item_payload(array $row): array
+{
+    $payload = [];
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    $payload['id'] = (int)($row['item_id'] ?? 0);
+    $payload['name'] = $payload['name'] ?? ($row['item_name'] ?? '');
+    $quantity = (int)($row['quantity'] ?? 1);
+    if (!isset($payload['quantity']) || !is_numeric($payload['quantity'])) {
+        $payload['quantity'] = max(1, $quantity);
+    }
+    if (!isset($payload['qty']) || !is_numeric($payload['qty'])) {
+        $payload['qty'] = max(1, $quantity);
+    }
+
+    return $payload;
+}
+
 function snipeit_get_cached_model_row(int $modelId): ?array
 {
     static $rowCache = [];
@@ -795,9 +964,181 @@ function snipeit_get_cached_model_categories(): ?array
 
 function snipeit_get_cached_accessory_categories(): ?array
 {
-    // Accessories are not cached in the database like models/assets
-    // They are fetched directly from Snipe-IT API
-    return null;
+    $rows = snipeit_get_cached_accessories();
+    return $rows !== null ? snipeit_collect_category_options($rows) : null;
+}
+
+function snipeit_get_cached_accessories(string $search = ''): ?array
+{
+    static $cache = [];
+
+    if (!snipeit_catalogue_accessory_cache_is_synced()) {
+        return null;
+    }
+
+    $cacheKey = strtolower($search);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $where = [];
+        $params = [];
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $where[] = '(accessory_name LIKE ? OR manufacturer_name LIKE ?)';
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        $whereSql = empty($where) ? '' : (' WHERE ' . implode(' AND ', $where));
+        $stmt = $pdo->prepare("
+            SELECT
+                accessory_id,
+                accessory_name,
+                manufacturer_name,
+                category_id,
+                category_name,
+                image_path,
+                notes_text,
+                total_quantity,
+                available_quantity,
+                raw_payload
+            FROM catalogue_accessory_cache
+            {$whereSql}
+            ORDER BY accessory_name ASC
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $accessories = [];
+        foreach ($rows as $row) {
+            $accessories[] = snipeit_build_cached_accessory_payload($row);
+        }
+
+        $cache[$cacheKey] = $accessories;
+        return $accessories;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function snipeit_get_cached_kits(string $search = ''): ?array
+{
+    static $cache = [];
+
+    if (!snipeit_catalogue_kit_cache_is_synced()) {
+        return null;
+    }
+
+    $cacheKey = strtolower($search);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $where = [];
+        $params = [];
+        if ($search !== '') {
+            $where[] = 'kit_name LIKE ?';
+            $params[] = '%' . $search . '%';
+        }
+
+        $whereSql = empty($where) ? '' : (' WHERE ' . implode(' AND ', $where));
+        $stmt = $pdo->prepare("
+            SELECT
+                kit_id,
+                kit_name,
+                image_path,
+                notes_text,
+                raw_payload
+            FROM catalogue_kit_cache
+            {$whereSql}
+            ORDER BY kit_name ASC
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $kits = [];
+        foreach ($rows as $row) {
+            $kits[] = snipeit_build_cached_kit_payload($row);
+        }
+
+        $cache[$cacheKey] = $kits;
+        return $kits;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function snipeit_kit_item_type_from_field(string $field): string
+{
+    $field = strtolower(trim($field));
+    $map = [
+        'models' => 'model',
+        'model' => 'model',
+        'accessories' => 'accessory',
+        'accessory' => 'accessory',
+        'licenses' => 'license',
+        'licences' => 'license',
+        'license' => 'license',
+        'licence' => 'license',
+        'consumables' => 'consumable',
+        'consumable' => 'consumable',
+    ];
+
+    return $map[$field] ?? $field;
+}
+
+function snipeit_get_cached_kit_element_rows(int $kitId, string $field): ?array
+{
+    if ($kitId <= 0 || !snipeit_catalogue_kit_cache_is_synced()) {
+        return null;
+    }
+
+    $itemType = snipeit_kit_item_type_from_field($field);
+    if ($itemType === '') {
+        return [];
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->prepare("
+            SELECT
+                kit_id,
+                item_type,
+                item_id,
+                item_name,
+                quantity,
+                raw_payload
+            FROM catalogue_kit_item_cache
+            WHERE kit_id = :kit_id
+              AND item_type = :item_type
+            ORDER BY item_name ASC, item_id ASC
+        ");
+        $stmt->execute([
+            ':kit_id' => $kitId,
+            ':item_type' => $itemType,
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = snipeit_build_cached_kit_item_payload($row);
+        }
+
+        return $items;
+    } catch (Throwable $e) {
+        return null;
+    }
 }
 
 function snipeit_get_cached_asset_status_labels(): ?array
@@ -1105,12 +1446,21 @@ function snipeit_category_filter_values(array $row): array
 {
     $values = [];
 
+    if (array_key_exists('value', $row)) {
+        foreach (snipeit_normalize_category_filter_values([$row['value']]) as $value) {
+            $values[$value] = $value;
+        }
+    }
+
     $categoryId = snipeit_extract_category_id($row);
     if ($categoryId > 0) {
         $values['id:' . $categoryId] = 'id:' . $categoryId;
     }
 
     $categoryName = snipeit_extract_category_name($row);
+    if ($categoryName === '' && array_key_exists('label', $row)) {
+        $categoryName = trim((string)$row['label']);
+    }
     if ($categoryName !== '') {
         $nameValue = 'name:' . strtolower($categoryName);
         $values[$nameValue] = $nameValue;
@@ -2498,6 +2848,13 @@ function snipeit_accessory_available_quantity_from_payload(array $accessory): in
 
 function fetch_all_accessories_from_snipeit(string $search = '', bool $allowResponseCache = true): array
 {
+    if ($allowResponseCache) {
+        $cached = snipeit_get_cached_accessories($search);
+        if ($cached !== null) {
+            return $cached;
+        }
+    }
+
     $params = [];
     if ($search !== '') {
         $params['search'] = $search;
@@ -2650,6 +3007,13 @@ function snipeit_kit_endpoint_candidates(): array
 
 function fetch_all_kits_from_snipeit(string $search = '', bool $allowResponseCache = true): array
 {
+    if ($allowResponseCache) {
+        $cached = snipeit_get_cached_kits($search);
+        if ($cached !== null) {
+            return $cached;
+        }
+    }
+
     $params = [];
     if ($search !== '') {
         $params['search'] = $search;
@@ -2698,6 +3062,15 @@ function get_kit(int $kitId): array
         throw new InvalidArgumentException('Invalid kit ID');
     }
 
+    $cachedKits = snipeit_get_cached_kits();
+    if ($cachedKits !== null) {
+        foreach ($cachedKits as $kit) {
+            if ((int)($kit['id'] ?? 0) === $kitId) {
+                return $kit;
+            }
+        }
+    }
+
     $endpoints = [];
     foreach (snipeit_kit_endpoint_candidates() as $baseEndpoint) {
         $endpoints[] = $baseEndpoint . '/' . $kitId;
@@ -2733,14 +3106,13 @@ function snipeit_extract_kit_embedded_rows(array $kit, string $field): array
     return [];
 }
 
-function snipeit_get_kit_element_rows(int $kitId, string $field): array
+function snipeit_get_kit_element_rows_from_payload(array $kit, int $kitId, string $field, bool $allowResponseCache = true): array
 {
     $field = strtolower(trim($field));
     if ($field === '') {
         return [];
     }
 
-    $kit = get_kit($kitId);
     $embedded = snipeit_extract_kit_embedded_rows($kit, $field);
     if (!empty($embedded)) {
         return $embedded;
@@ -2751,7 +3123,23 @@ function snipeit_get_kit_element_rows(int $kitId, string $field): array
         $endpoints[] = $baseEndpoint . '/' . $kitId . '/' . $field;
     }
 
-    return snipeit_fetch_all_rows_from_candidates($endpoints);
+    return snipeit_fetch_all_rows_from_candidates($endpoints, [], $allowResponseCache);
+}
+
+function snipeit_get_kit_element_rows(int $kitId, string $field): array
+{
+    $field = strtolower(trim($field));
+    if ($field === '') {
+        return [];
+    }
+
+    $cached = snipeit_get_cached_kit_element_rows($kitId, $field);
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $kit = get_kit($kitId);
+    return snipeit_get_kit_element_rows_from_payload($kit, $kitId, $field);
 }
 
 function snipeit_kit_element_quantity(array $row): int

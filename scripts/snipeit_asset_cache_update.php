@@ -1,7 +1,7 @@
 <?php
 // scripts/snipeit_asset_cache_update.php
 // Sync checked-out assets and the requestable catalogue from Snipe-IT
-// into the local cache tables.
+// into the local cache tables, including models/assets, accessories, and kits.
 //
 // CLI only; intended for cron.
 //
@@ -36,6 +36,11 @@ $catalogueCacheEnabled = $catalogueCacheRequested && snipeit_catalogue_cache_tab
 if ($catalogueCacheRequested && !$catalogueCacheEnabled) {
     $logOut('info', 'Catalogue cache sync skipped until the v1.4.0 schema upgrade is applied.');
 }
+$accessoryCacheEnabled = $catalogueCacheRequested && snipeit_catalogue_accessory_cache_tables_exist(true);
+$kitCacheEnabled = $catalogueCacheRequested && snipeit_catalogue_kit_cache_tables_exist(true);
+if ($catalogueCacheRequested && $catalogueCacheEnabled && (!$accessoryCacheEnabled || !$kitCacheEnabled)) {
+    $logOut('info', 'Accessory/kit catalogue cache sync skipped until the v1.5.1 schema upgrade is applied.');
+}
 
 $allowedCategoryMap = [];
 $allowedCfg = $config['catalogue']['allowed_categories'] ?? [];
@@ -63,6 +68,28 @@ if ($catalogueCacheEnabled) {
     }
 } else {
     $allModels = [];
+}
+
+if ($accessoryCacheEnabled) {
+    try {
+        $allAccessories = fetch_all_accessories_from_snipeit('', false);
+    } catch (Throwable $e) {
+        $logErr('Failed to load accessories: ' . $e->getMessage());
+        exit(1);
+    }
+} else {
+    $allAccessories = [];
+}
+
+if ($kitCacheEnabled) {
+    try {
+        $allKits = fetch_all_kits_from_snipeit('', false);
+    } catch (Throwable $e) {
+        $logErr('Failed to load kits: ' . $e->getMessage());
+        exit(1);
+    }
+} else {
+    $allKits = [];
 }
 
 try {
@@ -187,12 +214,133 @@ foreach ($allHardware as $asset) {
     ];
 }
 
+$extractText = static function ($value): string {
+    if (is_array($value)) {
+        $candidates = [
+            $value['text'] ?? null,
+            $value['name'] ?? null,
+            $value['label'] ?? null,
+            $value['value'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
+            }
+        }
+
+        return '';
+    }
+
+    return trim((string)$value);
+};
+
+$catalogueAccessories = [];
+$seenAccessoryIds = [];
+foreach ($allAccessories as $accessory) {
+    if (!is_array($accessory)) {
+        continue;
+    }
+
+    $accessoryId = (int)($accessory['id'] ?? 0);
+    if ($accessoryId <= 0 || isset($seenAccessoryIds[$accessoryId])) {
+        continue;
+    }
+    $seenAccessoryIds[$accessoryId] = true;
+
+    $manufacturerName = is_array($accessory['manufacturer'] ?? null)
+        ? trim((string)($accessory['manufacturer']['name'] ?? ''))
+        : trim((string)($accessory['manufacturer_name'] ?? ''));
+    $imagePath = trim((string)($accessory['image'] ?? ($accessory['image_path'] ?? '')));
+    $totalQuantity = isset($accessory['qty']) && is_numeric($accessory['qty'])
+        ? (int)$accessory['qty']
+        : (isset($accessory['quantity']) && is_numeric($accessory['quantity']) ? (int)$accessory['quantity'] : 0);
+
+    $catalogueAccessories[] = [
+        'accessory_id' => $accessoryId,
+        'accessory_name' => trim((string)($accessory['name'] ?? '')),
+        'manufacturer_name' => $manufacturerName,
+        'category_id' => snipeit_extract_category_id($accessory),
+        'category_name' => snipeit_extract_category_name($accessory),
+        'image_path' => $imagePath,
+        'notes_text' => $extractText($accessory['notes'] ?? ''),
+        'total_quantity' => max(0, $totalQuantity),
+        'available_quantity' => snipeit_accessory_available_quantity_from_payload($accessory),
+        'raw_payload' => snipeit_json_encode_payload($accessory),
+    ];
+}
+
+$catalogueKits = [];
+$catalogueKitItems = [];
+$seenKitIds = [];
+$kitElementFields = ['models', 'accessories', 'licenses', 'consumables'];
+foreach ($allKits as $kit) {
+    if (!is_array($kit)) {
+        continue;
+    }
+
+    $kitId = (int)($kit['id'] ?? 0);
+    if ($kitId <= 0 || isset($seenKitIds[$kitId])) {
+        continue;
+    }
+    $seenKitIds[$kitId] = true;
+
+    $catalogueKits[] = [
+        'kit_id' => $kitId,
+        'kit_name' => trim((string)($kit['name'] ?? '')),
+        'image_path' => trim((string)($kit['image'] ?? ($kit['image_path'] ?? ''))),
+        'notes_text' => $extractText($kit['notes'] ?? ''),
+        'raw_payload' => snipeit_json_encode_payload($kit),
+    ];
+
+    foreach ($kitElementFields as $field) {
+        try {
+            $elementRows = snipeit_get_kit_element_rows_from_payload($kit, $kitId, $field, false);
+        } catch (Throwable $e) {
+            $logOut('warn', 'Could not load kit #' . $kitId . ' ' . $field . ': ' . $e->getMessage());
+            $elementRows = [];
+        }
+
+        $itemType = snipeit_kit_item_type_from_field($field);
+        foreach ($elementRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $itemId = (int)($row['id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+
+            $kitItemKey = $kitId . '|' . $itemType . '|' . $itemId;
+            if (isset($catalogueKitItems[$kitItemKey])) {
+                $catalogueKitItems[$kitItemKey]['quantity'] += snipeit_kit_element_quantity($row);
+                continue;
+            }
+
+            $catalogueKitItems[$kitItemKey] = [
+                'kit_id' => $kitId,
+                'item_type' => $itemType,
+                'item_id' => $itemId,
+                'item_name' => trim((string)($row['name'] ?? ($itemType . ' #' . $itemId))),
+                'quantity' => snipeit_kit_element_quantity($row),
+                'raw_payload' => snipeit_json_encode_payload($row),
+            ];
+        }
+    }
+}
+
 $checkedOutLiveTable = 'checked_out_asset_cache';
 $checkedOutStageTable = 'checked_out_asset_cache_build';
 $catalogueModelLiveTable = 'catalogue_model_cache';
 $catalogueModelStageTable = 'catalogue_model_cache_build';
 $catalogueAssetLiveTable = 'catalogue_asset_cache';
 $catalogueAssetStageTable = 'catalogue_asset_cache_build';
+$catalogueAccessoryLiveTable = 'catalogue_accessory_cache';
+$catalogueAccessoryStageTable = 'catalogue_accessory_cache_build';
+$catalogueKitLiveTable = 'catalogue_kit_cache';
+$catalogueKitStageTable = 'catalogue_kit_cache_build';
+$catalogueKitItemLiveTable = 'catalogue_kit_item_cache';
+$catalogueKitItemStageTable = 'catalogue_kit_item_cache_build';
 $syncTimestamp = date('Y-m-d H:i:s');
 
 // Build replacement tables off to the side, then swap them in to keep live reads responsive during sync.
@@ -266,6 +414,13 @@ try {
     if ($catalogueCacheEnabled) {
         $resetStageTable($catalogueModelLiveTable, $catalogueModelStageTable);
         $resetStageTable($catalogueAssetLiveTable, $catalogueAssetStageTable);
+    }
+    if ($accessoryCacheEnabled) {
+        $resetStageTable($catalogueAccessoryLiveTable, $catalogueAccessoryStageTable);
+    }
+    if ($kitCacheEnabled) {
+        $resetStageTable($catalogueKitLiveTable, $catalogueKitStageTable);
+        $resetStageTable($catalogueKitItemLiveTable, $catalogueKitItemStageTable);
     }
 
     $checkedOutRows = [];
@@ -370,6 +525,82 @@ try {
         ], $catalogueAssetRows);
     }
 
+    if ($accessoryCacheEnabled) {
+        $catalogueAccessoryRows = [];
+        foreach ($catalogueAccessories as $accessory) {
+            $catalogueAccessoryRows[] = [
+                'accessory_id' => $accessory['accessory_id'],
+                'accessory_name' => $accessory['accessory_name'],
+                'manufacturer_name' => $accessory['manufacturer_name'] !== '' ? $accessory['manufacturer_name'] : null,
+                'category_id' => $accessory['category_id'] > 0 ? $accessory['category_id'] : null,
+                'category_name' => $accessory['category_name'] !== '' ? $accessory['category_name'] : null,
+                'image_path' => $accessory['image_path'] !== '' ? $accessory['image_path'] : null,
+                'notes_text' => $accessory['notes_text'] !== '' ? $accessory['notes_text'] : null,
+                'total_quantity' => $accessory['total_quantity'],
+                'available_quantity' => $accessory['available_quantity'],
+                'raw_payload' => $accessory['raw_payload'],
+                'updated_at' => $syncTimestamp,
+            ];
+        }
+        $bulkInsertRows($catalogueAccessoryStageTable, [
+            'accessory_id',
+            'accessory_name',
+            'manufacturer_name',
+            'category_id',
+            'category_name',
+            'image_path',
+            'notes_text',
+            'total_quantity',
+            'available_quantity',
+            'raw_payload',
+            'updated_at',
+        ], $catalogueAccessoryRows);
+    }
+
+    if ($kitCacheEnabled) {
+        $catalogueKitRows = [];
+        foreach ($catalogueKits as $kit) {
+            $catalogueKitRows[] = [
+                'kit_id' => $kit['kit_id'],
+                'kit_name' => $kit['kit_name'],
+                'image_path' => $kit['image_path'] !== '' ? $kit['image_path'] : null,
+                'notes_text' => $kit['notes_text'] !== '' ? $kit['notes_text'] : null,
+                'raw_payload' => $kit['raw_payload'],
+                'updated_at' => $syncTimestamp,
+            ];
+        }
+        $bulkInsertRows($catalogueKitStageTable, [
+            'kit_id',
+            'kit_name',
+            'image_path',
+            'notes_text',
+            'raw_payload',
+            'updated_at',
+        ], $catalogueKitRows);
+
+        $catalogueKitItemRows = [];
+        foreach ($catalogueKitItems as $item) {
+            $catalogueKitItemRows[] = [
+                'kit_id' => $item['kit_id'],
+                'item_type' => $item['item_type'],
+                'item_id' => $item['item_id'],
+                'item_name' => $item['item_name'],
+                'quantity' => $item['quantity'],
+                'raw_payload' => $item['raw_payload'],
+                'updated_at' => $syncTimestamp,
+            ];
+        }
+        $bulkInsertRows($catalogueKitItemStageTable, [
+            'kit_id',
+            'item_type',
+            'item_id',
+            'item_name',
+            'quantity',
+            'raw_payload',
+            'updated_at',
+        ], $catalogueKitItemRows);
+    }
+
     $swapPairs = [
         ['live' => $checkedOutLiveTable, 'stage' => $checkedOutStageTable],
     ];
@@ -377,9 +608,16 @@ try {
         $swapPairs[] = ['live' => $catalogueModelLiveTable, 'stage' => $catalogueModelStageTable];
         $swapPairs[] = ['live' => $catalogueAssetLiveTable, 'stage' => $catalogueAssetStageTable];
     }
+    if ($accessoryCacheEnabled) {
+        $swapPairs[] = ['live' => $catalogueAccessoryLiveTable, 'stage' => $catalogueAccessoryStageTable];
+    }
+    if ($kitCacheEnabled) {
+        $swapPairs[] = ['live' => $catalogueKitLiveTable, 'stage' => $catalogueKitStageTable];
+        $swapPairs[] = ['live' => $catalogueKitItemLiveTable, 'stage' => $catalogueKitItemStageTable];
+    }
     $swapTables($swapPairs);
 
-    if ($catalogueCacheEnabled) {
+    $writeCacheMeta = static function (string $cacheKey, int $modelCount, int $assetCount, int $checkedOutCount) use ($pdo): void {
         $metaStmt = $pdo->prepare("
             INSERT INTO catalogue_cache_meta (
                 cache_key,
@@ -401,11 +639,21 @@ try {
                 checked_out_count = VALUES(checked_out_count)
         ");
         $metaStmt->execute([
-            ':cache_key' => 'catalogue',
-            ':model_count' => count($catalogueModels),
-            ':asset_count' => count($catalogueAssets),
-            ':checked_out_count' => count($checkedOutAssets),
+            ':cache_key' => $cacheKey,
+            ':model_count' => $modelCount,
+            ':asset_count' => $assetCount,
+            ':checked_out_count' => $checkedOutCount,
         ]);
+    };
+
+    if ($catalogueCacheEnabled) {
+        $writeCacheMeta('catalogue', count($catalogueModels), count($catalogueAssets), count($checkedOutAssets));
+    }
+    if ($accessoryCacheEnabled) {
+        $writeCacheMeta('catalogue_accessories', 0, count($catalogueAccessories), 0);
+    }
+    if ($kitCacheEnabled) {
+        $writeCacheMeta('catalogue_kits', count($catalogueKits), count($catalogueKitItems), 0);
     }
 
     if ($catalogueCacheEnabled) {
@@ -414,7 +662,10 @@ try {
             'Synced '
             . count($checkedOutAssets) . ' checked-out asset(s), '
             . count($catalogueModels) . ' catalogue model(s), and '
-            . count($catalogueAssets) . ' catalogue asset(s).'
+            . count($catalogueAssets) . ' catalogue asset(s)'
+            . ($accessoryCacheEnabled ? (', ' . count($catalogueAccessories) . ' catalogue accessory item(s)') : '')
+            . ($kitCacheEnabled ? (', ' . count($catalogueKits) . ' catalogue kit(s), and ' . count($catalogueKitItems) . ' kit item(s)') : '')
+            . '.'
         );
     } else {
         $logOut('done', 'Synced ' . count($checkedOutAssets) . ' checked-out asset(s).');
