@@ -115,6 +115,7 @@ function qci_assigned_user_fields($assigned): array
     }
 
     return [
+        'id' => (int)($assigned['id'] ?? 0),
         'name' => trim((string)($assigned['name'] ?? '')),
         'email' => trim((string)($assigned['email'] ?? ($assigned['username'] ?? ''))),
     ];
@@ -129,6 +130,21 @@ function qci_assigned_user_label(array $assigned): string
     }
 
     return $email !== '' ? $email : $name;
+}
+
+function qci_assigned_user_key(array $assigned): string
+{
+    $id = (int)($assigned['id'] ?? 0);
+    if ($id > 0) {
+        return 'id:' . $id;
+    }
+
+    $email = strtolower(trim((string)($assigned['email'] ?? '')));
+    if ($email !== '') {
+        return 'email:' . $email;
+    }
+
+    return 'name:' . strtolower(trim((string)($assigned['name'] ?? '')));
 }
 
 // Remove single item
@@ -609,13 +625,25 @@ if ($selectorTab === 'accessories') {
         $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
 
         // Collect filter options before applying filters so each dropdown remains complete.
-        $userSet = [];
+        $userMap = [];
         $categorySet = [];
         foreach ($checkedOutAccessories as $item) {
             $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
-            $assignedLabel = qci_assigned_user_label($assigned);
-            if ($assignedLabel !== '') {
-                $userSet[$assignedLabel] = $assignedLabel;
+            $assignedKey = qci_assigned_user_key($assigned);
+            if ($assignedKey !== 'name:') {
+                if (!isset($userMap[$assignedKey])) {
+                    $userMap[$assignedKey] = [
+                        'id' => (int)($assigned['id'] ?? 0),
+                        'name' => '',
+                        'email' => '',
+                    ];
+                }
+                if (($userMap[$assignedKey]['name'] ?? '') === '' && ($assigned['name'] ?? '') !== '') {
+                    $userMap[$assignedKey]['name'] = $assigned['name'];
+                }
+                if (($userMap[$assignedKey]['email'] ?? '') === '' && ($assigned['email'] ?? '') !== '') {
+                    $userMap[$assignedKey]['email'] = $assigned['email'];
+                }
             }
 
             $category = qci_accessory_category_name($item);
@@ -623,7 +651,7 @@ if ($selectorTab === 'accessories') {
                 $categorySet[$category] = $category;
             }
         }
-        $accessoryUsers = array_values($userSet);
+        $accessoryUsers = array_values(array_filter(array_map('qci_assigned_user_label', $userMap)));
         sort($accessoryUsers);
         $accessoryCategories = array_values($categorySet);
         sort($accessoryCategories);
@@ -906,11 +934,7 @@ if ($selectorTab === 'accessories') {
                                            data-accessory-users="<?= h(json_encode(array_values($accessoryUsers))) ?>">
                                     <div class="list-group position-absolute w-100"
                                          data-accessory-user-suggestions
-<<<<<<< HEAD
-                                         style="z-index: 1050; max-height: 220px; overflow-y: auto; display: none;"></div>
-=======
                                          style="z-index: 1050; display: none;"></div>
->>>>>>> 85bbbea (Allow overflow on autocomplete)
                                 </div>
                             </div>
                             <div class="col-md-3">
