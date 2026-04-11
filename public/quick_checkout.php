@@ -51,6 +51,7 @@ $selectorTab = ($quickCheckoutTabsEnabled && in_array($selectorTabRaw, $quickChe
     ? $selectorTabRaw
     : ($quickCheckoutVisibleTabs[0] ?? 'assets');
 $browseSearchValue = trim((string)($_POST['browse_search'] ?? ($_GET['browse_search'] ?? '')));
+$browseCategoryValue = trim((string)($_POST['browse_category'] ?? ($_GET['browse_category'] ?? '')));
 $browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1)));
 
 // Helpers
@@ -592,6 +593,7 @@ function qc_expand_kit_entries(PDO $pdo, int $kitId, int $quantity, array $check
 function qc_accessory_browser_results(
     array $checkoutItems,
     string $search = '',
+    string $categoryFilter = '',
     array $allowedCategories = [],
     int $requestedPage = 1,
     int $perPage = 12
@@ -613,6 +615,11 @@ function qc_accessory_browser_results(
         }
 
         if (!empty($allowedCategories) && !in_array(snipeit_category_filter_value($row), $allowedCategories, true)) {
+            continue;
+        }
+
+        // Apply category filter if specified
+        if ($categoryFilter !== '' && snipeit_category_filter_value($row) !== $categoryFilter) {
             continue;
         }
 
@@ -1412,9 +1419,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($selectorTab === 'accessories') {
     try {
+        $accessoryCategories = fetch_accessory_categories_from_snipeit();
         $accessoryBrowserPagination = qc_accessory_browser_results(
             $checkoutItems,
             $browseSearchValue,
+            $browseCategoryValue,
             $quickCheckoutAllowedAccessoryCategories,
             $browsePage,
             $quickCheckoutItemsPerPage
@@ -1584,7 +1593,7 @@ if ($selectorTab === 'accessories') {
                             <div class="quick-checkout-browser">
                                 <form method="get" class="row g-2 align-items-end mb-3">
                                     <input type="hidden" name="tab" value="accessories">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <label class="form-label">Search accessories</label>
                                         <div class="input-group filter-search">
                                             <span class="input-group-text filter-search__icon" aria-hidden="true">
@@ -1597,12 +1606,29 @@ if ($selectorTab === 'accessories') {
                                                    name="browse_search"
                                                    class="form-control form-control-lg filter-search__input"
                                                    value="<?= h($browseSearchValue) ?>"
-                                                   placeholder="Search by accessory name or manufacturer"
-                                                   autofocus>
+                                                   placeholder="Search by accessory name or manufacturer">
                                         </div>
                                     </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Filter by category</label>
+                                        <select name="browse_category" class="form-select form-select-lg">
+                                            <option value="">All categories</option>
+                                            <?php foreach ($accessoryCategories as $category): ?>
+                                                <?php
+                                                    $categoryId = (int)($category['id'] ?? 0);
+                                                    $categoryName = trim((string)($category['name'] ?? ''));
+                                                    if ($categoryId <= 0 || $categoryName === '') {
+                                                        continue;
+                                                    }
+                                                ?>
+                                                <option value="<?= h($categoryName) ?>" <?= $browseCategoryValue === $categoryName ? 'selected' : '' ?>>
+                                                    <?= h($categoryName) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                     <div class="col-md-2 d-grid">
-                                        <button type="submit" class="btn btn-primary">Search</button>
+                                        <button type="submit" class="btn btn-primary">Filter</button>
                                     </div>
                                     <div class="col-md-2 d-grid">
                                         <a href="quick_checkout.php?tab=accessories" class="btn btn-outline-secondary">Reset</a>
@@ -1651,6 +1677,7 @@ if ($selectorTab === 'accessories') {
                                                                 <input type="hidden" name="mode" value="add_accessory">
                                                                 <input type="hidden" name="active_tab" value="accessories">
                                                                 <input type="hidden" name="browse_search" value="<?= h($browseSearchValue) ?>">
+                                                                <input type="hidden" name="browse_category" value="<?= h($browseCategoryValue) ?>">
                                                                 <input type="hidden" name="browse_page" value="<?= (int)($accessoryBrowserPagination['page'] ?? 1) ?>">
                                                                 <input type="hidden" name="accessory_id" value="<?= (int)$row['id'] ?>">
                                                                 <input type="number"
@@ -1675,6 +1702,7 @@ if ($selectorTab === 'accessories') {
                                         <?= qc_render_pagination($accessoryBrowserPagination, [
                                             'tab' => 'accessories',
                                             'browse_search' => $browseSearchValue,
+                                            'browse_category' => $browseCategoryValue,
                                         ]) ?>
                                     </div>
                                 <?php endif; ?>

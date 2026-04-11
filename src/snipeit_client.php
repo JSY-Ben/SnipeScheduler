@@ -792,6 +792,13 @@ function snipeit_get_cached_model_categories(): ?array
     }
 }
 
+function snipeit_get_cached_accessory_categories(): ?array
+{
+    // Accessories are not cached in the database like models/assets
+    // They are fetched directly from Snipe-IT API
+    return null;
+}
+
 function snipeit_get_cached_asset_status_labels(): ?array
 {
     if (!snipeit_catalogue_cache_is_synced()) {
@@ -1360,14 +1367,14 @@ function get_bookable_models(
  * @return array
  * @throws Exception
  */
-function get_model_categories(): array
+function get_accessory_categories(): array
 {
-    $cached = snipeit_get_cached_model_categories();
+    $cached = snipeit_get_cached_accessory_categories();
     if ($cached !== null) {
         return $cached;
     }
 
-    return fetch_model_categories_from_snipeit();
+    return fetch_accessory_categories_from_snipeit();
 }
 
 /**
@@ -2404,7 +2411,8 @@ function get_bookable_accessories(
     int $page = 1,
     string $search = '',
     ?string $sort = null,
-    int $perPage = 50
+    int $perPage = 50,
+    ?string $categoryFilter = null
 ): array {
     $page = max(1, $page);
     $perPage = max(1, $perPage);
@@ -2414,6 +2422,14 @@ function get_bookable_accessories(
     $rows = array_values(array_filter($rows, static function (array $row): bool {
         return snipeit_accessory_available_quantity_from_payload($row) > 0;
     }));
+
+    // Apply category filter if specified
+    if ($categoryFilter !== null && $categoryFilter !== '') {
+        $rows = array_values(array_filter($rows, static function (array $row) use ($categoryFilter): bool {
+            $categoryName = snipeit_extract_category_name($row);
+            return $categoryName === $categoryFilter;
+        }));
+    }
 
     usort($rows, static function (array $a, array $b) use ($sort): int {
         $nameA = (string)($a['name'] ?? '');

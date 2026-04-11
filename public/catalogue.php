@@ -1202,7 +1202,7 @@ if ($isAuthenticated) {
     unset($_SESSION['catalogue_show_favourites_only']);
 }
 
-if ($catalogueTab !== 'models') {
+if ($catalogueTab !== 'models' && $catalogueTab !== 'accessories') {
     $categoryRaw = '';
     $category = null;
     $favouritesOnly = false;
@@ -1324,9 +1324,13 @@ if (function_exists('ob_flush')) {
 // ---------------------------------------------------------------------
 // Load categories from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
-if ($catalogueTabsEnabled && $catalogueTab === 'models') {
+if ($catalogueTabsEnabled && ($catalogueTab === 'models' || $catalogueTab === 'accessories')) {
     try {
-        $categories = get_model_categories();
+        if ($catalogueTab === 'accessories') {
+            $categories = get_accessory_categories();
+        } else {
+            $categories = get_model_categories();
+        }
     } catch (Throwable $e) {
         $categories  = [];
         $categoryErr = $e->getMessage();
@@ -1352,7 +1356,7 @@ try {
     if (!$catalogueTabsEnabled) {
         $totalModels = 0;
     } elseif ($catalogueTab === 'accessories') {
-        $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage);
+        $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage, $categoryRaw);
         $accessories = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
         $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
     } elseif ($catalogueTab === 'kits') {
@@ -1672,18 +1676,21 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     </div>
                 </div>
 
-                <?php if ($catalogueTab === 'models'): ?>
+                <?php if ($catalogueTab === 'models' || $catalogueTab === 'accessories'): ?>
                     <div class="col-6 col-lg-3">
                         <label class="form-label mb-1 fw-semibold">Category</label>
                         <select name="category" class="form-select">
                             <option value="">All categories</option>
-                            <?php foreach ($categories as $cat): ?>
+                            <?php
+                            $categoryList = $catalogueTab === 'accessories' ? $accessoryCategories : $categories;
+                            foreach ($categoryList as $cat): ?>
                                 <?php
                                 $cid   = (int)($cat['id'] ?? 0);
                                 $cname = $cat['name'] ?? '';
+                                $selected = $catalogueTab === 'accessories' ? ($categoryRaw === $cname) : ($category === $cid);
                                 ?>
-                                <option value="<?= $cid ?>"
-                                    <?= ($category === $cid) ? 'selected' : '' ?>>
+                                <option value="<?= $catalogueTab === 'accessories' ? h($cname) : $cid ?>"
+                                    <?= $selected ? 'selected' : '' ?>>
                                     <?= label_safe($cname) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -1691,7 +1698,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     </div>
                 <?php endif; ?>
 
-                <div class="col-6 col-lg-<?= $catalogueTab === 'models' ? '2' : '3' ?>">
+                <div class="col-6 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '3' ?>">
                     <label class="form-label mb-1 fw-semibold">Sort</label>
                     <select name="sort" class="form-select">
                         <?php if ($catalogueTab === 'kits'): ?>
@@ -1710,7 +1717,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     </select>
                 </div>
 
-                <div class="col-12 col-lg-<?= $catalogueTab === 'models' ? '2' : '4' ?> d-grid">
+                <div class="col-12 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '4' ?> d-grid">
                     <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
                 </div>
             </div>
@@ -1742,7 +1749,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             </div>
             <input type="hidden" name="tab" value="<?= h($catalogueTab) ?>">
             <input type="hidden" name="q" value="<?= h($searchRaw) ?>">
-            <?php if ($catalogueTab === 'models'): ?>
+            <?php if ($catalogueTab === 'models' || $catalogueTab === 'accessories'): ?>
                 <input type="hidden" name="category" value="<?= h($categoryRaw) ?>">
             <?php endif; ?>
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
@@ -1807,6 +1814,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $catName = is_array($accessory['category'] ?? null)
                             ? (string)($accessory['category']['name'] ?? '')
                             : (string)($accessory['category_name'] ?? '');
+                        $imagePath = $accessory['image'] ?? '';
                         $notes = $accessory['notes'] ?? '';
                         if (is_array($notes)) {
                             $notes = $notes['text'] ?? '';
@@ -1833,12 +1841,30 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             $freeNow = 0;
                             $maxQty = 0;
                         }
+
+                        $proxiedImage = '';
+                        if ($imagePath !== '') {
+                            $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
+                        }
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card">
-                            <div class="model-image-wrapper model-image-wrapper--placeholder">
-                                <div class="model-image-placeholder">Accessory</div>
-                            </div>
+                            <?php if ($proxiedImage !== ''): ?>
+                                <button type="button"
+                                        class="model-image-wrapper model-image-wrapper--zoomable"
+                                        data-model-image-zoom="1"
+                                        data-zoom-src="<?= h($proxiedImage) ?>"
+                                        data-zoom-title="<?= h($name) ?>"
+                                        aria-label="Click to zoom image for <?= h($name) ?>">
+                                    <img src="<?= htmlspecialchars($proxiedImage) ?>"
+                                         alt=""
+                                         class="model-image img-fluid">
+                                </button>
+                            <?php else: ?>
+                                <div class="model-image-wrapper model-image-wrapper--placeholder">
+                                    <div class="model-image-placeholder">Accessory</div>
+                                </div>
+                            <?php endif; ?>
 
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title"><?= label_safe($name) ?></h5>
