@@ -3,7 +3,7 @@
 
 # SnipeScheduler - An Asset Reservation/Checkout System for Snipe-IT
 
-- This app has been tested with version 8 of Snipe-IT up to Version **v8.4.0**
+- This app has been tested with version 8 of Snipe-IT up to Version **v8.4.1**
 
 - There is also a standalone version of this app that has its own inventory database and doesn't require Snipe-IT. It is called KitGrab, and is available [here](https://github.com/JSY-Ben/KitGrab)
 
@@ -40,7 +40,7 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 - LDAP/AD, Google OAuth and Microsoft Entra Integration for authentication.
 
 ## System requirements
-- PHP 8.0+ with extensions: pdo_mysql, curl, ldap, mbstring, openssl, json.
+- PHP 8.2+ with extensions: pdo_mysql, curl, ldap, mbstring, openssl, json.
 - MySQL/MariaDB database for the booking tables.
 - Web server: Apache or Nginx (PHP-FPM or mod_php).
 - Snipe-IT instance with API access token and either LDAP, Google OAuth or Microsoft Entra Authentication enabled.
