@@ -1042,13 +1042,15 @@ if ($selectorTab === 'accessories') {
                                     <tbody>
                                         <?php foreach ($checkedOutAccessories as $accessory): ?>
                                             <?php $accessoryKey = qci_accessory_checkin_key($accessory); ?>
-                                            <tr>
+                                            <?php $accessoryAlreadyListed = isset($checkinItems[$accessoryKey]); ?>
+                                            <tr class="<?= $accessoryAlreadyListed ? 'quick-checkin-row--disabled' : '' ?>">
                                                 <td>
                                                     <input type="checkbox"
                                                            class="form-check-input"
                                                            name="accessory_keys[]"
                                                            value="<?= h($accessoryKey) ?>"
                                                            data-accessory-select-row
+                                                           <?= $accessoryAlreadyListed ? 'disabled' : '' ?>
                                                            aria-label="Select <?= h($accessory['name'] ?? 'accessory') ?>">
                                                 </td>
                                                 <td>
@@ -1079,8 +1081,9 @@ if ($selectorTab === 'accessories') {
                                                     <button type="submit"
                                                             name="accessory_keys[]"
                                                             value="<?= h($accessoryKey) ?>"
-                                                            class="btn btn-sm btn-outline-primary">
-                                                        Add to Check-in list
+                                                            class="btn btn-sm btn-outline-primary"
+                                                            <?= $accessoryAlreadyListed ? 'disabled' : '' ?>>
+                                                        <?= $accessoryAlreadyListed ? 'Added' : 'Add to Check-in list' ?>
                                                     </button>
                                                 </td>
                                             </tr>

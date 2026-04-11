@@ -1718,6 +1718,15 @@ form .form-select {
     font-size: 0.8rem;
 }
 
+.quick-checkin-row--disabled {
+    opacity: 0.5;
+}
+
+.quick-checkin-row--disabled .btn,
+.quick-checkin-row--disabled .form-check-input {
+    pointer-events: none;
+}
+
 .quick-checkout-asset-submit {
     display: flex;
     align-items: flex-end;
