@@ -2655,6 +2655,8 @@ function snipeit_normalize_checked_out_accessory_row(array $accessory, array $ro
         'accessory_checkout_id' => (int)($row['id'] ?? 0),
         'asset_tag' => '',
         'name' => trim((string)($accessory['name'] ?? ('Accessory #' . $accessoryId))),
+        'image' => $accessory['image'] ?? ($accessory['image_path'] ?? ($accessory['image_url'] ?? ($accessory['thumbnail'] ?? ''))),
+        'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ($accessory['image_url'] ?? ($accessory['thumbnail'] ?? ''))),
         'manufacturer_name' => $manufacturer,
         'category_name' => $category,
         'assigned_qty' => snipeit_accessory_checked_out_quantity_from_payload($row),

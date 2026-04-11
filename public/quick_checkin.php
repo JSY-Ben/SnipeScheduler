@@ -60,6 +60,66 @@ $accessoryCategoryValue = trim((string)($_POST['accessory_category'] ?? ($_GET['
 $messages = [];
 $errors   = [];
 
+function qci_extract_record_image_path(array $record): string
+{
+    $candidates = [
+        $record['image_path'] ?? null,
+        $record['image'] ?? null,
+        $record['image_url'] ?? null,
+        $record['thumbnail'] ?? null,
+        $record['thumbnail_url'] ?? null,
+        is_array($record['image'] ?? null) ? ($record['image']['url'] ?? ($record['image']['path'] ?? ($record['image']['href'] ?? ''))) : null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (!is_string($candidate)) {
+            continue;
+        }
+
+        $value = trim($candidate);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function qci_image_proxy_url(string $imagePath): string
+{
+    $imagePath = trim($imagePath);
+    if ($imagePath === '') {
+        return '';
+    }
+
+    return 'image_proxy.php?src=' . urlencode($imagePath);
+}
+
+function qci_accessory_category_name(array $item): string
+{
+    $category = $item['category_name'] ?? ($item['category'] ?? '');
+    if (is_array($category)) {
+        $category = $category['name'] ?? '';
+    }
+
+    return trim((string)$category);
+}
+
+function qci_assigned_user_fields($assigned): array
+{
+    if (!is_array($assigned)) {
+        return [
+            'name' => trim((string)$assigned),
+            'email' => '',
+        ];
+    }
+
+    return [
+        'name' => trim((string)($assigned['name'] ?? '')),
+        'email' => trim((string)($assigned['email'] ?? ($assigned['username'] ?? ''))),
+    ];
+}
+
 // Remove single item
 if (isset($_GET['remove'])) {
     $rid = (string)$_GET['remove'];
@@ -145,11 +205,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'asset_tag'  => '',
                             'name'       => $accessory['name'] ?? '',
                             'model'      => $accessory['manufacturer_name'] ?? '',
-                            'status'     => '',
-                            'assigned_id'    => $accessory['assigned_to']['id'] ?? 0,
-                            'assigned_email' => $accessory['assigned_to']['email'] ?? '',
-                            'assigned_name'  => $accessory['assigned_to']['name'] ?? '',
                             'image'      => $accessory['image'] ?? '',
+                            'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ''),
+                            'category_name' => qci_accessory_category_name($accessory),
+                            'status'     => '',
+                            'assigned_id'    => is_array($accessory['assigned_to'] ?? null) ? (int)($accessory['assigned_to']['id'] ?? 0) : 0,
+                            'assigned_email' => qci_assigned_user_fields($accessory['assigned_to'] ?? [])['email'],
+                            'assigned_name'  => qci_assigned_user_fields($accessory['assigned_to'] ?? [])['name'],
                         ];
                         $messages[] = "Added accessory {$accessory['name']} to check-in list.";
                         $found = true;
@@ -534,52 +596,53 @@ $accessoryCategories = [];
 if ($selectorTab === 'accessories') {
     try {
         $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
-        
-        // Filter by search
-        if ($accessorySearchValue !== '') {
-            $searchLower = strtolower($accessorySearchValue);
-            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($searchLower) {
-                return stripos($item['name'] ?? '', $searchLower) !== false ||
-                       stripos($item['model'] ?? '', $searchLower) !== false ||
-                       stripos($item['category'] ?? '', $searchLower) !== false;
-            });
-        }
-        
-        // Filter by user
-        if ($accessoryUserValue !== '') {
-            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryUserValue) {
-                $assignedName = $item['assigned_to']['name'] ?? '';
-                $assignedEmail = $item['assigned_to']['email'] ?? '';
-                return $assignedName === $accessoryUserValue || $assignedEmail === $accessoryUserValue;
-            });
-        }
-        
-        // Filter by category
-        if ($accessoryCategoryValue !== '') {
-            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryCategoryValue) {
-                return ($item['category'] ?? '') === $accessoryCategoryValue;
-            });
-        }
-        
-        // Collect unique users and categories for filter dropdowns
+
+        // Collect filter options before applying filters so each dropdown remains complete.
         $userSet = [];
         $categorySet = [];
         foreach ($checkedOutAccessories as $item) {
-            $assigned = $item['assigned_to'] ?? [];
-            if (is_array($assigned)) {
-                $name = $assigned['name'] ?? '';
-                $email = $assigned['email'] ?? '';
-                if ($name !== '') $userSet[$name] = $name;
-                if ($email !== '') $userSet[$email] = $email;
+            $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
+            if ($assigned['name'] !== '') {
+                $userSet[$assigned['name']] = $assigned['name'];
             }
-            $category = $item['category'] ?? '';
-            if ($category !== '') $categorySet[$category] = $category;
+            if ($assigned['email'] !== '') {
+                $userSet[$assigned['email']] = $assigned['email'];
+            }
+
+            $category = qci_accessory_category_name($item);
+            if ($category !== '') {
+                $categorySet[$category] = $category;
+            }
         }
         $accessoryUsers = array_values($userSet);
         sort($accessoryUsers);
         $accessoryCategories = array_values($categorySet);
         sort($accessoryCategories);
         
+        // Filter by search
+        if ($accessorySearchValue !== '') {
+            $searchLower = strtolower($accessorySearchValue);
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($searchLower) {
+                return stripos($item['name'] ?? '', $searchLower) !== false ||
+                       stripos($item['manufacturer_name'] ?? '', $searchLower) !== false ||
+                       stripos(qci_accessory_category_name($item), $searchLower) !== false;
+            });
+        }
+        
+        // Filter by user
+        if ($accessoryUserValue !== '') {
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryUserValue) {
+                $assigned = qci_assigned_user_fields($item['assigned_to'] ?? []);
+                return $assigned['name'] === $accessoryUserValue || $assigned['email'] === $accessoryUserValue;
+            });
+        }
+        
+        // Filter by category
+        if ($accessoryCategoryValue !== '') {
+            $checkedOutAccessories = array_filter($checkedOutAccessories, function($item) use ($accessoryCategoryValue) {
+                return qci_accessory_category_name($item) === $accessoryCategoryValue;
+            });
+        }
     } catch (Throwable $e) {
         $errors[] = 'Could not load checked out accessories: ' . $e->getMessage();
     }
@@ -837,9 +900,9 @@ if ($selectorTab === 'accessories') {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-2 quick-checkin-filter-submit">
                                 <label class="form-label">&nbsp;</label>
-                                <button type="submit" class="btn btn-primary w-100">Filter</button>
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
                             </div>
                         </form>
                     </div>
@@ -955,7 +1018,7 @@ if ($selectorTab === 'accessories') {
                             <div class="filter-panel__title">CHECKED OUT ACCESSORIES</div>
                         </div>
                         <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__count"><?= count($checkedOutAccessories) ?> accessory<?= count($checkedOutAccessories) === 1 ? '' : 'ies' ?></span>
+                            <span class="quick-checkout-panel__count"><?= count($checkedOutAccessories) ?> <?= count($checkedOutAccessories) === 1 ? 'accessory' : 'accessories' ?></span>
                         </div>
                     </div>
                     <div class="quick-checkout-panel__subtitle">Currently checked out accessories from Snipe-IT.</div>
@@ -972,7 +1035,6 @@ if ($selectorTab === 'accessories') {
                                     <tr>
                                         <th>Image</th>
                                         <th>Name</th>
-                                        <th>Model</th>
                                         <th>Category</th>
                                         <th>Checked out to</th>
                                         <th>Checked out since</th>
@@ -983,29 +1045,33 @@ if ($selectorTab === 'accessories') {
                                     <?php foreach ($checkedOutAccessories as $accessory): ?>
                                         <tr>
                                             <td>
-                                                <?php if (!empty($accessory['image'])): ?>
-                                                    <img src="<?= h($accessory['image']) ?>" alt="Accessory image" class="img-thumbnail" style="max-width: 50px; max-height: 50px;">
+                                                <?php
+                                                    $accessoryImageUrl = qci_image_proxy_url(qci_extract_record_image_path($accessory));
+                                                ?>
+                                                <?php if ($accessoryImageUrl !== ''): ?>
+                                                    <img src="<?= h($accessoryImageUrl) ?>"
+                                                         alt="<?= h(($accessory['name'] ?? 'Accessory') . ' image') ?>"
+                                                         class="report-model-thumb">
                                                 <?php else: ?>
-                                                    <span class="text-muted">No image</span>
+                                                    <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
                                                 <?php endif; ?>
                                             </td>
                                             <td><?= h($accessory['name'] ?? '') ?></td>
-                                            <td><?= h($accessory['model'] ?? '') ?></td>
-                                            <td><?= h($accessory['category'] ?? '') ?></td>
+                                            <td><?= h(qci_accessory_category_name($accessory)) ?></td>
                                             <?php
-                                                $assigned = $accessory['assigned_to'] ?? [];
-                                                if (is_array($assigned)) {
-                                                    $assignedName = $assigned['name'] ?? '';
-                                                    $assignedEmail = $assigned['email'] ?? '';
+                                                $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
+                                                if ($assigned['name'] !== '' || $assigned['email'] !== '') {
+                                                    $assignedName = $assigned['name'];
+                                                    $assignedEmail = $assigned['email'];
                                                     $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
                                                         ? $assignedName . " <{$assignedEmail}>"
                                                         : ($assignedEmail ?: $assignedName);
                                                 } else {
-                                                    $assignedLabel = (string)$assigned;
+                                                    $assignedLabel = '';
                                                 }
                                             ?>
                                             <td><?= h($assignedLabel) ?></td>
-                                            <td><?= h($accessory['last_checkout'] ?? '') ?></td>
+                                            <td><?= h(app_format_datetime($accessory['last_checkout'] ?? '')) ?></td>
                                             <td>
                                                 <form method="post" class="d-inline">
                                                     <input type="hidden" name="mode" value="add_accessory">

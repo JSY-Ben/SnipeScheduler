@@ -1719,6 +1719,19 @@ form .form-select {
     min-height: 0;
 }
 
+.quick-checkin-filter-submit {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.quick-checkout-panel.filter-panel .quick-checkin-filter-submit .btn {
+    height: auto;
+    min-height: 0;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
 .quick-checkout-browser {
     padding: 0;
     margin-bottom: 0;
