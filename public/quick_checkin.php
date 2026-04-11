@@ -168,17 +168,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($checkinItems)) {
             $errors[] = 'There are no items in the check-in list.';
         } else {
-            $hadCheckinItems = !empty($checkinItems);
+            $activeTab = $_POST['active_tab'] ?? 'equipment';
+            $itemsToCheckin = $checkinItems;
+            
+            // Filter items based on active tab
+            if ($activeTab === 'equipment') {
+                $itemsToCheckin = array_filter($checkinItems, function($item) {
+                    return ($item['item_type'] ?? 'asset') === 'asset';
+                });
+            }
+            // For accessories tab, process all items
+            
+            if (empty($itemsToCheckin)) {
+                $errors[] = 'There are no ' . ($activeTab === 'equipment' ? 'assets' : 'items') . ' in the check-in list.';
+            } else {
+                $hadCheckinItems = !empty($checkinItems);
             $staffEmail = $currentUser['email'] ?? '';
             $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
             $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-            $itemLabels  = [];
-            $userBuckets = [];
-            $summaryBuckets = [];
-            $userLookupCache = [];
-            $userIdCache = [];
+            $activeTab = $_POST['active_tab'] ?? 'equipment';
+            $itemsToCheckin = $checkinItems;
+            
+            // Filter items based on active tab
+            if ($activeTab === 'equipment') {
+                $itemsToCheckin = array_filter($checkinItems, function($item) {
+                    return ($item['item_type'] ?? 'asset') === 'asset';
+                });
+            }
+            // For accessories tab, process all items
 
-            foreach ($checkinItems as $item) {
+            foreach ($itemsToCheckin as $item) {
                 $itemType = $item['item_type'] ?? 'asset';
                 $itemId  = (int)$item['id'];
                 $itemName = $item['name'] ?? '';
@@ -501,8 +520,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                 ]);
             }
-            if ($hadCheckinAssets) {
-                $checkinAssets = [];
+            if ($hadCheckinItems) {
+                $checkinItems = [];
             }
         }
     }
@@ -624,7 +643,9 @@ if ($selectorTab === 'accessories') {
                         if ($accessoryCategoryValue !== '') $accessoryTabParams['accessory_category'] = $accessoryCategoryValue;
                     }
                     $accessoryTabUrl = 'quick_checkin.php?' . http_build_query($accessoryTabParams);
-                    $checkinEntryCount = count($checkinAssets);
+                    $checkinEntryCount = $selectorTab === 'equipment' 
+                        ? count(array_filter($checkinItems, function($item) { return ($item['item_type'] ?? 'asset') === 'asset'; }))
+                        : count($checkinItems);
                 ?>
 
                 <ul class="nav reservations-subtabs quick-checkin-tabs mb-3">
@@ -688,13 +709,18 @@ if ($selectorTab === 'accessories') {
                             <div class="filter-panel__title">CHECK-IN LIST</div>
                         </div>
                         <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__count"><?= (int)$checkinEntryCount ?> asset<?= $checkinEntryCount === 1 ? '' : 's' ?></span>
+                            <span class="quick-checkout-panel__count"><?= (int)$checkinEntryCount ?> item<?= $checkinEntryCount === 1 ? '' : 's' ?></span>
                         </div>
                     </div>
-                    <div class="quick-checkout-panel__subtitle">Assets stay here until you check them in.</div>
+                    <div class="quick-checkout-panel__subtitle">Items stay here until you check them in.</div>
 
                     <div class="quick-checkout-basket-surface">
-                    <?php if (empty($checkinAssets)): ?>
+                    <?php 
+                        $assetsInCheckinList = array_filter($checkinItems, function($item) { 
+                            return ($item['item_type'] ?? 'asset') === 'asset'; 
+                        });
+                    ?>
+                    <?php if (empty($assetsInCheckinList)): ?>
                         <div class="alert alert-secondary mb-0">
                             No assets in the check-in list yet. Scan or enter an asset tag above.
                         </div>
@@ -711,14 +737,14 @@ if ($selectorTab === 'accessories') {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($checkinAssets as $asset): ?>
+                                    <?php foreach ($assetsInCheckinList as $item): ?>
                                         <tr>
-                                            <td><?= h($asset['asset_tag']) ?></td>
-                                            <td><?= h($asset['name']) ?></td>
-                                            <td><?= h($asset['model']) ?></td>
+                                            <td><?= h($item['asset_tag']) ?></td>
+                                            <td><?= h($item['name']) ?></td>
+                                            <td><?= h($item['model']) ?></td>
                                             <?php
-                                                $assignedName = $asset['assigned_name'] ?? '';
-                                                $assignedEmail = $asset['assigned_email'] ?? '';
+                                                $assignedName = $item['assigned_name'] ?? '';
+                                                $assignedEmail = $item['assigned_email'] ?? '';
                                                 if ($assignedEmail !== '') {
                                                     $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
                                                         ? $assignedName . " <{$assignedEmail}>"
@@ -731,7 +757,7 @@ if ($selectorTab === 'accessories') {
                                             ?>
                                             <td><?= h($assignedLabel) ?></td>
                                             <td>
-                                                <a href="quick_checkin.php?remove=<?= (int)$asset['id'] ?>&tab=equipment"
+                                                <a href="quick_checkin.php?remove=<?= (int)$item['id'] ?>&tab=equipment"
                                                    class="btn btn-sm btn-outline-danger">
                                                     Remove
                                                 </a>
