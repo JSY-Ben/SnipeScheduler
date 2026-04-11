@@ -102,11 +102,6 @@ function checked_out_row_type_key(array $row): string
     return (($row['item_type'] ?? 'asset') === 'accessory') ? 'accessory' : 'asset';
 }
 
-function checked_out_row_type_label(array $row): string
-{
-    return checked_out_row_type_key($row) === 'accessory' ? 'Accessory' : 'Equipment';
-}
-
 function checked_out_row_identifier(array $row): string
 {
     if (checked_out_row_type_key($row) === 'accessory') {
@@ -629,7 +624,6 @@ function layout_checked_out_url(string $base, array $params): string
                         <thead>
                             <tr>
                                 <th></th>
-                                <th>Type</th>
                                 <th>Identifier</th>
                                 <th>Item</th>
                                 <th>Details</th>
@@ -671,7 +665,6 @@ function layout_checked_out_url(string $base, array $params): string
                                                    value="<?= $aid ?>">
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= h(checked_out_row_type_label($a)) ?></td>
                                     <td><?= h($identifier) ?></td>
                                     <td>
                                         <div class="fw-semibold"><?= h($name) ?></div>
