@@ -160,6 +160,54 @@ function checked_out_row_user_display(array $row): string
     return trim((string)$user);
 }
 
+function checked_out_parse_bulk_selection($rawItems): array
+{
+    $items = is_array($rawItems) ? $rawItems : [];
+    $assetIds = [];
+    $accessories = [];
+    $seenAccessories = [];
+
+    foreach ($items as $rawItem) {
+        $rawItem = trim((string)$rawItem);
+        if ($rawItem === '') {
+            continue;
+        }
+
+        if (preg_match('/^asset:(\d+)$/', $rawItem, $matches)) {
+            $assetId = (int)$matches[1];
+            if ($assetId > 0) {
+                $assetIds[] = $assetId;
+            }
+            continue;
+        }
+
+        if (preg_match('/^accessory:(\d+):(\d+)$/', $rawItem, $matches)) {
+            $accessoryId = (int)$matches[1];
+            $accessoryCheckoutId = (int)$matches[2];
+            if ($accessoryId > 0 && $accessoryCheckoutId > 0 && !isset($seenAccessories[$accessoryCheckoutId])) {
+                $accessories[] = [
+                    'accessory_id' => $accessoryId,
+                    'accessory_checkout_id' => $accessoryCheckoutId,
+                ];
+                $seenAccessories[$accessoryCheckoutId] = true;
+            }
+            continue;
+        }
+
+        if (ctype_digit($rawItem)) {
+            $assetId = (int)$rawItem;
+            if ($assetId > 0) {
+                $assetIds[] = $assetId;
+            }
+        }
+    }
+
+    return [
+        'asset_ids' => array_values(array_unique($assetIds)),
+        'accessories' => $accessories,
+    ];
+}
+
 $active    = basename($_SERVER['PHP_SELF']);
 $isAdmin   = !empty($currentUser['is_admin']);
 $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
@@ -284,69 +332,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Select a valid date/time for renewal.';
         }
     } elseif (isset($_POST['bulk_checkin']) && $_POST['bulk_checkin'] === '1') {
-        $bulkIds = $_POST['bulk_asset_ids'] ?? [];
-        if (empty($bulkIds) || !is_array($bulkIds)) {
-            $error = 'Select at least one equipment row to check in.';
+        $selection = checked_out_parse_bulk_selection($_POST['bulk_checked_out_items'] ?? ($_POST['bulk_asset_ids'] ?? []));
+        $assetIds = $selection['asset_ids'];
+        $accessorySelections = $selection['accessories'];
+        if (empty($assetIds) && empty($accessorySelections)) {
+            $error = 'Select at least one item to check in.';
         } else {
-            $assetIds = array_values(array_unique(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
-                return $id > 0;
-            })));
-            if (empty($assetIds)) {
-                $error = 'Select at least one valid equipment row to check in.';
-            } else {
-                $labels = load_asset_labels($pdo, $assetIds);
-                $checkedInLabels = [];
-                $failedLabels = [];
-                $deleteStmt = $pdo->prepare('DELETE FROM checked_out_asset_cache WHERE asset_id = :asset_id');
+            $labels = load_asset_labels($pdo, $assetIds);
+            $checkedInLabels = [];
+            $failedLabels = [];
+            $deleteStmt = $pdo->prepare('DELETE FROM checked_out_asset_cache WHERE asset_id = :asset_id');
 
-                foreach ($assetIds as $aid) {
-                    $label = $labels[$aid] ?? ('Asset #' . $aid);
-                    try {
-                        checkin_asset($aid);
-                        $deleteStmt->execute([':asset_id' => $aid]);
-                        $checkedInLabels[] = $label;
-                    } catch (Throwable $e) {
-                        $failedLabels[] = $label . ' (' . $e->getMessage() . ')';
-                    }
+            foreach ($assetIds as $aid) {
+                $label = $labels[$aid] ?? ('Asset #' . $aid);
+                try {
+                    checkin_asset($aid);
+                    $deleteStmt->execute([':asset_id' => $aid]);
+                    $checkedInLabels[] = $label;
+                } catch (Throwable $e) {
+                    $failedLabels[] = $label . ' (' . $e->getMessage() . ')';
                 }
+            }
 
-                if (!empty($checkedInLabels)) {
-                    $messages[] = 'Checked in ' . count($checkedInLabels) . ' equipment item(s).';
-                    activity_log_event('assets_checked_in', 'Checked out assets checked in', [
-                        'metadata' => [
-                            'assets' => $checkedInLabels,
-                            'count' => count($checkedInLabels),
-                        ],
-                    ]);
+            foreach ($accessorySelections as $accessorySelection) {
+                $accessoryId = (int)($accessorySelection['accessory_id'] ?? 0);
+                $accessoryCheckoutId = (int)($accessorySelection['accessory_checkout_id'] ?? 0);
+                $label = 'Accessory #' . $accessoryId;
+                try {
+                    checkin_accessory($accessoryCheckoutId);
+                    $checkedInLabels[] = $label;
+                } catch (Throwable $e) {
+                    $failedLabels[] = $label . ' (' . $e->getMessage() . ')';
                 }
+            }
 
-                if (!empty($failedLabels)) {
-                    $error = 'Could not check in ' . count($failedLabels) . ' equipment item(s): ' . implode('; ', $failedLabels);
-                }
+            if (!empty($checkedInLabels)) {
+                $messages[] = 'Checked in ' . count($checkedInLabels) . ' item(s).';
+                activity_log_event('checked_out_items_checked_in', 'Checked out items checked in', [
+                    'metadata' => [
+                        'items' => $checkedInLabels,
+                        'count' => count($checkedInLabels),
+                    ],
+                ]);
+            }
+
+            if (!empty($failedLabels)) {
+                $error = 'Could not check in ' . count($failedLabels) . ' item(s): ' . implode('; ', $failedLabels);
             }
         }
     } elseif (isset($_POST['bulk_renew']) && $_POST['bulk_renew'] === '1') {
         // Renew selected items
         $bulkExpected = normalize_expected_datetime($_POST['bulk_expected'] ?? '');
-        $bulkIds = $_POST['bulk_asset_ids'] ?? [];
-        if ($bulkExpected === '') {
+        $selection = checked_out_parse_bulk_selection($_POST['bulk_checked_out_items'] ?? ($_POST['bulk_asset_ids'] ?? []));
+        $assetIds = $selection['asset_ids'];
+        $accessorySelections = $selection['accessories'];
+        if (!empty($accessorySelections)) {
+            $error = 'Untick accessories before renewing; accessories cannot be renewed.';
+        } elseif ($bulkExpected === '') {
             $error = 'Select a valid date/time for bulk renewal.';
-        } elseif (empty($bulkIds) || !is_array($bulkIds)) {
+        } elseif (empty($assetIds)) {
             $error = 'Select at least one equipment row to renew.';
         } else {
             try {
                 $count = 0;
-                foreach ($bulkIds as $idRaw) {
-                    $aid = (int)$idRaw;
-                    if ($aid > 0) {
-                        update_asset_expected_checkin($aid, $bulkExpected);
-                        $count++;
-                    }
+                foreach ($assetIds as $aid) {
+                    update_asset_expected_checkin($aid, $bulkExpected);
+                    $count++;
                 }
                 $messages[] = "Extended expected check-in to " . format_display_datetime($bulkExpected) . " for {$count} equipment item(s).";
-                $assetIds = array_values(array_filter(array_map('intval', $bulkIds), static function (int $id): bool {
-                    return $id > 0;
-                }));
                 $labels = load_asset_labels($pdo, $assetIds);
                 $assetLabels = array_values(array_filter(array_map(static function (int $id) use ($labels): string {
                     return $labels[$id] ?? ('Asset #' . $id);
@@ -622,11 +675,15 @@ function layout_checked_out_url(string $base, array $params): string
                 <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
                     <div>
                         <label class="form-label mb-1">Renew selected to</label>
-                        <input type="datetime-local" name="bulk_expected" class="form-control form-control-sm">
+                        <input type="datetime-local"
+                               name="bulk_expected"
+                               id="bulk-renew-expected"
+                               class="form-control form-control-sm">
                     </div>
                     <button type="submit"
                             name="bulk_renew"
                             value="1"
+                            id="bulk-renew-button"
                             class="btn btn-outline-primary btn-sm">
                         Renew selected equipment
                     </button>
@@ -634,15 +691,15 @@ function layout_checked_out_url(string $base, array $params): string
                             name="bulk_checkin"
                             value="1"
                             class="btn btn-outline-success btn-sm"
-                            onclick="return confirm('Check in all selected equipment in Snipe-IT?');">
-                        Check in selected equipment
+                            onclick="return confirm('Check in all selected items in Snipe-IT?');">
+                        Check in selected items
                     </button>
                 </div>
-                <div class="text-muted small mb-2">Accessory rows can be checked in individually; renew and bulk actions still apply only to equipment rows.</div>
+                <div class="text-muted small mb-2">Accessory rows can be selected and checked in with equipment. Renew is disabled when any selected row is an accessory.</div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" id="select-all-assets">
                     <label class="form-check-label" for="select-all-assets">
-                        Select all equipment on this page
+                        Select all check-in-capable items on this page
                     </label>
                 </div>
                 <div class="table-responsive">
@@ -687,12 +744,12 @@ function layout_checked_out_url(string $base, array $params): string
                                     data-expected-ts="<?= (int)$expectedTs ?>"
                                     data-checkout-ts="<?= (int)$checkedOutTs ?>">
                                     <td>
-                                        <?php if (!$isAccessory): ?>
-                                            <input class="form-check-input"
-                                                   type="checkbox"
-                                                   name="bulk_asset_ids[]"
-                                                   value="<?= $aid ?>">
-                                        <?php endif; ?>
+                                        <input class="form-check-input checked-out-selection"
+                                               type="checkbox"
+                                               name="bulk_checked_out_items[]"
+                                               value="<?= $isAccessory ? h('accessory:' . $accessoryId . ':' . $accessoryCheckoutId) : h('asset:' . $aid) ?>"
+                                               data-item-type="<?= $isAccessory ? 'accessory' : 'asset' ?>"
+                                               <?php if (($isAccessory && !$canCheckinAccessory) || (!$isAccessory && $aid <= 0)): ?>disabled<?php endif; ?>>
                                     </td>
                                     <td><?= h($identifier) ?></td>
                                     <td>
@@ -733,7 +790,7 @@ function layout_checked_out_url(string $base, array $params): string
                                                 <button type="submit"
                                                         name="renew_asset_id"
                                                         value="<?= $aid ?>"
-                                                        class="btn btn-sm btn-outline-primary"
+                                                        class="btn btn-sm btn-outline-primary checked-out-renew-action"
                                                         <?php if ($aid <= 0): ?>disabled<?php endif; ?>>
                                                     Renew
                                                 </button>
@@ -820,14 +877,50 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     const selectAll = document.getElementById('select-all-assets');
+    const bulkRenewButton = document.getElementById('bulk-renew-button');
+    const bulkRenewExpected = document.getElementById('bulk-renew-expected');
+    const selectionBoxes = Array.from(document.querySelectorAll('input[name="bulk_checked_out_items[]"]'));
+    const renewActions = Array.from(document.querySelectorAll('.checked-out-renew-action'));
+    const accessoryRenewMessage = 'Accessories cannot be renewed. Untick accessories before renewing equipment.';
+    [bulkRenewButton, bulkRenewExpected, ...renewActions].forEach((control) => {
+        if (control) {
+            control.dataset.initiallyDisabled = control.disabled ? '1' : '0';
+        }
+    });
+
+    function updateBulkSelectionState() {
+        const enabledBoxes = selectionBoxes.filter((box) => !box.disabled);
+        const checkedBoxes = enabledBoxes.filter((box) => box.checked);
+        const accessorySelected = checkedBoxes.some((box) => box.dataset.itemType === 'accessory');
+
+        [bulkRenewButton, bulkRenewExpected, ...renewActions].forEach((control) => {
+            if (!control) {
+                return;
+            }
+            control.disabled = control.dataset.initiallyDisabled === '1' || accessorySelected;
+            control.title = accessorySelected ? accessoryRenewMessage : '';
+        });
+
+        if (selectAll) {
+            selectAll.checked = enabledBoxes.length > 0 && checkedBoxes.length === enabledBoxes.length;
+            selectAll.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < enabledBoxes.length;
+        }
+    }
+
     if (selectAll) {
         selectAll.addEventListener('change', () => {
-            const boxes = document.querySelectorAll('input[name="bulk_asset_ids[]"]');
-            boxes.forEach((box) => {
-                box.checked = selectAll.checked;
+            selectionBoxes.forEach((box) => {
+                if (!box.disabled) {
+                    box.checked = selectAll.checked;
+                }
             });
+            updateBulkSelectionState();
         });
     }
+    selectionBoxes.forEach((box) => {
+        box.addEventListener('change', updateBulkSelectionState);
+    });
+    updateBulkSelectionState();
 
     const sortSelect = document.getElementById('checked-out-sort');
     const filterForm = document.getElementById('checked-out-filter-form');
