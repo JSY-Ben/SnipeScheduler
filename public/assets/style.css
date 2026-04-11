@@ -1719,6 +1719,12 @@ form .form-select {
     min-height: 0;
 }
 
+.quick-checkin-accessory-filters > [class*="col-"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
 .quick-checkin-filter-submit {
     display: flex;
     flex-direction: column;

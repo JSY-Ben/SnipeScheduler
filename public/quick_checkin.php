@@ -864,7 +864,7 @@ if ($selectorTab === 'accessories') {
                     </div>
 
                     <div class="quick-checkout-picker-surface">
-                        <form method="get" class="row g-2 mb-3">
+                        <form method="get" class="row g-2 mb-3 align-items-end quick-checkin-accessory-filters" data-accessory-filter-form>
                             <input type="hidden" name="tab" value="accessories">
                             <div class="col-md-4">
                                 <label class="form-label">Search</label>
@@ -884,16 +884,23 @@ if ($selectorTab === 'accessories') {
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">User</label>
-                                <select name="accessory_user" class="form-select">
-                                    <option value="">All users</option>
+                                <input type="text"
+                                       name="accessory_user"
+                                       class="form-control"
+                                       list="accessory-user-options"
+                                       autocomplete="off"
+                                       placeholder="All users"
+                                       value="<?= h($accessoryUserValue) ?>"
+                                       data-accessory-user-filter>
+                                <datalist id="accessory-user-options">
                                     <?php foreach ($accessoryUsers as $user): ?>
-                                        <option value="<?= h($user) ?>" <?= $accessoryUserValue === $user ? 'selected' : '' ?>><?= h($user) ?></option>
+                                        <option value="<?= h($user) ?>"></option>
                                     <?php endforeach; ?>
-                                </select>
+                                </datalist>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label">Category</label>
-                                <select name="accessory_category" class="form-select">
+                                <select name="accessory_category" class="form-select" data-accessory-category-filter>
                                     <option value="">All categories</option>
                                     <?php foreach ($accessoryCategories as $category): ?>
                                         <option value="<?= h($category) ?>" <?= $accessoryCategoryValue === $category ? 'selected' : '' ?>><?= h($category) ?></option>
@@ -1170,6 +1177,49 @@ if ($selectorTab === 'accessories') {
             list.innerHTML = '';
         }
     });
+
+    const accessoryFilterForm = document.querySelector('[data-accessory-filter-form]');
+    if (accessoryFilterForm) {
+        const userInput = accessoryFilterForm.querySelector('[data-accessory-user-filter]');
+        const categorySelect = accessoryFilterForm.querySelector('[data-accessory-category-filter]');
+        const userOptions = Array.from(document.querySelectorAll('#accessory-user-options option'))
+            .map((option) => option.value.trim())
+            .filter((value) => value !== '');
+        const userOptionSet = new Set(userOptions);
+        let pendingUserSubmit = null;
+
+        function submitAccessoryFilters() {
+            if (accessoryFilterForm.requestSubmit) {
+                accessoryFilterForm.requestSubmit();
+            } else {
+                accessoryFilterForm.submit();
+            }
+        }
+
+        if (categorySelect) {
+            categorySelect.addEventListener('change', submitAccessoryFilters);
+        }
+
+        if (userInput) {
+            userInput.addEventListener('input', () => {
+                const value = userInput.value.trim();
+                if (pendingUserSubmit) {
+                    clearTimeout(pendingUserSubmit);
+                    pendingUserSubmit = null;
+                }
+                if (value === '' || userOptionSet.has(value)) {
+                    pendingUserSubmit = setTimeout(submitAccessoryFilters, 150);
+                }
+            });
+
+            userInput.addEventListener('change', () => {
+                const value = userInput.value.trim();
+                if (value === '' || userOptionSet.has(value)) {
+                    submitAccessoryFilters();
+                }
+            });
+        }
+    }
 })();
 </script>
 <?php layout_footer(); ?>
