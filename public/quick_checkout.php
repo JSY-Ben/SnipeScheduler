@@ -614,12 +614,15 @@ function qc_accessory_browser_results(
             continue;
         }
 
-        if (!empty($allowedCategories) && !in_array(snipeit_category_filter_value($row), $allowedCategories, true)) {
-            continue;
+        if (!empty($allowedCategories)) {
+            $rowCategoryValues = snipeit_category_filter_values($row);
+            if (empty(array_intersect($rowCategoryValues, $allowedCategories))) {
+                continue;
+            }
         }
 
         // Apply category filter if specified
-        if ($categoryFilter !== '' && snipeit_category_filter_value($row) !== $categoryFilter) {
+        if ($categoryFilter !== '' && !snipeit_category_filter_matches($row, $categoryFilter)) {
             continue;
         }
 
@@ -869,6 +872,7 @@ $checkoutToValue = '';
 $noteValue = '';
 $selectedUserId = 0;
 $overrideValue = false;
+$accessoryCategories = [];
 $accessoryBrowserResults = [];
 $kitBrowserResults = [];
 $accessoryBrowserPagination = qc_paginate_rows([], 1, $quickCheckoutItemsPerPage);
@@ -1420,6 +1424,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($selectorTab === 'accessories') {
     try {
         $accessoryCategories = fetch_accessory_categories_from_snipeit();
+        if (!empty($quickCheckoutAllowedAccessoryCategories)) {
+            $accessoryCategories = array_values(array_filter($accessoryCategories, static function (array $category) use ($quickCheckoutAllowedAccessoryCategories): bool {
+                return !empty(array_intersect(snipeit_category_filter_values($category), $quickCheckoutAllowedAccessoryCategories));
+            }));
+        }
+        if ($browseCategoryValue !== '') {
+            $normalizedBrowseCategories = snipeit_normalize_category_filter_values([$browseCategoryValue]);
+            $browseCategoryValue = $normalizedBrowseCategories[0] ?? '';
+            $validCategoryValues = [];
+            foreach ($accessoryCategories as $category) {
+                if (!is_array($category)) {
+                    continue;
+                }
+                foreach (snipeit_category_filter_values($category) as $categoryValue) {
+                    $validCategoryValues[$categoryValue] = $categoryValue;
+                }
+            }
+            if ($browseCategoryValue !== '' && !in_array($browseCategoryValue, $validCategoryValues, true)) {
+                $browseCategoryValue = '';
+            }
+        }
         $accessoryBrowserPagination = qc_accessory_browser_results(
             $checkoutItems,
             $browseSearchValue,
@@ -1615,13 +1640,14 @@ if ($selectorTab === 'accessories') {
                                             <option value="">All categories</option>
                                             <?php foreach ($accessoryCategories as $category): ?>
                                                 <?php
-                                                    $categoryId = (int)($category['id'] ?? 0);
-                                                    $categoryName = trim((string)($category['name'] ?? ''));
-                                                    if ($categoryId <= 0 || $categoryName === '') {
+                                                    $categoryValue = trim((string)($category['value'] ?? ''));
+                                                    $categoryName = trim((string)($category['label'] ?? ($category['name'] ?? '')));
+                                                    if ($categoryValue === '' || $categoryName === '') {
                                                         continue;
                                                     }
+                                                    $categorySelected = $browseCategoryValue !== '' && in_array($browseCategoryValue, snipeit_category_filter_values($category), true);
                                                 ?>
-                                                <option value="<?= h($categoryName) ?>" <?= $browseCategoryValue === $categoryName ? 'selected' : '' ?>>
+                                                <option value="<?= h($categoryValue) ?>" <?= $categorySelected ? 'selected' : '' ?>>
                                                     <?= h($categoryName) ?>
                                                 </option>
                                             <?php endforeach; ?>

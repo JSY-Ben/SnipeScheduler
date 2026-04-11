@@ -1101,6 +1101,45 @@ function snipeit_category_filter_value(array $row): string
     );
 }
 
+function snipeit_category_filter_values(array $row): array
+{
+    $values = [];
+
+    $categoryId = snipeit_extract_category_id($row);
+    if ($categoryId > 0) {
+        $values['id:' . $categoryId] = 'id:' . $categoryId;
+    }
+
+    $categoryName = snipeit_extract_category_name($row);
+    if ($categoryName !== '') {
+        $nameValue = 'name:' . strtolower($categoryName);
+        $values[$nameValue] = $nameValue;
+    }
+
+    if (empty($values)) {
+        $values['uncategorized'] = 'uncategorized';
+    }
+
+    return array_values($values);
+}
+
+function snipeit_category_filter_matches(array $row, string $categoryFilter): bool
+{
+    $normalizedFilters = snipeit_normalize_category_filter_values([$categoryFilter]);
+    if (empty($normalizedFilters)) {
+        return true;
+    }
+
+    $rowValues = snipeit_category_filter_values($row);
+    foreach ($normalizedFilters as $filterValue) {
+        if (in_array($filterValue, $rowValues, true)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function snipeit_normalize_category_filter_values($values): array
 {
     if (!is_array($values)) {
@@ -1149,6 +1188,8 @@ function snipeit_collect_category_options(array $rows): array
         }
 
         $options[$value] = [
+            'id' => $categoryId,
+            'name' => $categoryName !== '' ? $categoryName : 'Uncategorised',
             'value' => $value,
             'label' => $categoryName !== '' ? $categoryName : 'Uncategorised',
         ];
@@ -2489,8 +2530,7 @@ function get_bookable_accessories(
     // Apply category filter if specified
     if ($categoryFilter !== null && $categoryFilter !== '') {
         $rows = array_values(array_filter($rows, static function (array $row) use ($categoryFilter): bool {
-            $categoryName = snipeit_extract_category_name($row);
-            return $categoryName === $categoryFilter;
+            return snipeit_category_filter_matches($row, $categoryFilter);
         }));
     }
 

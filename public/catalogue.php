@@ -1337,6 +1337,23 @@ if ($catalogueTabsEnabled && ($catalogueTab === 'models' || $catalogueTab === 'a
     }
 }
 
+if ($catalogueTab === 'accessories' && $categoryRaw !== '') {
+    $normalizedAccessoryCategories = snipeit_normalize_category_filter_values([$categoryRaw]);
+    $categoryRaw = $normalizedAccessoryCategories[0] ?? '';
+    $validAccessoryCategoryValues = [];
+    foreach ($categories as $cat) {
+        if (!is_array($cat)) {
+            continue;
+        }
+        foreach (snipeit_category_filter_values($cat) as $categoryValue) {
+            $validAccessoryCategoryValues[$categoryValue] = $categoryValue;
+        }
+    }
+    if ($categoryRaw !== '' && !in_array($categoryRaw, $validAccessoryCategoryValues, true)) {
+        $categoryRaw = '';
+    }
+}
+
 // Optional admin-controlled allowlist for categories shown in the filter
 $allowedCfg = $config['catalogue']['allowed_categories'] ?? [];
 if (is_array($allowedCfg)) {
@@ -1684,13 +1701,23 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <?php
                             foreach ($categories as $cat): ?>
                                 <?php
-                                $cid   = (int)($cat['id'] ?? 0);
-                                $cname = $cat['name'] ?? '';
-                                $selected = $catalogueTab === 'accessories' ? ($categoryRaw === $cname) : ($category === $cid);
+                                if ($catalogueTab === 'accessories') {
+                                    $categoryValue = trim((string)($cat['value'] ?? ''));
+                                    $categoryLabel = trim((string)($cat['label'] ?? ($cat['name'] ?? '')));
+                                    if ($categoryValue === '' || $categoryLabel === '') {
+                                        continue;
+                                    }
+                                    $selected = $categoryRaw !== '' && in_array($categoryRaw, snipeit_category_filter_values($cat), true);
+                                } else {
+                                    $cid = (int)($cat['id'] ?? 0);
+                                    $categoryValue = (string)$cid;
+                                    $categoryLabel = (string)($cat['name'] ?? '');
+                                    $selected = $category === $cid;
+                                }
                                 ?>
-                                <option value="<?= $catalogueTab === 'accessories' ? h($cname) : $cid ?>"
+                                <option value="<?= h($categoryValue) ?>"
                                     <?= $selected ? 'selected' : '' ?>>
-                                    <?= label_safe($cname) ?>
+                                    <?= label_safe($categoryLabel) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
