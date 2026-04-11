@@ -218,9 +218,9 @@ return [
         // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
         // Leave empty to show all accessory categories.
         'allowed_accessory_categories' => [],
-        // Show the Assets tab on the Quick Checkout page.
+        // Show the Equipment tab on the Quick Checkout and Quick Checkin pages.
         'show_assets_tab' => true,
-        // Show the Accessories tab on the Quick Checkout page.
+        // Show the Accessories tab on the Quick Checkout and Quick Checkin pages.
         'show_accessories_tab' => true,
         // Show the Kits tab on the Quick Checkout page.
         'show_kits_tab' => true,

@@ -1445,13 +1445,13 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title mb-1">Quick Checkout display</h5>
-                        <p class="text-muted small mb-3">Control how many items appear per page on Quick Checkout and which tabs are shown.</p>
+                        <h5 class="card-title mb-1">Quick Checkout/Checkin Display Settings</h5>
+                        <p class="text-muted small mb-3">Control how many items appear per page on Quick Checkout and Quick Checkin, and which tabs are shown.</p>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label">Items per page</label>
                                 <input type="number" name="quick_checkout_items_per_page" min="1" class="form-control" value="<?= (int)$definedValues['QUICK_CHECKOUT_ITEMS_PER_PAGE'] ?>">
-                                <div class="form-text">Adjust how many accessory or kit rows appear on each Quick Checkout page.</div>
+                                <div class="form-text">Adjust how many accessory or kit rows appear on each Quick Checkout or Quick Checkin page.</div>
                             </div>
                             <div class="col-12">
                                 <div class="form-check form-switch">
@@ -1461,7 +1461,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="quick_checkout_show_assets_tab"
                                         <?= $cfg(['quick_checkout', 'show_assets_tab'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="quick_checkout_show_assets_tab">
-                                        Display Equipment tab
+                                        Display Equipment tab on Quick Checkout and Quick Checkin
                                     </label>
                                 </div>
                             </div>
@@ -1473,7 +1473,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="quick_checkout_show_accessories_tab"
                                         <?= $cfg(['quick_checkout', 'show_accessories_tab'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="quick_checkout_show_accessories_tab">
-                                        Display Accessories tab
+                                        Display Accessories tab on Quick Checkout and Quick Checkin
                                     </label>
                                 </div>
                             </div>
@@ -1485,7 +1485,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="quick_checkout_show_kits_tab"
                                         <?= $cfg(['quick_checkout', 'show_kits_tab'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="quick_checkout_show_kits_tab">
-                                        Display Kits tab
+                                        Display Kits tab on Quick Checkout
                                     </label>
                                 </div>
                             </div>

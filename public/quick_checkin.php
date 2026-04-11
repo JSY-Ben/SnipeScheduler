@@ -10,6 +10,26 @@ require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 
+$config = load_config();
+$quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick_checkout'] : [];
+$quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
+    ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
+    : 5;
+$showQuickCheckinEquipmentTab = array_key_exists('show_assets_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_assets_tab'])
+    : true;
+$showQuickCheckinAccessoriesTab = array_key_exists('show_accessories_tab', $quickCheckoutCfg)
+    ? !empty($quickCheckoutCfg['show_accessories_tab'])
+    : true;
+$quickCheckinVisibleTabs = [];
+if ($showQuickCheckinEquipmentTab) {
+    $quickCheckinVisibleTabs[] = 'equipment';
+}
+if ($showQuickCheckinAccessoriesTab) {
+    $quickCheckinVisibleTabs[] = 'accessories';
+}
+$quickCheckinTabsEnabled = !empty($quickCheckinVisibleTabs);
+
 $active  = basename($_SERVER['PHP_SELF']);
 $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
@@ -51,11 +71,14 @@ if (!isset($_SESSION['quick_checkin_items'])) {
 }
 $checkinItems = &$_SESSION['quick_checkin_items'];
 
-$selectorTabRaw = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? 'equipment'))));
-$selectorTab = in_array($selectorTabRaw, ['equipment', 'accessories'], true) ? $selectorTabRaw : 'equipment';
+$selectorTabRaw = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? ($quickCheckinVisibleTabs[0] ?? 'equipment')))));
+$selectorTab = ($quickCheckinTabsEnabled && in_array($selectorTabRaw, $quickCheckinVisibleTabs, true))
+    ? $selectorTabRaw
+    : ($quickCheckinVisibleTabs[0] ?? 'equipment');
 $accessorySearchValue = trim((string)($_POST['accessory_search'] ?? ($_GET['accessory_search'] ?? '')));
 $accessoryUserValue = trim((string)($_POST['accessory_user'] ?? ($_GET['accessory_user'] ?? '')));
 $accessoryCategoryValue = trim((string)($_POST['accessory_category'] ?? ($_GET['accessory_category'] ?? '')));
+$browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1)));
 
 $messages = [];
 $errors   = [];
@@ -84,6 +107,78 @@ function qci_extract_record_image_path(array $record): string
     }
 
     return '';
+}
+
+function qci_paginate_rows(array $rows, int $requestedPage, int $perPage): array
+{
+    $total = count($rows);
+    $safePerPage = max(1, $perPage);
+    $totalPages = max(1, (int)ceil($total / $safePerPage));
+    $page = min(max(1, $requestedPage), $totalPages);
+    $offset = ($page - 1) * $safePerPage;
+    $slice = array_slice($rows, $offset, $safePerPage);
+
+    return [
+        'rows' => $slice,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $safePerPage,
+        'total_pages' => $totalPages,
+    ];
+}
+
+function qci_render_pagination(array $pagination, array $baseParams): string
+{
+    $totalPages = (int)($pagination['total_pages'] ?? 1);
+    $currentPage = (int)($pagination['page'] ?? 1);
+    if ($totalPages <= 1) {
+        return '';
+    }
+
+    $baseParams = array_filter($baseParams, static function ($value): bool {
+        return trim((string)$value) !== '';
+    });
+    $buildUrl = static function (int $targetPage) use ($baseParams): string {
+        $params = $baseParams;
+        if ($targetPage > 1) {
+            $params['browse_page'] = $targetPage;
+        } else {
+            unset($params['browse_page']);
+        }
+
+        $query = http_build_query($params);
+        return 'quick_checkin.php' . ($query !== '' ? '?' . $query : '');
+    };
+
+    $window = 2;
+    $startPage = max(1, $currentPage - $window);
+    $endPage = min($totalPages, $currentPage + $window);
+    if (($endPage - $startPage + 1) < 5) {
+        if ($startPage === 1) {
+            $endPage = min($totalPages, $startPage + 4);
+        } elseif ($endPage === $totalPages) {
+            $startPage = max(1, $endPage - 4);
+        }
+    }
+
+    $html = '<nav aria-label="Quick check-in pagination"><ul class="pagination pagination-sm mb-0">';
+    $prevDisabled = $currentPage <= 1 ? ' disabled' : '';
+    $prevHref = $currentPage <= 1 ? '#' : h($buildUrl($currentPage - 1));
+    $html .= '<li class="page-item' . $prevDisabled . '"><a class="page-link" href="' . $prevHref . '">Previous</a></li>';
+
+    for ($pageNum = $startPage; $pageNum <= $endPage; $pageNum++) {
+        $isActive = $pageNum === $currentPage;
+        $itemClass = 'page-item' . ($isActive ? ' active' : '');
+        $href = $isActive ? '#' : h($buildUrl($pageNum));
+        $html .= '<li class="' . $itemClass . '"><a class="page-link" href="' . $href . '">' . $pageNum . '</a></li>';
+    }
+
+    $nextDisabled = $currentPage >= $totalPages ? ' disabled' : '';
+    $nextHref = $currentPage >= $totalPages ? '#' : h($buildUrl($currentPage + 1));
+    $html .= '<li class="page-item' . $nextDisabled . '"><a class="page-link" href="' . $nextHref . '">Next</a></li>';
+    $html .= '</ul></nav>';
+
+    return $html;
 }
 
 function qci_image_proxy_url(string $imagePath): string
@@ -753,6 +848,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $checkedOutAccessories = [];
+$checkedOutAccessoryPagination = qci_paginate_rows([], 1, $quickCheckoutItemsPerPage);
 $accessoryUsers = [];
 $accessoryCategories = [];
 if ($selectorTab === 'accessories') {
@@ -817,6 +913,13 @@ if ($selectorTab === 'accessories') {
                 return qci_accessory_category_name($item) === $accessoryCategoryValue;
             });
         }
+
+        $checkedOutAccessoryPagination = qci_paginate_rows(
+            array_values($checkedOutAccessories),
+            $browsePage,
+            $quickCheckoutItemsPerPage
+        );
+        $checkedOutAccessories = $checkedOutAccessoryPagination['rows'] ?? [];
     } catch (Throwable $e) {
         $errors[] = 'Could not load checked out accessories: ' . $e->getMessage();
     }
@@ -883,13 +986,22 @@ if ($selectorTab === 'accessories') {
                     $accessoryTabUrl = 'quick_checkin.php?' . http_build_query($accessoryTabParams);
                 ?>
 
+                <?php if (!$quickCheckinTabsEnabled): ?>
+                    <div class="alert alert-info mb-3">
+                        All Quick Checkout/Checkin item tabs are currently hidden in Frontend settings.
+                    </div>
+                <?php else: ?>
                 <ul class="nav reservations-subtabs quick-checkin-tabs mb-3">
-                    <li class="nav-item">
-                        <a class="nav-link <?= $selectorTab === 'equipment' ? 'active' : '' ?>" href="<?= h($equipmentTabUrl) ?>">Equipment</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
-                    </li>
+                    <?php if ($showQuickCheckinEquipmentTab): ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?= $selectorTab === 'equipment' ? 'active' : '' ?>" href="<?= h($equipmentTabUrl) ?>">Equipment</a>
+                        </li>
+                    <?php endif; ?>
+                    <?php if ($showQuickCheckinAccessoriesTab): ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?= $selectorTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoryTabUrl) ?>">Accessories</a>
+                        </li>
+                    <?php endif; ?>
                 </ul>
 
                 <?php if ($selectorTab === 'equipment'): ?>
@@ -1007,7 +1119,8 @@ if ($selectorTab === 'accessories') {
                             <div class="filter-panel__title">CHECKED OUT ACCESSORIES</div>
                         </div>
                         <div class="quick-checkout-panel__meta">
-                            <span class="quick-checkout-panel__count"><?= count($checkedOutAccessories) ?> <?= count($checkedOutAccessories) === 1 ? 'accessory' : 'accessories' ?></span>
+                            <?php $checkedOutAccessoryTotal = (int)($checkedOutAccessoryPagination['total'] ?? count($checkedOutAccessories)); ?>
+                            <span class="quick-checkout-panel__count"><?= $checkedOutAccessoryTotal ?> <?= $checkedOutAccessoryTotal === 1 ? 'accessory' : 'accessories' ?></span>
                         </div>
                     </div>
                     <div class="quick-checkout-panel__subtitle">Currently checked out accessories from Snipe-IT.</div>
@@ -1021,6 +1134,10 @@ if ($selectorTab === 'accessories') {
                         <form method="post" data-accessory-bulk-form>
                             <input type="hidden" name="mode" value="add_accessories">
                             <input type="hidden" name="active_tab" value="accessories">
+                            <input type="hidden" name="browse_page" value="<?= (int)($checkedOutAccessoryPagination['page'] ?? 1) ?>">
+                            <input type="hidden" name="accessory_search" value="<?= h($accessorySearchValue) ?>">
+                            <input type="hidden" name="accessory_user" value="<?= h($accessoryUserValue) ?>">
+                            <input type="hidden" name="accessory_category" value="<?= h($accessoryCategoryValue) ?>">
                             <div class="table-responsive mb-3">
                                 <table class="table table-sm table-striped align-middle mb-0">
                                     <thead>
@@ -1094,11 +1211,20 @@ if ($selectorTab === 'accessories') {
                             <button type="submit" class="btn btn-primary quick-checkout-submit-button" data-accessory-bulk-submit disabled>
                                 Add selected to check-in list
                             </button>
+                            <div class="d-flex justify-content-end mt-3">
+                                <?= qci_render_pagination($checkedOutAccessoryPagination, [
+                                    'tab' => 'accessories',
+                                    'accessory_search' => $accessorySearchValue,
+                                    'accessory_user' => $accessoryUserValue,
+                                    'accessory_category' => $accessoryCategoryValue,
+                                ]) ?>
+                            </div>
                         </form>
                     <?php endif; ?>
                     </div>
                 </div>
                 <?php qci_render_checkin_list($checkinItems, 'accessories', 'mt-4'); ?>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
