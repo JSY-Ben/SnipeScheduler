@@ -46,10 +46,10 @@ if (($_GET['ajax'] ?? '') === 'asset_search') {
     exit;
 }
 
-if (!isset($_SESSION['quick_checkin_assets'])) {
-    $_SESSION['quick_checkin_assets'] = [];
+if (!isset($_SESSION['quick_checkin_items'])) {
+    $_SESSION['quick_checkin_items'] = [];
 }
-$checkinAssets = &$_SESSION['quick_checkin_assets'];
+$checkinItems = &$_SESSION['quick_checkin_items'];
 
 $selectorTabRaw = strtolower(trim((string)($_POST['active_tab'] ?? ($_GET['tab'] ?? 'equipment'))));
 $selectorTab = in_array($selectorTabRaw, ['equipment', 'accessories'], true) ? $selectorTabRaw : 'equipment';
@@ -60,11 +60,11 @@ $accessoryCategoryValue = trim((string)($_POST['accessory_category'] ?? ($_GET['
 $messages = [];
 $errors   = [];
 
-// Remove single asset
+// Remove single item
 if (isset($_GET['remove'])) {
     $rid = (int)$_GET['remove'];
-    if ($rid > 0 && isset($checkinAssets[$rid])) {
-        unset($checkinAssets[$rid]);
+    if ($rid > 0 && isset($checkinItems[$rid])) {
+        unset($checkinItems[$rid]);
     }
     $redirectTab = $_GET['tab'] ?? 'equipment';
     header('Location: quick_checkin.php?tab=' . urlencode($redirectTab));
@@ -109,8 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $assignedName = $assigned;
                 }
 
-                $checkinAssets[$assetId] = [
+                $checkinItems[$assetId] = [
                     'id'         => $assetId,
+                    'item_type'  => 'asset',
                     'asset_tag'  => $assetTag,
                     'name'       => $assetName,
                     'model'      => $modelName,
@@ -125,53 +126,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
         }
+    } elseif ($mode === 'add_accessory') {
+        $accessoryId = (int)($_POST['accessory_id'] ?? 0);
+        $accessoryCheckoutId = (int)($_POST['accessory_checkout_id'] ?? 0);
+        if ($accessoryId <= 0) {
+            $errors[] = 'Invalid accessory ID.';
+        } else {
+            try {
+                // Find the accessory in the checked out list
+                $found = false;
+                foreach ($checkedOutAccessories as $accessory) {
+                    if ((int)$accessory['id'] === $accessoryId && (int)$accessory['accessory_checkout_id'] === $accessoryCheckoutId) {
+                        $checkinItems[$accessoryId . '_' . $accessoryCheckoutId] = [
+                            'id'         => $accessoryId,
+                            'item_type'  => 'accessory',
+                            'accessory_checkout_id' => $accessoryCheckoutId,
+                            'asset_tag'  => '',
+                            'name'       => $accessory['name'] ?? '',
+                            'model'      => $accessory['manufacturer_name'] ?? '',
+                            'status'     => '',
+                            'assigned_id'    => $accessory['assigned_to']['id'] ?? 0,
+                            'assigned_email' => $accessory['assigned_to']['email'] ?? '',
+                            'assigned_name'  => $accessory['assigned_to']['name'] ?? '',
+                            'image'      => $accessory['image'] ?? '',
+                        ];
+                        $messages[] = "Added accessory {$accessory['name']} to check-in list.";
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    throw new Exception('Accessory not found in checked out list.');
+                }
+            } catch (Throwable $e) {
+                $errors[] = 'Could not add accessory: ' . $e->getMessage();
+            }
+        }
     } elseif ($mode === 'checkin') {
         $note = trim($_POST['note'] ?? '');
 
-        if (empty($checkinAssets)) {
-            $errors[] = 'There are no assets in the check-in list.';
+        if (empty($checkinItems)) {
+            $errors[] = 'There are no items in the check-in list.';
         } else {
-            $hadCheckinAssets = !empty($checkinAssets);
+            $hadCheckinItems = !empty($checkinItems);
             $staffEmail = $currentUser['email'] ?? '';
             $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
             $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-            $assetTags  = [];
+            $itemLabels  = [];
             $userBuckets = [];
             $summaryBuckets = [];
             $userLookupCache = [];
             $userIdCache = [];
 
-            foreach ($checkinAssets as $asset) {
-                $assetId  = (int)$asset['id'];
-                $assetTag = $asset['asset_tag'] ?? '';
+            foreach ($checkinItems as $item) {
+                $itemType = $item['item_type'] ?? 'asset';
+                $itemId  = (int)$item['id'];
+                $itemName = $item['name'] ?? '';
                 try {
-                    $assignedEmail = $asset['assigned_email'] ?? '';
-                    $assignedName  = $asset['assigned_name'] ?? '';
-                    $assignedId    = (int)($asset['assigned_id'] ?? 0);
+                    $assignedEmail = $item['assigned_email'] ?? '';
+                    $assignedName  = $item['assigned_name'] ?? '';
+                    $assignedId    = (int)($item['assigned_id'] ?? 0);
                     if (($assignedEmail === '' && $assignedName === '') || $assignedId === 0) {
-                        try {
-                            $freshAsset = snipeit_request('GET', 'hardware/' . $assetId);
-                            $freshAssigned = $freshAsset['assigned_to'] ?? null;
-                            if (empty($freshAssigned) && isset($freshAsset['assigned_to_fullname'])) {
-                                $freshAssigned = $freshAsset['assigned_to_fullname'];
+                        // For accessories, we might need to refresh data
+                        if ($itemType === 'accessory') {
+                            // Accessory assignment data should already be correct
+                        } elseif ($itemType === 'asset') {
+                            try {
+                                $freshAsset = snipeit_request('GET', 'hardware/' . $itemId);
+                                $freshAssigned = $freshAsset['assigned_to'] ?? null;
+                                if (empty($freshAssigned) && isset($freshAsset['assigned_to_fullname'])) {
+                                    $freshAssigned = $freshAsset['assigned_to_fullname'];
+                                }
+                                if (is_array($freshAssigned)) {
+                                    $assignedId    = (int)($freshAssigned['id'] ?? $assignedId);
+                                    $assignedEmail = $freshAssigned['email'] ?? ($freshAssigned['username'] ?? $assignedEmail);
+                                    $assignedName  = $freshAssigned['name'] ?? ($freshAssigned['username'] ?? ($freshAssigned['email'] ?? $assignedName));
+                                } elseif (is_string($freshAssigned) && $assignedName === '') {
+                                    $assignedName = $freshAssigned;
+                                }
+                            } catch (Throwable $e) {
+                                // Skip fresh lookup; proceed with stored assignment data.
                             }
-                            if (is_array($freshAssigned)) {
-                                $assignedId    = (int)($freshAssigned['id'] ?? $assignedId);
-                                $assignedEmail = $freshAssigned['email'] ?? ($freshAssigned['username'] ?? $assignedEmail);
-                                $assignedName  = $freshAssigned['name'] ?? ($freshAssigned['username'] ?? ($freshAssigned['email'] ?? $assignedName));
-                            } elseif (is_string($freshAssigned) && $assignedName === '') {
-                                $assignedName = $freshAssigned;
-                            }
-                        } catch (Throwable $e) {
-                            // Skip fresh lookup; proceed with stored assignment data.
                         }
                     }
 
-                    checkin_asset($assetId, $note);
-                    $messages[] = "Checked in asset {$assetTag}.";
-                    $model = $asset['model'] ?? '';
-                    $formatted = $model !== '' ? ($assetTag . ' (' . $model . ')') : $assetTag;
-                    $assetTags[] = $formatted;
+                    if ($itemType === 'asset') {
+                        checkin_asset($itemId, $note);
+                        $assetTag = $item['asset_tag'] ?? '';
+                        $messages[] = "Checked in asset {$assetTag}.";
+                        $model = $item['model'] ?? '';
+                        $formatted = $model !== '' ? ($assetTag . ' (' . $model . ')') : $assetTag;
+                        $itemLabels[] = $formatted;
+                    } elseif ($itemType === 'accessory') {
+                        $accessoryCheckoutId = (int)($item['accessory_checkout_id'] ?? 0);
+                        if ($accessoryCheckoutId > 0) {
+                            checkin_accessory($accessoryCheckoutId, $note);
+                            $messages[] = "Checked in accessory {$itemName}.";
+                            $formatted = $itemName;
+                            $itemLabels[] = $formatted;
+                        } else {
+                            throw new Exception('Invalid accessory checkout ID.');
+                        }
+                    }
 
                     if ($assignedEmail === '' && $assignedId > 0) {
                         if (isset($userIdCache[$assignedId])) {
@@ -329,13 +385,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $userBuckets[$assignedEmail]['assets'][] = $formatted;
                     }
                 } catch (Throwable $e) {
-                    $errors[] = "Failed to check in {$assetTag}: " . $e->getMessage();
+                    $itemLabel = $itemType === 'asset' ? ($item['asset_tag'] ?? '') : $itemName;
+                    $errors[] = "Failed to check in {$itemLabel}: " . $e->getMessage();
                 }
             }
             if (empty($errors)) {
-                $assetLineItems = array_map(static function (string $item): string {
+                $itemLineItems = array_map(static function (string $item): string {
                     return '- ' . $item;
-                }, array_values(array_filter($assetTags, static function (string $item): bool {
+                }, array_values(array_filter($itemLabels, static function (string $item): bool {
                     return $item !== '';
                 })));
 
@@ -364,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 return $item !== '';
                             })));
                             $bodyLines = array_merge(
-                                ['The following assets have been checked in:'],
+                                ['The following items have been checked in:'],
                                 $userAssetLines,
                                 $staffDisplayName !== '' ? ["Checked in by: {$staffDisplayName}"] : [],
                                 $note !== '' ? ["Note: {$note}"] : []
@@ -384,7 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $staffBodyLines = [];
-                    $staffBodyLines[] = 'You checked in the following assets:';
+                    $staffBodyLines[] = 'You checked in the following items:';
                     if (!empty($perUserSummary)) {
                         $staffBodyLines = array_merge($staffBodyLines, $perUserSummary);
                     } else {
@@ -399,7 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Notify staff performing check-in.
                     if ($sendStaffDefault && $staffEmail !== '' && !empty($assetTags)) {
-                        layout_send_notification($staffEmail, $staffDisplayName, 'Assets checked in', $staffBodyLines, $config);
+                        layout_send_notification($staffEmail, $staffDisplayName, 'Items checked in', $staffBodyLines, $config);
                         $notifiedEmails[] = $staffEmail;
                     }
 
@@ -409,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $notifiedEmails
                     );
                     $extraBodyLines = [];
-                    $extraBodyLines[] = 'The following assets were checked in:';
+                    $extraBodyLines[] = 'The following items were checked in:';
                     if (!empty($perUserSummary)) {
                         $extraBodyLines = array_merge($extraBodyLines, $perUserSummary);
                     } else {
@@ -428,7 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         layout_send_notification(
                             $recipient['email'],
                             $recipient['name'],
-                            'Assets checked in',
+                            'Items checked in',
                             $extraBodyLines,
                             $config
                         );
@@ -761,6 +818,114 @@ if ($selectorTab === 'accessories') {
                     </div>
                 </div>
 
+                <?php if (!empty($checkinItems)): ?>
+                <div class="quick-checkout-panel quick-checkout-panel--basket filter-panel filter-panel--compact mt-4">
+                    <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="filter-panel__dot"></span>
+                            <div class="filter-panel__title">CHECK-IN LIST</div>
+                        </div>
+                        <div class="quick-checkout-panel__meta">
+                            <span class="quick-checkout-panel__count"><?= count($checkinItems) ?> item<?= count($checkinItems) === 1 ? '' : 's' ?></span>
+                        </div>
+                    </div>
+                    <div class="quick-checkout-panel__subtitle">Items ready for check-in.</div>
+
+                    <div class="quick-checkout-basket-surface">
+                        <div class="table-responsive mb-3">
+                            <table class="table table-sm table-striped align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Identifier</th>
+                                        <th>Name</th>
+                                        <th>Model</th>
+                                        <th>Checked out to</th>
+                                        <th style="width: 80px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($checkinItems as $item): ?>
+                                        <tr>
+                                            <td>
+                                                <?php if ($item['item_type'] === 'asset'): ?>
+                                                    <span class="badge bg-primary">Asset</span>
+                                                <?php elseif ($item['item_type'] === 'accessory'): ?>
+                                                    <span class="badge bg-secondary">Accessory</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($item['item_type'] === 'asset'): ?>
+                                                    <?= h($item['asset_tag'] ?? '') ?>
+                                                <?php elseif ($item['item_type'] === 'accessory'): ?>
+                                                    ID: <?= h($item['id'] ?? '') ?>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td><?= h($item['name'] ?? '') ?></td>
+                                            <td><?= h($item['model'] ?? '') ?></td>
+                                            <?php
+                                                if ($item['item_type'] === 'asset') {
+                                                    $assignedName = $item['assigned_name'] ?? '';
+                                                    $assignedEmail = $item['assigned_email'] ?? '';
+                                                    if ($assignedEmail !== '') {
+                                                        $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
+                                                            ? $assignedName . " <{$assignedEmail}>"
+                                                            : $assignedEmail;
+                                                    } elseif ($assignedName !== '') {
+                                                        $assignedLabel = $assignedName;
+                                                    } else {
+                                                        $assignedLabel = 'Not checked out';
+                                                    }
+                                                } elseif ($item['item_type'] === 'accessory') {
+                                                    $assigned = $item['assigned_to'] ?? [];
+                                                    if (is_array($assigned)) {
+                                                        $assignedName = $assigned['name'] ?? '';
+                                                        $assignedEmail = $assigned['email'] ?? '';
+                                                        $assignedLabel = $assignedName !== '' && $assignedName !== $assignedEmail
+                                                            ? $assignedName . " <{$assignedEmail}>"
+                                                            : ($assignedEmail ?: $assignedName);
+                                                    } else {
+                                                        $assignedLabel = (string)$assigned;
+                                                    }
+                                                } else {
+                                                    $assignedLabel = '';
+                                                }
+                                            ?>
+                                            <td><?= h($assignedLabel) ?></td>
+                                            <td>
+                                                <a href="quick_checkin.php?remove=<?= (int)$item['id'] ?>&tab=accessories"
+                                                   class="btn btn-sm btn-outline-danger">
+                                                    Remove
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <form method="post" class="border-top pt-3">
+                            <input type="hidden" name="mode" value="checkin">
+                            <input type="hidden" name="active_tab" value="accessories">
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Note (optional)</label>
+                                    <input type="text"
+                                           name="note"
+                                           class="form-control"
+                                           placeholder="Optional note to store with check-in">
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary quick-checkout-submit-button">
+                                Check in all listed items
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div class="quick-checkout-panel quick-checkout-panel--shared filter-panel filter-panel--compact mt-4">
                     <div class="quick-checkout-panel__header quick-checkout-panel__header--basket d-flex align-items-center justify-content-between gap-3">
                         <div class="d-flex align-items-center gap-3">
@@ -783,16 +948,25 @@ if ($selectorTab === 'accessories') {
                             <table class="table table-sm table-striped align-middle mb-0">
                                 <thead>
                                     <tr>
+                                        <th>Image</th>
                                         <th>Name</th>
                                         <th>Model</th>
                                         <th>Category</th>
                                         <th>Checked out to</th>
                                         <th>Checked out since</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($checkedOutAccessories as $accessory): ?>
                                         <tr>
+                                            <td>
+                                                <?php if (!empty($accessory['image'])): ?>
+                                                    <img src="<?= h($accessory['image']) ?>" alt="Accessory image" class="img-thumbnail" style="max-width: 50px; max-height: 50px;">
+                                                <?php else: ?>
+                                                    <span class="text-muted">No image</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?= h($accessory['name'] ?? '') ?></td>
                                             <td><?= h($accessory['model'] ?? '') ?></td>
                                             <td><?= h($accessory['category'] ?? '') ?></td>
@@ -810,6 +984,15 @@ if ($selectorTab === 'accessories') {
                                             ?>
                                             <td><?= h($assignedLabel) ?></td>
                                             <td><?= h($accessory['last_checkout'] ?? '') ?></td>
+                                            <td>
+                                                <form method="post" class="d-inline">
+                                                    <input type="hidden" name="action" value="add_accessory">
+                                                    <input type="hidden" name="accessory_id" value="<?= h($accessory['id'] ?? '') ?>">
+                                                    <input type="hidden" name="accessory_checkout_id" value="<?= h($accessory['accessory_checkout_id'] ?? '') ?>">
+                                                    <input type="hidden" name="tab" value="accessories">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">Add to Check-in list</button>
+                                                </form>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
