@@ -5,6 +5,7 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/reservation_policy.php';
 
 $isAdmin = !empty($currentUser['is_admin']);
 $isStaff = !empty($currentUser['is_staff']) || $isAdmin;
@@ -182,6 +183,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $end   = date('Y-m-d H:i:s', $endTs);
         if ($end <= $start) {
             $errors[] = 'End time must be after start time.';
+        }
+
+        // Validate against reservation policy
+        if (empty($errors)) {
+            $reservationPolicy = reservation_policy_get($config);
+            $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
+                'start_ts' => $startTs,
+                'end_ts' => $endTs,
+                'target_user_id' => $reservation['user_id'] ?? '',
+                'target_user_email' => $reservation['user_email'] ?? '',
+                'is_admin' => $isAdmin,
+                'is_staff' => $isStaff,
+                'is_on_behalf' => false,
+                'exclude_reservation_id' => $id,
+            ]);
+            if (!empty($policyViolations)) {
+                $errors = array_merge($errors, $policyViolations);
+            }
         }
     }
 
