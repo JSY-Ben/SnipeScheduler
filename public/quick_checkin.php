@@ -164,6 +164,32 @@ function qci_checkin_item_assigned_label(array $item): string
     return ($item['item_type'] ?? 'asset') === 'asset' ? 'Not checked out' : '';
 }
 
+function qci_accessory_checkin_key(array $accessory): string
+{
+    return (int)($accessory['id'] ?? 0) . '_' . (int)($accessory['accessory_checkout_id'] ?? 0);
+}
+
+function qci_accessory_checkin_item(array $accessory): array
+{
+    $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
+
+    return [
+        'id'         => (int)($accessory['id'] ?? 0),
+        'item_type'  => 'accessory',
+        'accessory_checkout_id' => (int)($accessory['accessory_checkout_id'] ?? 0),
+        'asset_tag'  => '',
+        'name'       => $accessory['name'] ?? '',
+        'model'      => $accessory['manufacturer_name'] ?? '',
+        'image'      => $accessory['image'] ?? '',
+        'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ''),
+        'category_name' => qci_accessory_category_name($accessory),
+        'status'     => '',
+        'assigned_id'    => $assigned['id'] ?? 0,
+        'assigned_email' => $assigned['email'] ?? '',
+        'assigned_name'  => $assigned['name'] ?? '',
+    ];
+}
+
 function qci_render_checkin_list(array $checkinItems, string $activeTab, string $extraClass = 'mt-4'): void
 {
     $itemCount = count($checkinItems);
@@ -321,43 +347,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
         }
-    } elseif ($mode === 'add_accessory') {
-        $accessoryId = (int)($_POST['accessory_id'] ?? 0);
-        $accessoryCheckoutId = (int)($_POST['accessory_checkout_id'] ?? 0);
-        if ($accessoryId <= 0) {
-            $errors[] = 'Invalid accessory ID.';
+    } elseif ($mode === 'add_accessory' || $mode === 'add_accessories') {
+        $selectedKeys = [];
+        if ($mode === 'add_accessories') {
+            foreach (($_POST['accessory_keys'] ?? []) as $rawKey) {
+                $key = trim((string)$rawKey);
+                if ($key !== '') {
+                    $selectedKeys[$key] = true;
+                }
+            }
+            if (empty($selectedKeys)) {
+                $errors[] = 'Select at least one accessory to add.';
+            }
         } else {
+            $accessoryId = (int)($_POST['accessory_id'] ?? 0);
+            $accessoryCheckoutId = (int)($_POST['accessory_checkout_id'] ?? 0);
+            if ($accessoryId <= 0 || $accessoryCheckoutId <= 0) {
+                $errors[] = 'Invalid accessory ID.';
+            } else {
+                $selectedKeys[$accessoryId . '_' . $accessoryCheckoutId] = true;
+            }
+        }
+
+        if (empty($errors)) {
             try {
                 $checkedOutAccessories = fetch_checked_out_accessories_from_snipeit();
-                // Find the accessory in the checked out list
-                $found = false;
+                $added = 0;
                 foreach ($checkedOutAccessories as $accessory) {
-                    if ((int)$accessory['id'] === $accessoryId && (int)$accessory['accessory_checkout_id'] === $accessoryCheckoutId) {
-                        $checkinItems[$accessoryId . '_' . $accessoryCheckoutId] = [
-                            'id'         => $accessoryId,
-                            'item_type'  => 'accessory',
-                            'accessory_checkout_id' => $accessoryCheckoutId,
-                            'asset_tag'  => '',
-                            'name'       => $accessory['name'] ?? '',
-                            'model'      => $accessory['manufacturer_name'] ?? '',
-                            'image'      => $accessory['image'] ?? '',
-                            'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ''),
-                            'category_name' => qci_accessory_category_name($accessory),
-                            'status'     => '',
-                            'assigned_id'    => is_array($accessory['assigned_to'] ?? null) ? (int)($accessory['assigned_to']['id'] ?? 0) : 0,
-                            'assigned_email' => qci_assigned_user_fields($accessory['assigned_to'] ?? [])['email'],
-                            'assigned_name'  => qci_assigned_user_fields($accessory['assigned_to'] ?? [])['name'],
-                        ];
-                        $messages[] = "Added accessory {$accessory['name']} to check-in list.";
-                        $found = true;
-                        break;
+                    $accessoryKey = qci_accessory_checkin_key($accessory);
+                    if (!isset($selectedKeys[$accessoryKey])) {
+                        continue;
                     }
+                    $checkinItems[$accessoryKey] = qci_accessory_checkin_item($accessory);
+                    $added++;
                 }
-                if (!$found) {
-                    throw new Exception('Accessory not found in checked out list.');
+                if ($added === 0) {
+                    throw new Exception('Selected accessories were not found in the checked out list.');
                 }
+                $messages[] = $added === 1
+                    ? 'Added 1 accessory to the check-in list.'
+                    : "Added {$added} accessories to the check-in list.";
             } catch (Throwable $e) {
-                $errors[] = 'Could not add accessory: ' . $e->getMessage();
+                $errors[] = 'Could not add accessories: ' . $e->getMessage();
             }
         }
     } elseif ($mode === 'checkin') {
@@ -982,59 +1013,80 @@ if ($selectorTab === 'accessories') {
                             No checked out accessories found.
                         </div>
                     <?php else: ?>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-sm table-striped align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Image</th>
-                                        <th>Name</th>
-                                        <th>Category</th>
-                                        <th>Checked out to</th>
-                                        <th>Checked out since</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($checkedOutAccessories as $accessory): ?>
+                        <form method="post" data-accessory-bulk-form>
+                            <input type="hidden" name="mode" value="add_accessories">
+                            <input type="hidden" name="active_tab" value="accessories">
+                            <div class="table-responsive mb-3">
+                                <table class="table table-sm table-striped align-middle mb-0">
+                                    <thead>
                                         <tr>
-                                            <td>
-                                                <?php
-                                                    $accessoryImageUrl = qci_image_proxy_url(qci_extract_record_image_path($accessory));
-                                                ?>
-                                                <?php if ($accessoryImageUrl !== ''): ?>
-                                                    <img src="<?= h($accessoryImageUrl) ?>"
-                                                         alt="<?= h(($accessory['name'] ?? 'Accessory') . ' image') ?>"
-                                                         class="report-model-thumb">
-                                                <?php else: ?>
-                                                    <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= h($accessory['name'] ?? '') ?></td>
-                                            <td><?= h(qci_accessory_category_name($accessory)) ?></td>
-                                            <?php
-                                                $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
-                                                if ($assigned['name'] !== '' || $assigned['email'] !== '') {
-                                                    $assignedLabel = qci_assigned_user_label($assigned);
-                                                } else {
-                                                    $assignedLabel = '';
-                                                }
-                                            ?>
-                                            <td><?= h($assignedLabel) ?></td>
-                                            <td><?= h(app_format_datetime($accessory['last_checkout'] ?? '')) ?></td>
-                                            <td>
-                                                <form method="post" class="d-inline">
-                                                    <input type="hidden" name="mode" value="add_accessory">
-                                                    <input type="hidden" name="accessory_id" value="<?= h($accessory['id'] ?? '') ?>">
-                                                    <input type="hidden" name="accessory_checkout_id" value="<?= h($accessory['accessory_checkout_id'] ?? '') ?>">
-                                                    <input type="hidden" name="active_tab" value="accessories">
-                                                    <button type="submit" class="btn btn-sm btn-outline-primary">Add to Check-in list</button>
-                                                </form>
-                                            </td>
+                                            <th style="width: 42px;">
+                                                <input type="checkbox"
+                                                       class="form-check-input"
+                                                       data-accessory-select-all
+                                                       aria-label="Select all checked out accessories">
+                                            </th>
+                                            <th>Image</th>
+                                            <th>Name</th>
+                                            <th>Category</th>
+                                            <th>Checked out to</th>
+                                            <th>Checked out since</th>
+                                            <th>Actions</th>
                                         </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($checkedOutAccessories as $accessory): ?>
+                                            <?php $accessoryKey = qci_accessory_checkin_key($accessory); ?>
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input"
+                                                           name="accessory_keys[]"
+                                                           value="<?= h($accessoryKey) ?>"
+                                                           data-accessory-select-row
+                                                           aria-label="Select <?= h($accessory['name'] ?? 'accessory') ?>">
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                        $accessoryImageUrl = qci_image_proxy_url(qci_extract_record_image_path($accessory));
+                                                    ?>
+                                                    <?php if ($accessoryImageUrl !== ''): ?>
+                                                        <img src="<?= h($accessoryImageUrl) ?>"
+                                                             alt="<?= h(($accessory['name'] ?? 'Accessory') . ' image') ?>"
+                                                             class="report-model-thumb">
+                                                    <?php else: ?>
+                                                        <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?= h($accessory['name'] ?? '') ?></td>
+                                                <td><?= h(qci_accessory_category_name($accessory)) ?></td>
+                                                <?php
+                                                    $assigned = qci_assigned_user_fields($accessory['assigned_to'] ?? []);
+                                                    if ($assigned['name'] !== '' || $assigned['email'] !== '') {
+                                                        $assignedLabel = qci_assigned_user_label($assigned);
+                                                    } else {
+                                                        $assignedLabel = '';
+                                                    }
+                                                ?>
+                                                <td><?= h($assignedLabel) ?></td>
+                                                <td><?= h(app_format_datetime($accessory['last_checkout'] ?? '')) ?></td>
+                                                <td>
+                                                    <button type="submit"
+                                                            name="accessory_keys[]"
+                                                            value="<?= h($accessoryKey) ?>"
+                                                            class="btn btn-sm btn-outline-primary">
+                                                        Add to Check-in list
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="submit" class="btn btn-primary quick-checkout-submit-button" data-accessory-bulk-submit disabled>
+                                Add selected to check-in list
+                            </button>
+                        </form>
                     <?php endif; ?>
                     </div>
                 </div>
@@ -1214,6 +1266,39 @@ if ($selectorTab === 'accessories') {
             userSuggestionList.style.display = 'none';
             userSuggestionList.innerHTML = '';
         }
+    }
+
+    const accessoryBulkForm = document.querySelector('[data-accessory-bulk-form]');
+    if (accessoryBulkForm) {
+        const selectAll = accessoryBulkForm.querySelector('[data-accessory-select-all]');
+        const rowChecks = Array.from(accessoryBulkForm.querySelectorAll('[data-accessory-select-row]'));
+        const bulkSubmit = accessoryBulkForm.querySelector('[data-accessory-bulk-submit]');
+
+        function updateBulkAccessoryState() {
+            const selectedCount = rowChecks.filter((box) => box.checked).length;
+            if (bulkSubmit) {
+                bulkSubmit.disabled = selectedCount === 0;
+            }
+            if (selectAll) {
+                selectAll.checked = selectedCount > 0 && selectedCount === rowChecks.length;
+                selectAll.indeterminate = selectedCount > 0 && selectedCount < rowChecks.length;
+            }
+        }
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                rowChecks.forEach((box) => {
+                    box.checked = selectAll.checked;
+                });
+                updateBulkAccessoryState();
+            });
+        }
+
+        rowChecks.forEach((box) => {
+            box.addEventListener('change', updateBulkAccessoryState);
+        });
+
+        updateBulkAccessoryState();
     }
 })();
 </script>
