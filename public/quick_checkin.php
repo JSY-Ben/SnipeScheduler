@@ -183,21 +183,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'There are no ' . ($activeTab === 'equipment' ? 'assets' : 'items') . ' in the check-in list.';
             } else {
                 $hadCheckinItems = !empty($checkinItems);
-            $staffEmail = $currentUser['email'] ?? '';
-            $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
-            $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
-            $activeTab = $_POST['active_tab'] ?? 'equipment';
-            $itemsToCheckin = $checkinItems;
-            
-            // Filter items based on active tab
-            if ($activeTab === 'equipment') {
-                $itemsToCheckin = array_filter($checkinItems, function($item) {
-                    return ($item['item_type'] ?? 'asset') === 'asset';
-                });
-            }
-            // For accessories tab, process all items
+                $staffEmail = $currentUser['email'] ?? '';
+                $staffName  = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''));
+                $staffDisplayName = $staffName !== '' ? $staffName : ($currentUser['email'] ?? 'Staff');
+                $itemLabels  = [];
+                $userBuckets = [];
+                $summaryBuckets = [];
+                $userLookupCache = [];
+                $userIdCache = [];
 
-            foreach ($itemsToCheckin as $item) {
+                foreach ($itemsToCheckin as $item) {
                 $itemType = $item['item_type'] ?? 'asset';
                 $itemId  = (int)$item['id'];
                 $itemName = $item['name'] ?? '';
