@@ -430,6 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ldap['bind_password'] = $ldapPassInput === '' ? ($loadedConfig['ldap']['bind_password'] ?? '') : $ldapPassInput;
     }
     $ldap['ignore_cert']   = isset($_POST['ldap_ignore_cert']);
+    $ldap['login_query']   = $post('ldap_login_query', $ldap['login_query'] ?? '');
 
     $snipe = $config['snipeit'] ?? [];
     $snipe['base_url']  = $post('snipe_base_url', $snipe['base_url'] ?? '');
@@ -1146,6 +1147,11 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <input class="form-check-input" type="checkbox" name="ldap_ignore_cert" id="ldap_ignore_cert" <?= $cfg(['ldap', 'ignore_cert'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="ldap_ignore_cert">Ignore SSL certificate errors</label>
                                 </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">LDAP Login Query</label>
+                                <input type="text" name="ldap_login_query" class="form-control" value="<?= h($cfg(['ldap', 'login_query'], '(&(objectClass=user)(|(mail=%1$s)(userPrincipalName=%1$s)(proxyAddresses=smtp:%1$s)(proxyAddresses=SMTP:%1$s)))')) ?>">
+                                <div class="form-text">Used to find LDAP accounts for login by mail adress. If LDAP login does not work, try adjusting this to work with your LDAP provider (e.g. LLDAP)</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">LDAP/AD Administrators Group(s)</label>

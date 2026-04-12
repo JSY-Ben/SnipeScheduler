@@ -354,6 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
         $ldapPassRaw = $_POST['ldap_bind_password'] ?? '';
         $ldapPass    = $ldapPassRaw;
         $ldapIgnore  = isset($_POST['ldap_ignore_cert']);
+        $ldapLoginQuery = $_POST['ldap_login_query'];
         $authLdapEnabled   = isset($_POST['auth_ldap_enabled']);
         $authGoogleEnabled = isset($_POST['auth_google_enabled']);
         $googleClientId    = $post('google_client_id', '');
@@ -409,6 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'bind_dn'       => $ldapBind,
             'bind_password' => $ldapPass,
             'ignore_cert'   => $ldapIgnore,
+            'login_query' => $ldapLoginQuery,
         ];
         $newConfig['auth']['ldap_enabled']           = $authLdapEnabled;
         $newConfig['auth']['google_oauth_enabled']   = $authGoogleEnabled;
@@ -875,6 +877,11 @@ $installerAppName = installer_app_name($prefillConfig);
                                     <input class="form-check-input" type="checkbox" name="ldap_ignore_cert" id="ldap_ignore_cert" <?= $pref(['ldap', 'ignore_cert'], true) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="ldap_ignore_cert">Ignore SSL certificate errors</label>
                                 </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">LDAP Login Query</label>
+                                <input type="text" name="ldap_login_query" class="form-control" value="<?= installer_h($pref(['ldap', 'login_query'], '')) ?>">
+                                <div class="form-text">Used to find LDAP accounts for login by mail adress. If LDAP login does not work, try adjusting this to work with your LDAP provider (e.g. LLDAP)</div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">LDAP/AD Administrators Group(s)</label>

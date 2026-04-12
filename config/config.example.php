@@ -49,6 +49,7 @@ return [
         'bind_dn'       => '',
         'bind_password' => '', // keep your existing password
         'ignore_cert'   => true,
+        'login_query' => '(&(objectClass=user)(|(mail=%1$s)(userPrincipalName=%1$s)(proxyAddresses=smtp:%1$s)(proxyAddresses=SMTP:%1$s)))',
     ],
 
     'auth' => [
