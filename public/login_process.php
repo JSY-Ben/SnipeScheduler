@@ -574,10 +574,11 @@ if (!@ldap_bind($ldap, $ldapCfg['bind_dn'], $ldapCfg['bind_password'])) {
 // Find user by EMAIL
 // ------------------------------------------------------------------
 $emailEsc = ldap_escape($email, '', defined('LDAP_ESCAPE_FILTER') ? LDAP_ESCAPE_FILTER : 0);
-$filter = sprintf(
-    '(&(objectClass=user)(|(mail=%1$s)(userPrincipalName=%1$s)(proxyAddresses=smtp:%1$s)(proxyAddresses=SMTP:%1$s)))',
-    $emailEsc
-);
+$ldapLoginQuery = $ldapCfg['login_query'];
+if (!$ldapLoginQuery) {
+    $redirectWithError('LDAP Login Query is not set.');
+}
+$filter = sprintf($ldapLoginQuery, $emailEsc);
 
 $attrs = [
     'distinguishedName',
