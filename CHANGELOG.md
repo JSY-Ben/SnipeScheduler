@@ -16,9 +16,9 @@ Kits are expanded into their underlying equipment and accessory items when booke
 
 ### Catalogue
 
-1) Kit cards now show a list of what is in the kit in the catalogue card.
+1) The 'Kits' section of the catalogue now shows a list of what is in the kit on each catalogue card.
 
-2) Clicking the kit image grid now opens a kit contents modal showing the supported items in the kit, including item images and available item details.
+2) Clicking the kit image grid now opens a modal showing details of the items in the kit, including images and available item details.
 
 ### Bug Fixes
 
