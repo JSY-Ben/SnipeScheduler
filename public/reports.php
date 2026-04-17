@@ -4,6 +4,7 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/booking_helpers.php';
 
 $active  = basename($_SERVER['PHP_SELF']);
 $isAdmin = !empty($currentUser['is_admin']);
@@ -115,6 +116,8 @@ $rangeDays = max(1, (int)$fromDate->diff($toDate)->days + 1);
 
 $requestedCategoryPage = max(1, (int)($_GET['category_page'] ?? 1));
 $requestedModelPage = max(1, (int)($_GET['model_page'] ?? 1));
+$requestedAccessoryPage = max(1, (int)($_GET['accessory_page'] ?? 1));
+$requestedKitPage = max(1, (int)($_GET['kit_page'] ?? 1));
 $requestedDemandPage = max(1, (int)($_GET['demand_page'] ?? 1));
 $requestedCancellationsPage = max(1, (int)($_GET['cancellations_page'] ?? 1));
 
@@ -140,6 +143,20 @@ $modelSort = $normaliseSortKey(
     'unit_hours'
 );
 $modelDir = $normaliseSortDir((string)($_GET['model_dir'] ?? ''), 'desc');
+
+$accessorySort = $normaliseSortKey(
+    (string)($_GET['accessory_sort'] ?? ''),
+    ['accessory_name', 'category', 'unit_hours', 'share_pct', 'reservation_count', 'quantity_booked'],
+    'unit_hours'
+);
+$accessoryDir = $normaliseSortDir((string)($_GET['accessory_dir'] ?? ''), 'desc');
+
+$kitSort = $normaliseSortKey(
+    (string)($_GET['kit_sort'] ?? ''),
+    ['kit_name', 'component_unit_hours', 'reservation_count', 'model_count', 'accessory_count', 'available_sets'],
+    'component_unit_hours'
+);
+$kitDir = $normaliseSortDir((string)($_GET['kit_dir'] ?? ''), 'desc');
 
 $demandSort = $normaliseSortKey(
     (string)($_GET['demand_sort'] ?? ''),
@@ -211,7 +228,13 @@ $dailyCancelledMissedRows = [];
 $hourlyUnitMinutes = array_fill(0, 24, 0.0);
 $categoryRows = [];
 $modelRows = [];
+$accessoryRows = [];
+$kitRows = [];
+$modelStatsById = [];
+$accessoryStatsById = [];
 $categoryLookupFailures = 0;
+$accessoryLookupFailures = 0;
+$kitLookupFailures = 0;
 $legacyReservationsWithoutItems = 0;
 
 try {
@@ -374,6 +397,7 @@ try {
         $modelStats[$modelId]['unit_minutes'] += ($minutes * $qty);
         $modelStats[$modelId]['reservation_ids'][$reservationId] = true;
     }
+    $modelStatsById = $modelStats;
 
     $categoryAggregates = [];
     $totalModelMinutes = 0.0;
@@ -462,6 +486,204 @@ try {
     $reportErrors[] = 'Could not load category utilisation data.';
 }
 
+try {
+    if (booking_reservation_items_have_typed_columns($pdo)) {
+        $accessoryStmt = $pdo->prepare("
+            SELECT r.id AS reservation_id,
+                   ri.item_id,
+                   ri.item_name_cache,
+                   ri.quantity,
+                   r.start_datetime,
+                   r.end_datetime
+              FROM reservation_items ri
+              JOIN reservations r ON r.id = ri.reservation_id
+             WHERE r.status IN ('pending','confirmed','completed','missed')
+               AND r.start_datetime < :range_end
+               AND r.end_datetime > :range_start
+               AND COALESCE(NULLIF(ri.item_type, ''), 'model') = 'accessory'
+        ");
+        $accessoryStmt->execute([
+            ':range_start' => $rangeStartSql,
+            ':range_end' => $rangeEndSql,
+        ]);
+        $accessoryItemRows = $accessoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $accessoryStats = [];
+        foreach ($accessoryItemRows as $row) {
+            $accessoryId = (int)($row['item_id'] ?? 0);
+            $qty = max(0, (int)($row['quantity'] ?? 0));
+            $reservationId = (int)($row['reservation_id'] ?? 0);
+            if ($accessoryId <= 0 || $qty <= 0 || $reservationId <= 0) {
+                continue;
+            }
+
+            $startDt = $parseDbDateTime((string)($row['start_datetime'] ?? ''), $tz);
+            $endDt = $parseDbDateTime((string)($row['end_datetime'] ?? ''), $tz);
+            if (!$startDt || !$endDt || $endDt <= $startDt) {
+                continue;
+            }
+
+            $minutes = $overlapMinutes($startDt, $endDt, $rangeStart, $rangeEnd);
+            if ($minutes <= 0) {
+                continue;
+            }
+
+            if (!isset($accessoryStats[$accessoryId])) {
+                $fallbackName = trim((string)($row['item_name_cache'] ?? ''));
+                $accessoryStats[$accessoryId] = [
+                    'unit_minutes' => 0.0,
+                    'quantity_booked' => 0,
+                    'reservation_ids' => [],
+                    'fallback_name' => $fallbackName !== '' ? $fallbackName : ('Accessory #' . $accessoryId),
+                ];
+            }
+            $accessoryStats[$accessoryId]['unit_minutes'] += ($minutes * $qty);
+            $accessoryStats[$accessoryId]['quantity_booked'] += $qty;
+            $accessoryStats[$accessoryId]['reservation_ids'][$reservationId] = true;
+        }
+        $accessoryStatsById = $accessoryStats;
+
+        $totalAccessoryMinutes = 0.0;
+        foreach ($accessoryStats as $stat) {
+            $totalAccessoryMinutes += (float)$stat['unit_minutes'];
+        }
+
+        foreach ($accessoryStats as $accessoryId => $stat) {
+            $accessoryName = (string)($stat['fallback_name'] ?? ('Accessory #' . (int)$accessoryId));
+            $accessoryCategory = 'Unknown category';
+            $accessoryImagePath = '';
+            try {
+                $accessory = get_accessory((int)$accessoryId);
+                $name = trim((string)($accessory['name'] ?? ''));
+                if ($name !== '') {
+                    $accessoryName = $name;
+                }
+                $accessoryImagePath = booking_extract_catalogue_item_image_path($accessory);
+                $category = $accessory['category'] ?? null;
+                if (is_array($category)) {
+                    $name = trim((string)($category['name'] ?? ($category['category_name'] ?? '')));
+                    if ($name !== '') {
+                        $accessoryCategory = $name;
+                    }
+                } else {
+                    $name = trim((string)($accessory['category_name'] ?? ''));
+                    if ($name !== '') {
+                        $accessoryCategory = $name;
+                    }
+                }
+            } catch (Throwable $e) {
+                $accessoryLookupFailures++;
+            }
+
+            $minutes = (float)$stat['unit_minutes'];
+            $accessoryRows[] = [
+                'accessory_id' => (int)$accessoryId,
+                'accessory_name' => $accessoryName,
+                'accessory_image_url' => $accessoryImagePath !== ''
+                    ? 'image_proxy.php?src=' . urlencode($accessoryImagePath)
+                    : '',
+                'category' => $accessoryCategory,
+                'unit_hours' => $minutes / 60,
+                'share_pct' => $totalAccessoryMinutes > 0 ? ($minutes / $totalAccessoryMinutes) * 100 : 0,
+                'reservation_count' => count($stat['reservation_ids']),
+                'quantity_booked' => (int)$stat['quantity_booked'],
+            ];
+        }
+    }
+} catch (Throwable $e) {
+    $reportErrors[] = 'Could not load accessory utilisation data.';
+}
+
+try {
+    if (booking_reservation_items_have_typed_columns($pdo)) {
+        $kits = fetch_all_kits_from_snipeit('', true);
+        foreach ($kits as $kit) {
+            if (!is_array($kit)) {
+                continue;
+            }
+            $kitId = (int)($kit['id'] ?? 0);
+            if ($kitId <= 0) {
+                continue;
+            }
+
+            try {
+                $breakdown = get_kit_booking_breakdown($kitId);
+            } catch (Throwable $e) {
+                $kitLookupFailures++;
+                continue;
+            }
+
+            $kitName = trim((string)($breakdown['kit']['name'] ?? ($kit['name'] ?? ('Kit #' . $kitId))));
+            $supportedItems = $breakdown['supported_items'] ?? [];
+            if (!is_array($supportedItems) || empty($supportedItems)) {
+                continue;
+            }
+
+            $modelCount = 0;
+            $accessoryCount = 0;
+            $componentMinutes = 0.0;
+            $reservationIds = [];
+            $availableSets = null;
+            $availableSetsUnknown = false;
+
+            foreach ($supportedItems as $supportedItem) {
+                if (!is_array($supportedItem)) {
+                    continue;
+                }
+                $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+                $itemId = (int)($supportedItem['id'] ?? 0);
+                $perKitQty = max(1, (int)($supportedItem['qty'] ?? 1));
+                if ($itemId <= 0) {
+                    continue;
+                }
+
+                if ($itemType === 'accessory') {
+                    $accessoryCount++;
+                    if (isset($accessoryStatsById[$itemId])) {
+                        $componentMinutes += (float)$accessoryStatsById[$itemId]['unit_minutes'];
+                        foreach ($accessoryStatsById[$itemId]['reservation_ids'] as $reservationId => $_true) {
+                            $reservationIds[(int)$reservationId] = true;
+                        }
+                    }
+                } else {
+                    $modelCount++;
+                    if (isset($modelStatsById[$itemId])) {
+                        $componentMinutes += (float)$modelStatsById[$itemId]['unit_minutes'];
+                        foreach ($modelStatsById[$itemId]['reservation_ids'] as $reservationId => $_true) {
+                            $reservationIds[(int)$reservationId] = true;
+                        }
+                    }
+                }
+
+                if (!$availableSetsUnknown) {
+                    try {
+                        $itemAvailableSets = intdiv(booking_get_requestable_total_for_item($itemType, $itemId), $perKitQty);
+                        $availableSets = $availableSets === null
+                            ? $itemAvailableSets
+                            : min($availableSets, $itemAvailableSets);
+                    } catch (Throwable $e) {
+                        $availableSets = null;
+                        $availableSetsUnknown = true;
+                    }
+                }
+            }
+
+            $kitRows[] = [
+                'kit_id' => $kitId,
+                'kit_name' => $kitName !== '' ? $kitName : ('Kit #' . $kitId),
+                'component_unit_hours' => $componentMinutes / 60,
+                'reservation_count' => count($reservationIds),
+                'model_count' => $modelCount,
+                'accessory_count' => $accessoryCount,
+                'available_sets' => $availableSets,
+                'unsupported_count' => count($breakdown['unsupported_items'] ?? []),
+            ];
+        }
+    }
+} catch (Throwable $e) {
+    $reportErrors[] = 'Could not load kit report data.';
+}
+
 $totalReservations = array_sum($statusCounts);
 $cancelledCount = (int)($statusCounts['cancelled'] ?? 0);
 $missedCount = (int)($statusCounts['missed'] ?? 0);
@@ -490,6 +712,8 @@ foreach ($hourlyUnitMinutes as $hour => $minutes) {
 
 $sortRows($categoryRows, $categorySort, $categoryDir);
 $sortRows($modelRows, $modelSort, $modelDir);
+$sortRows($accessoryRows, $accessorySort, $accessoryDir);
+$sortRows($kitRows, $kitSort, $kitDir);
 $sortRows($hourDemandRows, $demandSort, $demandDir);
 $sortRows($dailyCancelledMissedRows, $cancellationsSort, $cancellationsDir);
 
@@ -499,10 +723,16 @@ $categoryRowsPage = $categoryPagination['rows'];
 $modelPagination = $paginateRows($modelRows, $requestedModelPage, 20);
 $modelRowsPage = $modelPagination['rows'];
 
+$accessoryPagination = $paginateRows($accessoryRows, $requestedAccessoryPage, 15);
+$accessoryRowsPage = $accessoryPagination['rows'];
+
+$kitPagination = $paginateRows($kitRows, $requestedKitPage, 10);
+$kitRowsPage = $kitPagination['rows'];
+
 $demandPagination = $paginateRows($hourDemandRows, $requestedDemandPage, 12);
 $hourDemandRowsPage = $demandPagination['rows'];
 
-$cancellationsPagination = $paginateRows($dailyCancelledMissedRows, $requestedCancellationsPage, 31);
+$cancellationsPagination = $paginateRows($dailyCancelledMissedRows, $requestedCancellationsPage, 10);
 $dailyCancelledMissedRowsPage = $cancellationsPagination['rows'];
 
 $paginationBaseParams = [
@@ -510,12 +740,18 @@ $paginationBaseParams = [
     'to' => $toValue,
     'category_page' => $categoryPagination['page'],
     'model_page' => $modelPagination['page'],
+    'accessory_page' => $accessoryPagination['page'],
+    'kit_page' => $kitPagination['page'],
     'demand_page' => $demandPagination['page'],
     'cancellations_page' => $cancellationsPagination['page'],
     'category_sort' => $categorySort,
     'category_dir' => $categoryDir,
     'model_sort' => $modelSort,
     'model_dir' => $modelDir,
+    'accessory_sort' => $accessorySort,
+    'accessory_dir' => $accessoryDir,
+    'kit_sort' => $kitSort,
+    'kit_dir' => $kitDir,
     'demand_sort' => $demandSort,
     'demand_dir' => $demandDir,
     'cancellations_sort' => $cancellationsSort,
@@ -626,7 +862,7 @@ $renderSortableHeader = static function (
         <div class="page-header">
             <h1>Reports</h1>
             <div class="page-subtitle">
-                Utilisation by category and model, peak demand hours, and cancellation/no-show analytics.
+                Utilisation by category, model, and accessory, kit component demand, peak hours, and cancellation/no-show analytics.
             </div>
         </div>
 
@@ -825,6 +1061,136 @@ $renderSortableHeader = static function (
                         </div>
                         <?= $renderPagination($modelPagination, 'model_page') ?>
                     </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title mb-1">Utilisation by Accessory</h5>
+                <p class="text-muted small mb-3">
+                    Accessory-level booked unit-hours from typed reservation item rows.
+                </p>
+
+                <?php if ((int)$accessoryPagination['total'] === 0): ?>
+                    <div class="text-muted small">No accessory utilisation data found for this range.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th><?= $renderSortableHeader('Accessory', 'accessory_name', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                                <th><?= $renderSortableHeader('Category', 'category', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Unit-hours booked', 'unit_hours', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Share', 'share_pct', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Units booked', 'quantity_booked', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Reservations', 'reservation_count', $accessorySort, $accessoryDir, 'accessory_sort', 'accessory_dir', 'accessory_page') ?></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($accessoryRowsPage as $row): ?>
+                                <tr>
+                                    <td>
+                                        <div class="report-model-cell">
+                                            <?php $accessoryImageUrl = trim((string)($row['accessory_image_url'] ?? '')); ?>
+                                            <?php if ($accessoryImageUrl !== ''): ?>
+                                                <img src="<?= h($accessoryImageUrl) ?>"
+                                                     alt="<?= h((string)$row['accessory_name']) ?>"
+                                                     class="report-model-thumb"
+                                                     loading="lazy">
+                                            <?php else: ?>
+                                                <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">-</div>
+                                            <?php endif; ?>
+                                            <div class="report-model-cell__text">
+                                                <div><?= h((string)$row['accessory_name']) ?></div>
+                                                <span class="text-muted small">ID <?= (int)$row['accessory_id'] ?></span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><?= h((string)$row['category']) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['unit_hours'], 1) ?></td>
+                                    <td class="text-end"><?= number_format((float)$row['share_pct'], 1) ?>%</td>
+                                    <td class="text-end"><?= (int)$row['quantity_booked'] ?></td>
+                                    <td class="text-end"><?= (int)$row['reservation_count'] ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$accessoryPagination['start_index'] ?>-<?= (int)$accessoryPagination['end_index'] ?>
+                            of <?= (int)$accessoryPagination['total'] ?> accessories.
+                        </div>
+                        <?= $renderPagination($accessoryPagination, 'accessory_page') ?>
+                    </div>
+                    <?php if ($accessoryLookupFailures > 0): ?>
+                        <div class="form-text mt-2">
+                            <?= (int)$accessoryLookupFailures ?> accessory <?= $accessoryLookupFailures === 1 ? 'record was' : 'records were' ?> not available from Snipe-IT and used cached reservation names.
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title mb-1">Kit Component Demand</h5>
+                <p class="text-muted small mb-3">
+                    Kits are expanded into their model and accessory items when booked, so this maps report-window demand back to current kit contents. Shared components can appear under more than one kit.
+                </p>
+
+                <?php if ((int)$kitPagination['total'] === 0): ?>
+                    <div class="text-muted small">No kit component demand found for this range.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th><?= $renderSortableHeader('Kit', 'kit_name', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Component unit-hours', 'component_unit_hours', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Reservations', 'reservation_count', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Models', 'model_count', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Accessories', 'accessory_count', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                                <th class="text-end"><?= $renderSortableHeader('Possible sets', 'available_sets', $kitSort, $kitDir, 'kit_sort', 'kit_dir', 'kit_page') ?></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($kitRowsPage as $row): ?>
+                                <tr>
+                                    <td>
+                                        <div><?= h((string)$row['kit_name']) ?></div>
+                                        <span class="text-muted small">
+                                            ID <?= (int)$row['kit_id'] ?>
+                                            <?php if ((int)($row['unsupported_count'] ?? 0) > 0): ?>
+                                                | <?= (int)$row['unsupported_count'] ?> unsupported item type<?= (int)$row['unsupported_count'] === 1 ? '' : 's' ?>
+                                            <?php endif; ?>
+                                        </span>
+                                    </td>
+                                    <td class="text-end"><?= number_format((float)$row['component_unit_hours'], 1) ?></td>
+                                    <td class="text-end"><?= (int)$row['reservation_count'] ?></td>
+                                    <td class="text-end"><?= (int)$row['model_count'] ?></td>
+                                    <td class="text-end"><?= (int)$row['accessory_count'] ?></td>
+                                    <td class="text-end">
+                                        <?= $row['available_sets'] === null ? 'Unknown' : number_format((int)$row['available_sets']) ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                        <div class="form-text mb-0">
+                            Showing <?= (int)$kitPagination['start_index'] ?>-<?= (int)$kitPagination['end_index'] ?>
+                            of <?= (int)$kitPagination['total'] ?> kits.
+                        </div>
+                        <?= $renderPagination($kitPagination, 'kit_page') ?>
+                    </div>
+                    <?php if ($kitLookupFailures > 0): ?>
+                        <div class="form-text mt-2">
+                            <?= (int)$kitLookupFailures ?> kit <?= $kitLookupFailures === 1 ? 'definition was' : 'definitions were' ?> not available from Snipe-IT.
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

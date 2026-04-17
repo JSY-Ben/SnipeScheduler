@@ -1,5 +1,23 @@
 # Changelog
 
+## [v1.5.2-Beta](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.2-Beta) - 17/04/2026
+
+### Reports
+
+1) The Admin Reports page now includes accessory utilisation data.
+
+Accessory reports show booked unit-hours, share of accessory utilisation, units booked, reservation counts, category, and accessory images where available.
+
+2) The Admin Reports page now includes kit component demand data.
+
+Kits are expanded into their underlying equipment and accessory items when booked, so the report maps utilisation back to the current Snipe-IT kit contents. Shared components can appear under more than one kit.
+
+3) The cancellations and no-shows report is now paginated with fewer rows per page to make room for the new accessory and kit report sections.
+
+### Bug Fixes
+
+1) Fixed an issue where the Reports page could show "Could not load category utilisation data." after the accessories and kits changes.
+
 ## [v1.5.1-Beta](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.1-Beta) - 12/04/2026
 
 ### Please Read before Installing
