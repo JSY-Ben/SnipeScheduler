@@ -14,6 +14,12 @@ Kits are expanded into their underlying equipment and accessory items when booke
 
 3) The cancellations and no-shows report is now paginated with fewer rows per page to make room for the new accessory and kit report sections.
 
+### Catalogue
+
+1) Kit cards now show a list of what is in the kit in the catalogue card.
+
+2) Clicking the kit image grid now opens a kit contents modal showing the supported items in the kit, including item images and available item details.
+
 ### Bug Fixes
 
 1) Fixed an issue where the Reports page could show "Could not load category utilisation data." after the accessories and kits changes.
