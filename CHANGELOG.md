@@ -6,11 +6,7 @@
 
 1) The Admin Reports page now includes accessory utilisation data.
 
-Accessory reports show booked unit-hours, share of accessory utilisation, units booked, reservation counts, category, and accessory images where available.
-
 2) The Admin Reports page now includes kit component demand data.
-
-Kits are expanded into their underlying equipment and accessory items when booked, so the report maps utilisation back to the current Snipe-IT kit contents. Shared components can appear under more than one kit.
 
 3) The cancellations and no-shows report is now paginated with fewer rows per page to make room for the new accessory and kit report sections.
 
