@@ -380,6 +380,130 @@ function catalogue_kit_model_image_items(array $modelRows): array
     return $items;
 }
 
+function catalogue_string_from_value($value): string
+{
+    if (is_array($value)) {
+        foreach (['name', 'label', 'value', 'text'] as $key) {
+            if (isset($value[$key])) {
+                $nested = catalogue_string_from_value($value[$key]);
+                if ($nested !== '') {
+                    return $nested;
+                }
+            }
+        }
+        return '';
+    }
+
+    $text = trim((string)$value);
+    if ($text === '') {
+        return '';
+    }
+
+    return trim(html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+}
+
+function catalogue_first_string_field(array $record, array $fields): string
+{
+    foreach ($fields as $field) {
+        if (!array_key_exists($field, $record)) {
+            continue;
+        }
+        $value = catalogue_string_from_value($record[$field]);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function catalogue_kit_detail_items(array $kitBreakdown): array
+{
+    static $recordCache = [];
+
+    $rowsByTypeAndId = [
+        'model' => [],
+        'accessory' => [],
+    ];
+    foreach (['models' => 'model', 'accessories' => 'accessory'] as $breakdownKey => $itemType) {
+        foreach (($kitBreakdown[$breakdownKey] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $itemId = (int)($row['id'] ?? 0);
+            if ($itemId > 0) {
+                $rowsByTypeAndId[$itemType][$itemId] = $row;
+            }
+        }
+    }
+
+    $items = [];
+    foreach (($kitBreakdown['supported_items'] ?? []) as $supportedItem) {
+        if (!is_array($supportedItem)) {
+            continue;
+        }
+
+        $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+        if (!in_array($itemType, ['model', 'accessory'], true)) {
+            continue;
+        }
+
+        $itemId = (int)($supportedItem['id'] ?? 0);
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $record = $rowsByTypeAndId[$itemType][$itemId] ?? [];
+        $cacheKey = $itemType . ':' . $itemId;
+        if (!array_key_exists($cacheKey, $recordCache)) {
+            try {
+                $recordCache[$cacheKey] = $itemType === 'accessory'
+                    ? get_accessory($itemId)
+                    : get_model($itemId);
+            } catch (Throwable $e) {
+                $recordCache[$cacheKey] = null;
+            }
+        }
+        if (is_array($recordCache[$cacheKey])) {
+            $record = array_replace($record, $recordCache[$cacheKey]);
+        }
+
+        $name = trim((string)($record['name'] ?? ($supportedItem['name'] ?? '')));
+        if ($name === '') {
+            $name = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . $itemId;
+        }
+
+        $imagePath = catalogue_extract_record_image_path($record);
+        $manufacturer = catalogue_first_string_field($record, ['manufacturer', 'manufacturer_name']);
+        $category = catalogue_first_string_field($record, ['category', 'category_name']);
+        $details = catalogue_first_string_field($record, ['notes', 'notes_text', 'description', 'details']);
+
+        $metaParts = [];
+        $metaParts[] = $itemType === 'accessory' ? 'Accessory' : 'Model';
+        $qty = max(1, (int)($supportedItem['qty'] ?? 1));
+        if ($qty > 1) {
+            $metaParts[] = 'Qty ' . $qty;
+        }
+        if ($manufacturer !== '') {
+            $metaParts[] = $manufacturer;
+        }
+        if ($category !== '') {
+            $metaParts[] = $category;
+        }
+
+        $items[] = [
+            'type' => $itemType,
+            'id' => $itemId,
+            'name' => $name,
+            'image_url' => $imagePath !== '' ? 'image_proxy.php?src=' . urlencode($imagePath) : '',
+            'meta' => implode(' | ', $metaParts),
+            'details' => $details,
+        ];
+    }
+
+    return $items;
+}
+
 function google_directory_search(string $q, array $config): array
 {
     $dirCfg = $config['google_directory'] ?? [];
@@ -2101,9 +2225,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $kitUnsupportedLabels = [];
                         $kitCanAdd = true;
                         $kitModelImageItems = [];
+                        $kitDetailItems = [];
                         try {
                             $kitBreakdown = get_kit_booking_breakdown($kitId);
                             $kitModelImageItems = catalogue_kit_model_image_items($kitBreakdown['models'] ?? []);
+                            $kitDetailItems = catalogue_kit_detail_items($kitBreakdown);
                             $supportedItems = array_values(array_filter(
                                 $kitBreakdown['supported_items'] ?? [],
                                 static function ($item): bool {
@@ -2144,7 +2270,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     <div class="col-md-4">
                         <div class="card h-100 model-card">
                             <?php if (!empty($kitModelImageItems)): ?>
-                                <div class="model-image-wrapper model-image-wrapper--kit-grid">
+                                <button type="button"
+                                        class="model-image-wrapper model-image-wrapper--kit-grid model-image-wrapper--kit-details"
+                                        data-kit-details-open="<?= (int)$kitId ?>"
+                                        data-kit-details-title="<?= h($kitName) ?>"
+                                        aria-label="View kit contents for <?= h($kitName) ?>">
                                     <div class="kit-image-grid kit-image-grid--count-<?= count($kitModelImageItems) ?>">
                                         <?php foreach ($kitModelImageItems as $imageItem): ?>
                                             <div class="kit-image-grid__cell">
@@ -2155,12 +2285,52 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
-                                </div>
+                                </button>
                             <?php else: ?>
-                                <div class="model-image-wrapper model-image-wrapper--placeholder">
+                                <button type="button"
+                                        class="model-image-wrapper model-image-wrapper--placeholder model-image-wrapper--kit-details"
+                                        data-kit-details-open="<?= (int)$kitId ?>"
+                                        data-kit-details-title="<?= h($kitName) ?>"
+                                        aria-label="View kit contents for <?= h($kitName) ?>">
                                     <div class="model-image-placeholder">Kit</div>
-                                </div>
+                                </button>
                             <?php endif; ?>
+
+                            <template id="kit-details-template-<?= (int)$kitId ?>">
+                                <?php if (empty($kitDetailItems)): ?>
+                                    <div class="text-muted small">No supported bookable items were found for this kit.</div>
+                                <?php else: ?>
+                                    <div class="kit-details-list">
+                                        <?php foreach ($kitDetailItems as $detailItem): ?>
+                                            <article class="kit-details-item">
+                                                <div class="kit-details-item__media">
+                                                    <?php if (trim((string)$detailItem['image_url']) !== ''): ?>
+                                                        <img src="<?= h((string)$detailItem['image_url']) ?>"
+                                                             alt="<?= h((string)$detailItem['name']) ?>"
+                                                             class="kit-details-item__image"
+                                                             loading="lazy">
+                                                    <?php else: ?>
+                                                        <div class="kit-details-item__placeholder">
+                                                            <?= h($detailItem['type'] === 'accessory' ? 'Accessory' : 'Model') ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="kit-details-item__body">
+                                                    <h3 class="kit-details-item__title"><?= h((string)$detailItem['name']) ?></h3>
+                                                    <?php if (trim((string)$detailItem['meta']) !== ''): ?>
+                                                        <div class="kit-details-item__meta"><?= h((string)$detailItem['meta']) ?></div>
+                                                    <?php endif; ?>
+                                                    <?php if (trim((string)$detailItem['details']) !== ''): ?>
+                                                        <p class="kit-details-item__details"><?= h((string)$detailItem['details']) ?></p>
+                                                    <?php else: ?>
+                                                        <p class="kit-details-item__details text-muted">No additional details available.</p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </article>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </template>
 
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title"><?= label_safe($kitName) ?></h5>
@@ -2700,6 +2870,29 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     </div>
 </div>
 
+<div id="kit-details-modal"
+     class="catalogue-modal catalogue-modal--kit-details"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-labelledby="kit-details-title"
+     hidden>
+    <div class="catalogue-modal__backdrop" data-kit-modal-close></div>
+    <div class="catalogue-modal__dialog" role="document">
+        <div class="catalogue-modal__header">
+            <h2 id="kit-details-title" class="catalogue-modal__title">Kit contents</h2>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-kit-modal-close>
+                Close
+            </button>
+        </div>
+        <div id="kit-details-body" class="catalogue-modal__body">
+            <div class="text-muted small">Select a kit to view its contents.</div>
+        </div>
+    </div>
+</div>
+
 <div id="model-image-zoom-modal"
      class="catalogue-modal catalogue-modal--image-zoom"
      role="dialog"
@@ -2762,10 +2955,14 @@ document.addEventListener('DOMContentLoaded', function () {
     let nativeWindowBlurTimer = null;
     const modelDetailCards = document.querySelectorAll('.model-card--details');
     const modelImageZoomButtons = document.querySelectorAll('[data-model-image-zoom="1"]');
+    const kitDetailsButtons = document.querySelectorAll('[data-kit-details-open]');
     const announcementModal = document.getElementById('catalogue-announcement-modal');
     const modelDetailsModal = document.getElementById('model-details-modal');
+    const kitDetailsModal = document.getElementById('kit-details-modal');
     const modelImageZoomModal = document.getElementById('model-image-zoom-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
+    const kitDetailsTitle = document.getElementById('kit-details-title');
+    const kitDetailsBody = document.getElementById('kit-details-body');
     const modelImageZoomTitle = document.getElementById('model-image-zoom-title');
     const modelImageZoomed = document.getElementById('model-image-zoomed');
     const modelDetailsTitle = document.getElementById('model-details-title');
@@ -2785,14 +2982,16 @@ document.addEventListener('DOMContentLoaded', function () {
     let modelDetailsRequestId = 0;
     let modelModalOpen = false;
     let modelImageZoomOpen = false;
+    let kitDetailsModalOpen = false;
     let announcementModalOpen = false;
     let modelModalOpenAnimation = null;
     let announcementModalLastFocused = null;
     let modalLastFocusedElement = null;
     let modelImageZoomLastFocused = null;
+    let kitDetailsLastFocused = null;
 
     function syncModalBodyState() {
-        const hasOpenModal = modelModalOpen || modelImageZoomOpen || announcementModalOpen;
+        const hasOpenModal = modelModalOpen || modelImageZoomOpen || kitDetailsModalOpen || announcementModalOpen;
         document.body.classList.toggle('catalogue-modal-open', hasOpenModal);
     }
 
@@ -3363,6 +3562,51 @@ document.addEventListener('DOMContentLoaded', function () {
         modelImageZoomLastFocused = null;
     }
 
+    function closeKitDetailsModal() {
+        if (!kitDetailsModal || !kitDetailsModalOpen) return;
+
+        kitDetailsModalOpen = false;
+        kitDetailsModal.classList.remove('is-open');
+        kitDetailsModal.hidden = true;
+        kitDetailsModal.setAttribute('aria-hidden', 'true');
+        syncModalBodyState();
+
+        if (kitDetailsBody) {
+            kitDetailsBody.innerHTML = '<div class="text-muted small">Select a kit to view its contents.</div>';
+        }
+
+        if (kitDetailsLastFocused && typeof kitDetailsLastFocused.focus === 'function') {
+            kitDetailsLastFocused.focus();
+        }
+        kitDetailsLastFocused = null;
+    }
+
+    function openKitDetailsModal(kitId, kitTitle, triggerElement) {
+        if (!kitDetailsModal || !kitDetailsBody) return;
+
+        const template = document.getElementById('kit-details-template-' + String(kitId));
+        if (!template) return;
+
+        kitDetailsLastFocused = triggerElement || document.activeElement;
+        kitDetailsModalOpen = true;
+        kitDetailsModal.classList.remove('is-open');
+        kitDetailsModal.hidden = false;
+        kitDetailsModal.setAttribute('aria-hidden', 'false');
+
+        if (kitDetailsTitle) {
+            kitDetailsTitle.textContent = (kitTitle || 'Kit') + ' contents';
+        }
+
+        kitDetailsBody.innerHTML = '';
+        kitDetailsBody.appendChild(template.content.cloneNode(true));
+        syncModalBodyState();
+
+        window.requestAnimationFrame(function () {
+            if (!kitDetailsModal || !kitDetailsModalOpen) return;
+            kitDetailsModal.classList.add('is-open');
+        });
+    }
+
     function openModelImageZoomModal(imageSrc, imageTitle, triggerElement) {
         if (!modelImageZoomModal || !modelImageZoomed) return;
         const src = String(imageSrc || '').trim();
@@ -3809,6 +4053,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    if (kitDetailsModal) {
+        kitDetailsModal.addEventListener('click', function (event) {
+            const target = event.target;
+            if (target && target.closest && target.closest('[data-kit-modal-close]')) {
+                closeKitDetailsModal();
+            }
+        });
+    }
+
+    kitDetailsButtons.forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const kitId = button.getAttribute('data-kit-details-open') || '';
+            const kitTitle = button.getAttribute('data-kit-details-title') || 'Kit';
+            openKitDetailsModal(kitId, kitTitle, button);
+        });
+    });
+
     modelImageZoomButtons.forEach(function (button) {
         const card = button.closest('.model-card--details');
         const setImageHoverState = function (isActive) {
@@ -3845,6 +4108,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (modelImageZoomOpen) {
             event.preventDefault();
             closeModelImageZoomModal();
+            return;
+        }
+        if (kitDetailsModalOpen) {
+            event.preventDefault();
+            closeKitDetailsModal();
             return;
         }
         if (modelModalOpen) {
