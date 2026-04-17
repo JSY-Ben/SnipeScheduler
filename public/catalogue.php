@@ -2096,8 +2096,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     <?php
                         $kitId = (int)($kit['id'] ?? 0);
                         $kitName = (string)($kit['name'] ?? 'Kit');
-                        $kitSummary = '';
-                        $kitIncludedItems = [];
+                        $kitContainsText = '';
                         $kitMoreItemCount = 0;
                         $kitUnsupportedLabels = [];
                         $kitCanAdd = true;
@@ -2105,18 +2104,6 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         try {
                             $kitBreakdown = get_kit_booking_breakdown($kitId);
                             $kitModelImageItems = catalogue_kit_model_image_items($kitBreakdown['models'] ?? []);
-                            $supportedParts = [];
-                            $supportedModelCount = count($kitBreakdown['models'] ?? []);
-                            $supportedAccessoryCount = count($kitBreakdown['accessories'] ?? []);
-                            if ($supportedModelCount > 0) {
-                                $supportedParts[] = $supportedModelCount . ' model' . ($supportedModelCount === 1 ? '' : 's');
-                            }
-                            if ($supportedAccessoryCount > 0) {
-                                $supportedParts[] = $supportedAccessoryCount . ' accessor' . ($supportedAccessoryCount === 1 ? 'y' : 'ies');
-                            }
-                            $kitSummary = !empty($supportedParts)
-                                ? implode(', ', $supportedParts)
-                                : 'No supported bookable items detected.';
                             $supportedItems = array_values(array_filter(
                                 $kitBreakdown['supported_items'] ?? [],
                                 static function ($item): bool {
@@ -2124,18 +2111,20 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 }
                             ));
                             $kitMoreItemCount = max(0, count($supportedItems) - 4);
+                            $kitIncludedNames = [];
                             foreach (array_slice($supportedItems, 0, 4) as $supportedItem) {
                                 $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
                                 $itemName = trim((string)($supportedItem['name'] ?? ''));
-                                $itemQty = max(1, (int)($supportedItem['qty'] ?? 1));
                                 if ($itemName === '') {
                                     $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . (int)$supportedItem['id'];
                                 }
-                                $kitIncludedItems[] = [
-                                    'type' => $itemType === 'accessory' ? 'Accessory' : 'Model',
-                                    'name' => $itemName,
-                                    'qty' => $itemQty,
-                                ];
+                                $kitIncludedNames[] = $itemName;
+                            }
+                            $kitContainsText = !empty($kitIncludedNames)
+                                ? implode(', ', $kitIncludedNames)
+                                : 'No supported bookable items detected.';
+                            if ($kitMoreItemCount > 0) {
+                                $kitContainsText .= ' and ' . $kitMoreItemCount . ' more item' . ($kitMoreItemCount === 1 ? '' : 's');
                             }
                             foreach (($kitBreakdown['unsupported_items'] ?? []) as $unsupported) {
                                 $typeLabel = trim((string)($unsupported['type'] ?? 'item'));
@@ -2148,7 +2137,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 $kitCanAdd = false;
                             }
                         } catch (Throwable $e) {
-                            $kitSummary = 'Unable to load kit contents right now.';
+                            $kitContainsText = 'Unable to load kit contents right now.';
                             $kitCanAdd = false;
                         }
                     ?>
@@ -2176,24 +2165,8 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title"><?= label_safe($kitName) ?></h5>
                                 <p class="card-text small text-muted mb-2">
-                                    <span><strong>Contains:</strong> <?= h($kitSummary) ?></span>
+                                    <span><strong>Kit Contains:</strong> <?= h($kitContainsText) ?></span>
                                 </p>
-                                <?php if (!empty($kitIncludedItems)): ?>
-                                    <ul class="small text-muted mb-2 ps-3">
-                                        <?php foreach ($kitIncludedItems as $includedItem): ?>
-                                            <li>
-                                                <?= h($includedItem['type']) ?>:
-                                                <?= h($includedItem['name']) ?>
-                                                <?php if ((int)$includedItem['qty'] > 1): ?>
-                                                    x<?= (int)$includedItem['qty'] ?>
-                                                <?php endif; ?>
-                                            </li>
-                                        <?php endforeach; ?>
-                                        <?php if ($kitMoreItemCount > 0): ?>
-                                            <li>and <?= (int)$kitMoreItemCount ?> more item<?= $kitMoreItemCount === 1 ? '' : 's' ?></li>
-                                        <?php endif; ?>
-                                    </ul>
-                                <?php endif; ?>
 
                                 <?php if (!empty($kitUnsupportedLabels)): ?>
                                     <div class="alert alert-warning small">
