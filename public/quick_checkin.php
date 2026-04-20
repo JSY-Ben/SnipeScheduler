@@ -82,7 +82,7 @@ $browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1))
 
 $messages = [];
 $errors   = [];
-$focusCheckinList = false;
+$focusTarget = '';
 
 function qci_extract_record_image_path(array $record): string
 {
@@ -441,7 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 $label = $modelName !== '' ? $modelName : $assetName;
                 $messages[] = "Added asset {$assetTag} ({$label}) to check-in list.";
-                $focusCheckinList = true;
+                $focusTarget = 'asset-input';
             } catch (Throwable $e) {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
@@ -486,7 +486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messages[] = $added === 1
                     ? 'Added 1 accessory to the check-in list.'
                     : "Added {$added} accessories to the check-in list.";
-                $focusCheckinList = true;
+                $focusTarget = 'accessory-search';
             } catch (Throwable $e) {
                 $errors[] = 'Could not add accessories: ' . $e->getMessage();
             }
@@ -936,7 +936,7 @@ if ($selectorTab === 'accessories') {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4" data-focus-checkin-list="<?= $focusCheckinList ? '1' : '0' ?>">
+<body class="p-4" data-focus-target="<?= h($focusTarget) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -1076,7 +1076,8 @@ if ($selectorTab === 'accessories') {
                                            name="accessory_search"
                                            class="form-control filter-search__input"
                                            placeholder="Search accessories..."
-                                           value="<?= h($accessorySearchValue) ?>">
+                                           value="<?= h($accessorySearchValue) ?>"
+                                           autofocus>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -1233,11 +1234,22 @@ if ($selectorTab === 'accessories') {
 </div>
 <script>
 (function () {
-    if (document.body.dataset.focusCheckinList === '1') {
+    const focusTarget = document.body.dataset.focusTarget || '';
+    if (focusTarget === 'checkin-list') {
         const checkinList = document.getElementById('check-in-list');
         if (checkinList) {
             checkinList.scrollIntoView({ behavior: 'auto', block: 'start' });
             checkinList.focus({ preventScroll: true });
+        }
+    } else if (focusTarget === 'asset-input') {
+        const assetInput = document.querySelector('.asset-autocomplete');
+        if (assetInput) {
+            assetInput.focus({ preventScroll: true });
+        }
+    } else if (focusTarget === 'accessory-search') {
+        const accessorySearchInput = document.querySelector('input[name="accessory_search"]');
+        if (accessorySearchInput) {
+            accessorySearchInput.focus({ preventScroll: true });
         }
     }
 
