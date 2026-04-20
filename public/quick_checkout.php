@@ -867,6 +867,7 @@ $checkoutItems = &$_SESSION['quick_checkout_items'];
 $messages = [];
 $errors   = [];
 $warnings = [];
+$scrollTarget = '';
 $pendingUserCandidates = [];
 $checkoutToValue = '';
 $noteValue = '';
@@ -929,6 +930,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $checkoutItems[$entry['key']] = $entry;
                         $messages[] = 'Added asset ' . qc_checkout_entry_display_label($entry) . ' to checkout list.';
                     }
+                    $scrollTarget = 'messages';
                 } catch (Throwable $e) {
                     $errors[] = 'Could not add asset: ' . $e->getMessage();
                 }
@@ -959,6 +961,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $messages[] = 'Added ' . ($qtyRequested > 1 ? ($entry['name'] . ' (x' . $qtyRequested . ')') : $entry['name']) . ' to checkout list.';
+                    $scrollTarget = 'messages';
                 } catch (Throwable $e) {
                     $errors[] = 'Could not add accessory: ' . $e->getMessage();
                 }
@@ -1010,6 +1013,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $kitLabel .= '.';
                     }
                     $messages[] = $kitLabel;
+                    $scrollTarget = 'messages';
                 } catch (Throwable $e) {
                     $errors[] = 'Could not add kit: ' . $e->getMessage();
                 }
@@ -1483,7 +1487,7 @@ if ($selectorTab === 'accessories') {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4">
+<body class="p-4" data-scroll-target="<?= h($scrollTarget) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -1495,7 +1499,7 @@ if ($selectorTab === 'accessories') {
         <?= layout_render_nav($active, $isStaff, $isAdmin) ?>
 
         <?php if (!empty($messages)): ?>
-            <div class="alert alert-success">
+            <div class="alert alert-success" data-page-messages>
                 <ul class="mb-0">
                     <?php foreach ($messages as $m): ?>
                         <li><?= h($m) ?></li>
@@ -2056,6 +2060,14 @@ if ($selectorTab === 'accessories') {
 
 <script>
 (function () {
+    const scrollTarget = document.body.dataset.scrollTarget || '';
+    if (scrollTarget === 'messages') {
+        const pageMessages = document.querySelector('[data-page-messages]');
+        if (pageMessages) {
+            pageMessages.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+    }
+
     const assetWrappers = document.querySelectorAll('.asset-autocomplete-wrapper');
     assetWrappers.forEach((wrapper) => {
         const input = wrapper.querySelector('.asset-autocomplete');

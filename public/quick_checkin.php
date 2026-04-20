@@ -83,6 +83,7 @@ $browsePage = max(1, (int)($_POST['browse_page'] ?? ($_GET['browse_page'] ?? 1))
 $messages = [];
 $errors   = [];
 $focusTarget = '';
+$scrollTarget = '';
 
 function qci_extract_record_image_path(array $record): string
 {
@@ -442,6 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $label = $modelName !== '' ? $modelName : $assetName;
                 $messages[] = "Added asset {$assetTag} ({$label}) to check-in list.";
                 $focusTarget = 'asset-input';
+                $scrollTarget = 'messages';
             } catch (Throwable $e) {
                 $errors[] = 'Could not add asset: ' . $e->getMessage();
             }
@@ -487,6 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? 'Added 1 accessory to the check-in list.'
                     : "Added {$added} accessories to the check-in list.";
                 $focusTarget = 'accessory-search';
+                $scrollTarget = 'messages';
             } catch (Throwable $e) {
                 $errors[] = 'Could not add accessories: ' . $e->getMessage();
             }
@@ -936,7 +939,9 @@ if ($selectorTab === 'accessories') {
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles() ?>
 </head>
-<body class="p-4" data-focus-target="<?= h($focusTarget) ?>">
+<body class="p-4"
+      data-focus-target="<?= h($focusTarget) ?>"
+      data-scroll-target="<?= h($scrollTarget) ?>">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag() ?>
@@ -950,7 +955,7 @@ if ($selectorTab === 'accessories') {
         <?= layout_render_nav($active, $isStaff, $isAdmin) ?>
 
         <?php if (!empty($messages)): ?>
-            <div class="alert alert-success">
+            <div class="alert alert-success" data-page-messages>
                 <ul class="mb-0">
                     <?php foreach ($messages as $m): ?>
                         <li><?= h($m) ?></li>
@@ -1234,7 +1239,15 @@ if ($selectorTab === 'accessories') {
 </div>
 <script>
 (function () {
+    const scrollTarget = document.body.dataset.scrollTarget || '';
     const focusTarget = document.body.dataset.focusTarget || '';
+    if (scrollTarget === 'messages') {
+        const pageMessages = document.querySelector('[data-page-messages]');
+        if (pageMessages) {
+            pageMessages.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+    }
+
     if (focusTarget === 'checkin-list') {
         const checkinList = document.getElementById('check-in-list');
         if (checkinList) {
