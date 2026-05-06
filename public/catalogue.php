@@ -2045,16 +2045,18 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 </div>
                             <?php endif; ?>
                             <?php if ($allowNonRequestableEquipmentToggle): ?>
-                                <input class="btn-check"
-                                       type="checkbox"
-                                       value="1"
-                                       id="show_non_requestable_items"
-                                       name="show_non_requestable_items"
-                                       autocomplete="off"
-                                    <?= $showNonRequestableItems ? 'checked' : '' ?>>
-                                <label class="btn btn-outline-secondary btn-sm" for="show_non_requestable_items">
-                                    Show Non-Requestable Items
-                                </label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           role="switch"
+                                           value="1"
+                                           id="show_non_requestable_items"
+                                           name="show_non_requestable_items"
+                                        <?= $showNonRequestableItems ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold small" for="show_non_requestable_items">
+                                        Show Non-Requestable Items
+                                    </label>
+                                </div>
                             <?php endif; ?>
                         </div>
                     </div>
