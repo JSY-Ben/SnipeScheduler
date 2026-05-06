@@ -1408,11 +1408,11 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                            id="catalogue_show_non_requestable_equipment"
                                         <?= $cfg(['catalogue', 'show_non_requestable_equipment'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold" for="catalogue_show_non_requestable_equipment">
-                                        Enable Show Non-Requestable Items catalogue button
+                                        Enable 'Show Non-Requestable Items' catalogue button
                                     </label>
                                 </div>
                                 <div class="form-text">
-                                    When enabled, users can choose to include equipment models that are not marked requestable in Snipe-IT.
+                                    When enabled, users can choose to show equipment models that are not marked requestable in Snipe-IT on the catalogue.
                                 </div>
                             </div>
                             <div class="col-12">
