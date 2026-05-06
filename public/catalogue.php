@@ -31,7 +31,7 @@ $showCatalogueAccessoriesTab = array_key_exists('show_accessories_tab', $catalog
 $showCatalogueKitsTab = array_key_exists('show_kits_tab', $catalogueCfg)
     ? !empty($catalogueCfg['show_kits_tab'])
     : true;
-$showNonRequestableEquipment = !empty($catalogueCfg['show_non_requestable_equipment']);
+$allowNonRequestableEquipmentToggle = !empty($catalogueCfg['show_non_requestable_equipment']);
 $catalogueVisibleTabs = [];
 if ($showCatalogueModelsTab) {
     $catalogueVisibleTabs[] = 'models';
@@ -1421,6 +1421,9 @@ $sortRaw      = trim($_GET['sort'] ?? '');
 $favouritesOnlyRaw = trim((string)($_GET['favourites_only'] ?? ''));
 $favouritesOnlyHasQuery = array_key_exists('favourites_only', $_GET);
 $favouritesOnlyExplicitToggle = array_key_exists('favourites_only_explicit', $_GET);
+$nonRequestableItemsRaw = trim((string)($_GET['show_non_requestable_items'] ?? ''));
+$nonRequestableItemsHasQuery = array_key_exists('show_non_requestable_items', $_GET);
+$nonRequestableItemsExplicitToggle = array_key_exists('show_non_requestable_items_explicit', $_GET);
 $page         = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $windowStartRaw = trim($_GET['start_datetime'] ?? '');
 $windowEndRaw   = trim($_GET['end_datetime'] ?? '');
@@ -1443,6 +1446,8 @@ $category = ctype_digit($categoryRaw) ? (int)$categoryRaw : null;
 $sort     = $sortRaw !== '' ? $sortRaw : null;
 $favouritesOnlyRequested = in_array(strtolower($favouritesOnlyRaw), ['1', 'true', 'on', 'yes'], true);
 $favouritesOnly = false;
+$showNonRequestableItemsRequested = in_array(strtolower($nonRequestableItemsRaw), ['1', 'true', 'on', 'yes'], true);
+$showNonRequestableItems = false;
 if ($isAuthenticated) {
     if ($favouritesOnlyExplicitToggle || $favouritesOnlyHasQuery) {
         $favouritesOnly = $favouritesOnlyRequested;
@@ -1453,11 +1458,24 @@ if ($isAuthenticated) {
 } else {
     unset($_SESSION['catalogue_show_favourites_only']);
 }
+if ($allowNonRequestableEquipmentToggle) {
+    if ($nonRequestableItemsExplicitToggle || $nonRequestableItemsHasQuery) {
+        $showNonRequestableItems = $showNonRequestableItemsRequested;
+        $_SESSION['catalogue_show_non_requestable_items'] = $showNonRequestableItems ? 1 : 0;
+    } else {
+        $showNonRequestableItems = !empty($_SESSION['catalogue_show_non_requestable_items']);
+    }
+} else {
+    unset($_SESSION['catalogue_show_non_requestable_items']);
+}
 
 if ($catalogueTab !== 'models' && $catalogueTab !== 'accessories') {
     $categoryRaw = '';
     $category = null;
     $favouritesOnly = false;
+}
+if ($catalogueTab !== 'models') {
+    $showNonRequestableItems = false;
 }
 
 if ($windowStartRaw === '' && $windowEndRaw === '') {
@@ -1581,7 +1599,7 @@ if ($catalogueTabsEnabled && ($catalogueTab === 'models' || $catalogueTab === 'a
         if ($catalogueTab === 'accessories') {
             $categories = get_accessory_categories();
         } else {
-            $categories = get_model_categories($showNonRequestableEquipment);
+            $categories = get_model_categories($showNonRequestableItems);
         }
     } catch (Throwable $e) {
         $categories  = [];
@@ -1641,7 +1659,7 @@ try {
         if ($favouritesOnly && empty($modelAllowlist)) {
             $data = ['rows' => [], 'total' => 0];
         } else {
-            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist, $showNonRequestableEquipment);
+            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist, $showNonRequestableItems);
         }
 
         if (isset($data['rows']) && is_array($data['rows'])) {
@@ -1673,6 +1691,7 @@ $catalogueReturnQuery = [
     'favourites_only' => $favouritesOnly ? '1' : '',
     'start_datetime' => $windowStartRaw,
     'end_datetime' => $windowEndRaw,
+    'show_non_requestable_items' => $showNonRequestableItems ? '1' : '',
     'prefetch' => '1',
     'page' => (string)$page,
 ];
@@ -1870,10 +1889,14 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     $modelsTabFavouritesOnly = $catalogueTab === 'models'
                         ? $favouritesOnly
                         : !empty($_SESSION['catalogue_show_favourites_only']);
+                    $modelsTabShowNonRequestableItems = $catalogueTab === 'models'
+                        ? $showNonRequestableItems
+                        : !empty($_SESSION['catalogue_show_non_requestable_items']);
                     $modelsTabUrl = 'catalogue.php?' . http_build_query(array_merge($tabBaseQuery, [
                         'tab' => 'models',
                         'category' => $categoryRaw,
                         'favourites_only' => $modelsTabFavouritesOnly ? '1' : '',
+                        'show_non_requestable_items' => $modelsTabShowNonRequestableItems ? '1' : '',
                     ]));
                     $accessoriesTabUrl = 'catalogue.php?' . http_build_query(array_merge($tabBaseQuery, [
                         'tab' => 'accessories',
@@ -1925,6 +1948,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <input type="hidden" name="prefetch" value="1">
             <?php if ($catalogueTab === 'models' && $canUseFavourites): ?>
                 <input type="hidden" name="favourites_only_explicit" value="1">
+            <?php endif; ?>
+            <?php if ($catalogueTab === 'models' && $allowNonRequestableEquipmentToggle): ?>
+                <input type="hidden" name="show_non_requestable_items_explicit" value="1">
             <?php endif; ?>
 
             <div class="row g-3 align-items-end">
@@ -2000,20 +2026,36 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 </div>
             </div>
 
-            <?php if ($catalogueTab === 'models' && $canUseFavourites): ?>
+            <?php if ($catalogueTab === 'models' && ($canUseFavourites || $allowNonRequestableEquipmentToggle)): ?>
                 <div class="row g-2 mt-1">
                     <div class="col-12">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   value="1"
-                                   id="show_favourites_only"
-                                   name="favourites_only"
-                                   <?= $favouritesOnly ? 'checked' : '' ?>>
-                            <label class="form-check-label fw-semibold small" for="show_favourites_only">
-                                Show Favourites Only
-                            </label>
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <?php if ($canUseFavourites): ?>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           role="switch"
+                                           value="1"
+                                           id="show_favourites_only"
+                                           name="favourites_only"
+                                           <?= $favouritesOnly ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold small" for="show_favourites_only">
+                                        Show Favourites Only
+                                    </label>
+                                </div>
+                            <?php endif; ?>
+                            <?php if ($allowNonRequestableEquipmentToggle): ?>
+                                <input class="btn-check"
+                                       type="checkbox"
+                                       value="1"
+                                       id="show_non_requestable_items"
+                                       name="show_non_requestable_items"
+                                       autocomplete="off"
+                                    <?= $showNonRequestableItems ? 'checked' : '' ?>>
+                                <label class="btn btn-outline-secondary btn-sm" for="show_non_requestable_items">
+                                    Show Non-Requestable Items
+                                </label>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -2033,6 +2075,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <input type="hidden" name="sort" value="<?= h($sortRaw) ?>">
             <?php if ($catalogueTab === 'models' && $favouritesOnly): ?>
                 <input type="hidden" name="favourites_only" value="1">
+            <?php endif; ?>
+            <?php if ($catalogueTab === 'models' && $showNonRequestableItems): ?>
+                <input type="hidden" name="show_non_requestable_items" value="1">
             <?php endif; ?>
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
@@ -2738,6 +2783,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         if ($catalogueTab === 'models') {
                             $baseQuery['category'] = $categoryRaw;
                             $baseQuery['favourites_only'] = $favouritesOnly ? '1' : '';
+                            $baseQuery['show_non_requestable_items'] = $showNonRequestableItems ? '1' : '';
                         }
                         $baseQuery = array_filter($baseQuery, static function ($value): bool {
                             return trim((string)$value) !== '';
@@ -2943,6 +2989,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
     const sortSelect = filterForm ? filterForm.querySelector('select[name="sort"]') : null;
     const favouritesOnlyCheckbox = filterForm ? filterForm.querySelector('input[name="favourites_only"]') : null;
+    const nonRequestableItemsCheckbox = filterForm ? filterForm.querySelector('input[name="show_non_requestable_items"]') : null;
     const windowStartInput = document.getElementById('catalogue_start_datetime');
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
@@ -3760,6 +3807,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (favouritesOnlyCheckbox) {
         favouritesOnlyCheckbox.addEventListener('change', function () {
+            showLoadingOverlay();
+            filterForm.submit();
+        });
+    }
+
+    if (nonRequestableItemsCheckbox) {
+        nonRequestableItemsCheckbox.addEventListener('change', function () {
             showLoadingOverlay();
             filterForm.submit();
         });
