@@ -5,8 +5,8 @@
 // Uses config.php for base URL, API token and SSL verification settings.
 //
 // Exposes:
-//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds, $modelIdAllowlist)
-//   - get_model_categories()
+//   - get_bookable_models($page, $search, $categoryId, $sort, $perPage, $allowedCategoryIds, $modelIdAllowlist, $includeNonRequestable)
+//   - get_model_categories($includeNonRequestable)
 //   - get_model($id)
 //   - get_model_hardware_count($modelId)
 
@@ -396,6 +396,45 @@ function snipeit_catalogue_cache_is_synced(): bool
     return !empty($status['tables']) && !empty($status['synced']);
 }
 
+function snipeit_catalogue_cache_has_non_requestable_models(): bool
+{
+    static $hasNonRequestable = null;
+
+    if ($hasNonRequestable !== null) {
+        return $hasNonRequestable;
+    }
+
+    if (!snipeit_catalogue_cache_is_synced()) {
+        $hasNonRequestable = false;
+        return $hasNonRequestable;
+    }
+
+    try {
+        require_once SRC_PATH . '/db.php';
+        global $pdo;
+
+        $stmt = $pdo->query("SELECT 1 FROM catalogue_model_cache WHERE raw_payload LIKE '%\"requestable\":false%' LIMIT 1");
+        $hasNonRequestable = (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        $hasNonRequestable = false;
+    }
+
+    return $hasNonRequestable;
+}
+
+function snipeit_catalogue_show_non_requestable_equipment(?array $cfg = null): bool
+{
+    if ($cfg === null) {
+        try {
+            $cfg = load_config();
+        } catch (Throwable $e) {
+            $cfg = [];
+        }
+    }
+
+    return !empty($cfg['catalogue']['show_non_requestable_equipment']);
+}
+
 function snipeit_json_encode_payload(array $payload): string
 {
     $encoded = json_encode($payload);
@@ -566,7 +605,7 @@ function snipeit_build_cached_model_payload(array $row): array
     $payload['assets_count_total'] = isset($payload['assets_count_total']) && is_numeric($payload['assets_count_total'])
         ? (int)$payload['assets_count_total']
         : (int)($row['total_asset_count'] ?? 0);
-    $payload['requestable'] = true;
+    $payload['requestable'] = array_key_exists('requestable', $payload) ? !empty($payload['requestable']) : true;
     $payload['requestable_asset_count'] = (int)($row['requestable_asset_count'] ?? 0);
 
     if (!isset($payload['manufacturer']) || !is_array($payload['manufacturer'])) {
@@ -587,6 +626,19 @@ function snipeit_build_cached_model_payload(array $row): array
     }
 
     return $payload;
+}
+
+function snipeit_cached_model_row_is_requestable(array $row): bool
+{
+    $raw = trim((string)($row['raw_payload'] ?? ''));
+    if ($raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded) && array_key_exists('requestable', $decoded)) {
+            return !empty($decoded['requestable']);
+        }
+    }
+
+    return true;
 }
 
 function snipeit_build_cached_asset_payload(array $row): array
@@ -792,9 +844,13 @@ function snipeit_get_cached_bookable_models(
     ?string $sort = null,
     int $perPage = 50,
     array $allowedCategoryIds = [],
-    array $modelIdAllowlist = []
+    array $modelIdAllowlist = [],
+    bool $includeNonRequestable = false
 ): ?array {
     if (!snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+    if ($includeNonRequestable && !snipeit_catalogue_cache_has_non_requestable_models()) {
         return null;
     }
 
@@ -883,10 +939,6 @@ function snipeit_get_cached_bookable_models(
         require_once SRC_PATH . '/db.php';
         global $pdo;
 
-        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM catalogue_model_cache' . $whereSql);
-        $countStmt->execute($params);
-        $total = (int)$countStmt->fetchColumn();
-
         $offset = ($page - 1) * $perPage;
         $sql = "
             SELECT
@@ -903,10 +955,23 @@ function snipeit_get_cached_bookable_models(
             FROM catalogue_model_cache
             {$whereSql}
             {$orderBy}
-            LIMIT " . (int)$perPage . ' OFFSET ' . (int)$offset;
+        ";
+        if ($includeNonRequestable) {
+            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM catalogue_model_cache' . $whereSql);
+            $countStmt->execute($params);
+            $total = (int)$countStmt->fetchColumn();
+
+            $sql .= ' LIMIT ' . (int)$perPage . ' OFFSET ' . (int)$offset;
+        }
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        if (!$includeNonRequestable) {
+            $rows = array_values(array_filter($rows, 'snipeit_cached_model_row_is_requestable'));
+            $total = count($rows);
+            $rows = array_slice($rows, $offset, $perPage);
+        }
 
         $models = [];
         foreach ($rows as $row) {
@@ -922,9 +987,12 @@ function snipeit_get_cached_bookable_models(
     }
 }
 
-function snipeit_get_cached_model_categories(): ?array
+function snipeit_get_cached_model_categories(bool $includeNonRequestable = false): ?array
 {
     if (!snipeit_catalogue_cache_is_synced()) {
+        return null;
+    }
+    if ($includeNonRequestable && !snipeit_catalogue_cache_has_non_requestable_models()) {
         return null;
     }
 
@@ -936,25 +1004,42 @@ function snipeit_get_cached_model_categories(): ?array
             SELECT
                 category_id AS id,
                 category_name AS name,
-                COUNT(*) AS requestable_count
+                raw_payload
             FROM catalogue_model_cache
             WHERE category_id IS NOT NULL
               AND category_id > 0
               AND category_name IS NOT NULL
               AND category_name <> ''
-            GROUP BY category_id, category_name
             ORDER BY category_name ASC
         ");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $categories = [];
+        $categoriesById = [];
         foreach ($rows as $row) {
-            $categories[] = [
-                'id' => (int)($row['id'] ?? 0),
-                'name' => (string)($row['name'] ?? ''),
-                'category_type' => 'asset',
-                'requestable_count' => (int)($row['requestable_count'] ?? 0),
-            ];
+            if (!$includeNonRequestable && !snipeit_cached_model_row_is_requestable($row)) {
+                continue;
+            }
+
+            $id = (int)($row['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            if (!isset($categoriesById[$id])) {
+                $categoriesById[$id] = [
+                    'id' => $id,
+                    'name' => (string)($row['name'] ?? ''),
+                    'category_type' => 'asset',
+                    'requestable_count' => 0,
+                ];
+            }
+
+            $categoriesById[$id]['requestable_count']++;
         }
+
+        $categories = array_values($categoriesById);
+        usort($categories, static function ($a, $b): int {
+            return strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+        });
 
         return $categories;
     } catch (Throwable $e) {
@@ -1301,7 +1386,7 @@ function fetch_all_models_from_snipeit(string $search = '', ?int $categoryId = n
  * @return array
  * @throws Exception
  */
-function fetch_model_categories_from_snipeit(bool $allowResponseCache = true): array
+function fetch_model_categories_from_snipeit(bool $allowResponseCache = true, bool $includeNonRequestable = false): array
 {
     $params = [
         'limit' => 500,
@@ -1314,12 +1399,14 @@ function fetch_model_categories_from_snipeit(bool $allowResponseCache = true): a
     }
 
     $rows = $data['rows'];
-    $rows = array_values(array_filter($rows, function ($row) {
-        if (isset($row['requestable_count']) && is_numeric($row['requestable_count'])) {
-            return (int)$row['requestable_count'] > 0;
-        }
-        return true;
-    }));
+    if (!$includeNonRequestable) {
+        $rows = array_values(array_filter($rows, function ($row) {
+            if (isset($row['requestable_count']) && is_numeric($row['requestable_count'])) {
+                return (int)$row['requestable_count'] > 0;
+            }
+            return true;
+        }));
+    }
 
     usort($rows, function ($a, $b) {
         $na = $a['name'] ?? '';
@@ -1683,7 +1770,8 @@ function get_bookable_models(
     ?string $sort = null,
     int $perPage = 50,
     array $allowedCategoryIds = [],
-    array $modelIdAllowlist = []
+    array $modelIdAllowlist = [],
+    bool $includeNonRequestable = false
 ): array {
     $cached = snipeit_get_cached_bookable_models(
         $page,
@@ -1692,7 +1780,8 @@ function get_bookable_models(
         $sort,
         $perPage,
         $allowedCategoryIds,
-        $modelIdAllowlist
+        $modelIdAllowlist,
+        $includeNonRequestable
     );
     if ($cached !== null) {
         return $cached;
@@ -1725,9 +1814,11 @@ function get_bookable_models(
     $allRows = fetch_all_models_from_snipeit($search, $effectiveCategory);
 
     // Filter by requestable flag (Snipe-IT uses 'requestable' on models)
-    $allRows = array_values(array_filter($allRows, function ($row) {
-        return !empty($row['requestable']);
-    }));
+    if (!$includeNonRequestable) {
+        $allRows = array_values(array_filter($allRows, function ($row) {
+            return !empty($row['requestable']);
+        }));
+    }
 
     // Apply optional category allowlist (overrides requestable-only default scope)
     if (!empty($allowedMap)) {
@@ -1804,14 +1895,14 @@ function get_bookable_models(
  * @return array
  * @throws Exception
  */
-function get_model_categories(): array
+function get_model_categories(bool $includeNonRequestable = false): array
 {
-    $cached = snipeit_get_cached_model_categories();
+    $cached = snipeit_get_cached_model_categories($includeNonRequestable);
     if ($cached !== null) {
         return $cached;
     }
 
-    return fetch_model_categories_from_snipeit();
+    return fetch_model_categories_from_snipeit(true, $includeNonRequestable);
 }
 
 /**

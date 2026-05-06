@@ -31,6 +31,7 @@ $showCatalogueAccessoriesTab = array_key_exists('show_accessories_tab', $catalog
 $showCatalogueKitsTab = array_key_exists('show_kits_tab', $catalogueCfg)
     ? !empty($catalogueCfg['show_kits_tab'])
     : true;
+$showNonRequestableEquipment = !empty($catalogueCfg['show_non_requestable_equipment']);
 $catalogueVisibleTabs = [];
 if ($showCatalogueModelsTab) {
     $catalogueVisibleTabs[] = 'models';
@@ -1580,7 +1581,7 @@ if ($catalogueTabsEnabled && ($catalogueTab === 'models' || $catalogueTab === 'a
         if ($catalogueTab === 'accessories') {
             $categories = get_accessory_categories();
         } else {
-            $categories = get_model_categories();
+            $categories = get_model_categories($showNonRequestableEquipment);
         }
     } catch (Throwable $e) {
         $categories  = [];
@@ -1640,7 +1641,7 @@ try {
         if ($favouritesOnly && empty($modelAllowlist)) {
             $data = ['rows' => [], 'total' => 0];
         } else {
-            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist);
+            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist, $showNonRequestableEquipment);
         }
 
         if (isset($data['rows']) && is_array($data['rows'])) {

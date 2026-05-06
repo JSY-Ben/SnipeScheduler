@@ -33,6 +33,7 @@ try {
     $errors[] = 'Config file missing – showing defaults from config.example.php.';
 }
 $loadedConfig = $config;
+$settingsShowNonRequestableEquipment = !empty($config['catalogue']['show_non_requestable_equipment']);
 
 $dateFormatOptions = app_date_format_options();
 $timeFormatOptions = app_time_format_options();
@@ -49,10 +50,10 @@ $statusFetchNotice = '';
 $statusFetchError = '';
 // Bypass the generic response cache here so admins can refresh the full category list from Snipe-IT.
 try {
-    $categoryOptions = fetch_model_categories_from_snipeit(false);
+    $categoryOptions = fetch_model_categories_from_snipeit(false, $settingsShowNonRequestableEquipment);
 } catch (Throwable $e) {
     try {
-        $categoryOptions = fetch_model_categories_from_snipeit();
+        $categoryOptions = fetch_model_categories_from_snipeit(true, $settingsShowNonRequestableEquipment);
         if (!empty($categoryOptions)) {
             $categoryFetchNotice = 'Could not refresh live categories from Snipe-IT; showing the last cached API results.';
         } else {
@@ -60,7 +61,7 @@ try {
         }
     } catch (Throwable $cachedApiError) {
         try {
-            $categoryOptions = get_model_categories();
+            $categoryOptions = get_model_categories($settingsShowNonRequestableEquipment);
             if (!empty($categoryOptions)) {
                 $categoryFetchNotice = 'Could not refresh live categories from Snipe-IT; showing locally cached categories only.';
             } else {
@@ -647,6 +648,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_models_tab'] = isset($_POST['catalogue_show_models_tab']);
     $catalogue['show_accessories_tab'] = isset($_POST['catalogue_show_accessories_tab']);
     $catalogue['show_kits_tab'] = isset($_POST['catalogue_show_kits_tab']);
+    $catalogue['show_non_requestable_equipment'] = isset($_POST['catalogue_show_non_requestable_equipment']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -1396,6 +1398,21 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                     <label class="form-check-label fw-semibold" for="catalogue_show_kits_tab">
                                         Display Kits tab
                                     </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="catalogue_show_non_requestable_equipment"
+                                           id="catalogue_show_non_requestable_equipment"
+                                        <?= $cfg(['catalogue', 'show_non_requestable_equipment'], false) ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-semibold" for="catalogue_show_non_requestable_equipment">
+                                        Show Non-Requestable Equipment in Catalogue
+                                    </label>
+                                </div>
+                                <div class="form-text">
+                                    When enabled, equipment models that are not marked requestable in Snipe-IT can still appear in the catalogue.
                                 </div>
                             </div>
                             <div class="col-12">

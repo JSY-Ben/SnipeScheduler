@@ -33,6 +33,7 @@ $logErr = static function (string $message) use ($nowStamp): void {
 $logOut('info', 'sync_checked_out_assets run started (checked-out + catalogue cache)');
 $catalogueCacheRequested = app_version_is_at_least('1.4.0');
 $catalogueCacheEnabled = $catalogueCacheRequested && snipeit_catalogue_cache_tables_exist(true);
+$showNonRequestableEquipment = snipeit_catalogue_show_non_requestable_equipment($config);
 if ($catalogueCacheRequested && !$catalogueCacheEnabled) {
     $logOut('info', 'Catalogue cache sync skipped until the v1.4.0 schema upgrade is applied.');
 }
@@ -101,7 +102,7 @@ try {
 
 $catalogueModels = [];
 foreach ($allModels as $model) {
-    if (empty($model['requestable'])) {
+    if (!$showNonRequestableEquipment && empty($model['requestable'])) {
         continue;
     }
 
