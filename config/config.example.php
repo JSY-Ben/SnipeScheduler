@@ -238,5 +238,9 @@ return [
         'auth_method'=> 'login', // login|plain|none
         'from_email' => '',
         'from_name'  => 'SnipeScheduler',
+        'tenant_id'  => '',
+        'client_id'  => '',
+        'client_secret'  => '',
+        'refresh_token'  => '',
     ],
 ];
