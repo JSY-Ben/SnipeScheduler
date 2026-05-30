@@ -29,7 +29,7 @@ function layout_send_mail(string $toEmail, string $toName, string $subject, stri
     $user   = $smtp['username'] ?? '';
     $pass   = $smtp['password'] ?? '';
     $enc    = strtolower(trim($smtp['encryption'] ?? '')); // none|ssl|tls
-    $auth   = strtolower(trim($smtp['auth_method'] ?? 'login')); // login|plain|none
+    $auth   = strtolower(trim($smtp['auth_method'] ?? 'login')); // login|plain|xoauth2|none
     $from   = $smtp['from_email'] ?? '';
     $fromNm = trim((string)($smtp['from_name'] ?? ''));
     if ($fromNm === '') {
@@ -39,6 +39,63 @@ function layout_send_mail(string $toEmail, string $toName, string $subject, stri
     if ($host === '' || $from === '') {
         error_log('SnipeScheduler SMTP not configured (host/from missing).');
         return false;
+    }
+
+    if ($auth === 'xoauth2') {
+        if (!isset($smtp['tenant_id'], $smtp['client_id'], $smtp['client_secret'])) {
+            error_log('SnipeScheduler SMTP not configured (tenant_id/client_id/client_secret missing).');
+            return false;
+        }
+        if (!file_exists( __DIR__ . '/../vendor/autoload.php')) {
+            error_log('Vendor not found.');
+            return false;
+        }
+        require_once __DIR__ . '/../vendor/autoload.php';
+        $mail = new PHPMailer\PHPMailer\PHPMailer();
+        $mail->isSMTP();
+        $mail->Host = $host;
+        $mail->Port = $port;
+        $mail->SMTPSecure = $enc;
+        $mail->SMTPAuth = true;
+        $mail->AuthType = strtoupper($auth);
+        $provider = new Greew\OAuth2\Client\Provider\Azure([
+            'tenantId' => $smtp['tenant_id'],
+            'clientId' => $smtp['client_id'],
+            'clientSecret' => $smtp['client_secret'],
+        ]);
+        $mail->setOAuth(
+            new PHPMailer\PHPMailer\OAuth(
+                [
+                    'provider' => $provider,
+                    'clientId' => $smtp['client_id'],
+                    'clientSecret' => $smtp['client_secret'],
+                    'refreshToken' => $smtp['refresh_token'],
+                    'userName' => $user,
+                ]
+            )
+        );
+        $mail->addAddress($toEmail, $toName);
+        $mail->Subject = $subject;
+        $mail->setFrom($from, $fromNm);
+        if ($htmlBody) {
+            $mail->isHTML();
+            $mail->Body = $htmlBody;
+        }
+        else {
+            $mail->isHTML(false);
+            $mail->Body = $body;
+        }
+        try {
+            if ($mail->send()) {
+                return true;
+            }
+            error_log('SnipeScheduler SMTP send failed: ' . $mail->ErrorInfo);
+            return false;
+        }
+        catch (Exception $e) {
+            error_log('SnipeScheduler SMTP send failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     $remoteHost = ($enc === 'ssl') ? "ssl://{$host}" : $host; // STARTTLS uses plain host, SSL wraps immediately

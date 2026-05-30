@@ -394,6 +394,12 @@ function layout_upload_logo_file(array $file, array &$errors): ?string
     return 'uploads/logos/' . $filename;
 }
 
+$code = '';
+if (isset($_GET['code'])) {
+    $code = filter_var($_GET['code'], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+    $messages[] = 'Got code, please save form again';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
@@ -691,15 +697,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     unset($quickCheckout['allowed_kit_categories']);
 
     $smtp = $config['smtp'] ?? [];
-    $smtp['host']       = $post('smtp_host', $smtp['host'] ?? '');
-    $smtp['port']       = (int)$post('smtp_port', $smtp['port'] ?? 587);
-    $smtp['username']   = $post('smtp_username', $smtp['username'] ?? '');
-    $smtpPassInput      = $_POST['smtp_password'] ?? '';
-    $smtp['password']   = $smtpPassInput === '' ? ($config['smtp']['password'] ?? '') : $smtpPassInput;
-    $smtp['encryption'] = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
-    $smtp['auth_method'] = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
-    $smtp['from_email'] = $post('smtp_from_email', $smtp['from_email'] ?? '');
-    $smtp['from_name']  = $post('smtp_from_name', $smtp['from_name'] ?? ($app['name'] ?? 'SnipeScheduler'));
+    $smtp['host']          = $post('smtp_host', $smtp['host'] ?? '');
+    $smtp['port']          = (int)$post('smtp_port', $smtp['port'] ?? 587);
+    $smtp['username']      = $post('smtp_username', $smtp['username'] ?? '');
+    $smtpPassInput         = $_POST['smtp_password'] ?? '';
+    $smtp['password']      = $smtpPassInput === '' ? ($config['smtp']['password'] ?? '') : $smtpPassInput;
+    $smtp['encryption']    = $post('smtp_encryption', $smtp['encryption'] ?? 'tls');
+    $smtp['auth_method']   = $post('smtp_auth_method', $smtp['auth_method'] ?? 'login');
+    $smtp['from_email']    = $post('smtp_from_email', $smtp['from_email'] ?? '');
+    $smtp['from_name']     = $post('smtp_from_name', $smtp['from_name'] ?? ($app['name'] ?? 'SnipeScheduler'));
+    $smtp['tenant_id']     = $post('smtp_tenant_id', $smtp['tenant_id'] ?? '');
+    $smtp['client_id']     = $post('smtp_client_id', $smtp['client_id'] ?? '');
+    $smtpClientSecret      = $_POST['smtp_client_secret'] ?? '';
+    $smtp['client_secret'] = $smtpClientSecret === '' ? ($config['smtp']['client_secret'] ?? '') : $smtpClientSecret;
+    $smtpClientRefresh     = $_POST['smtp_refresh_token'] ?? '';
+    $smtp['refresh_token'] = $smtpClientRefresh === '' ? ($config['smtp']['refresh_token'] ?? '') : $smtpClientRefresh;
 
     $newConfig = $config;
     $newConfig['db_booking'] = $db;
@@ -792,6 +804,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Could not write config.php. Check file permissions on the config/ directory.';
         } else {
             $messages[] = 'Config saved successfully.';
+            if (file_exists(__DIR__ . '/../vendor/autoload.php') && $newConfig['smtp']['auth_method'] === 'xoauth2' && (
+                    !isset($newConfig['smtp']['refresh_token']) ||
+                    $newConfig['smtp']['tenant_id'] !== $config['smtp']['tenant_id'] ||
+                    $newConfig['smtp']['client_id'] !== $config['smtp']['client_id'] ||
+                    $newConfig['smtp']['client_secret'] !== $config['smtp']['client_secret'])) {
+                require_once __DIR__ . '/../vendor/autoload.php';
+                $provider = new \League\OAuth2\Client\Provider\GenericProvider([
+                        'clientId'                => $newConfig['smtp']['client_id'],
+                        'clientSecret'            => $newConfig['smtp']['client_secret'],
+                        'redirectUri'             => 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'],
+                        'urlAuthorize'            => $post('auth_url', 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize'),
+                        'urlAccessToken'          => $post('token_url', 'https://login.microsoftonline.com/common/oauth2/v2.0/token'),
+                        'urlResourceOwnerDetails' => $post('resource_url', 'https://graph.microsoft.com/v1.0/me'),
+                ]);
+                header('Location: '. $provider->getAuthorizationUrl(['scope' => [$post('scope', 'offline_access SMTP.Send')]]));
+                exit;
+            }
         }
     }
 
@@ -1306,7 +1335,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <select name="smtp_auth_method" class="form-select">
                                     <?php
                                     $auth = strtolower($cfg(['smtp', 'auth_method'], 'login'));
-                                    foreach (['login', 'plain', 'none'] as $opt) {
+                                    foreach (['login', 'plain', 'xoauth2', 'none'] as $opt) {
                                         $sel = $auth === $opt ? 'selected' : '';
                                         echo "<option value=\"{$opt}\" {$sel}>" . strtoupper($opt) . "</option>";
                                     }
@@ -1321,13 +1350,45 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <label class="form-label">Password</label>
                                 <input type="password" name="smtp_password" class="form-control" placeholder="Leave blank to keep">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label">From email</label>
                                 <input type="email" name="smtp_from_email" class="form-control" value="<?= h($cfg(['smtp', 'from_email'], '')) ?>">
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-3">
                                 <label class="form-label">From name</label>
                                 <input type="text" name="smtp_from_name" class="form-control" value="<?= h($cfg(['smtp', 'from_name'], $selectedAppName)) ?>">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Tenant ID</label>
+                                <input type="text" name="smtp_tenant_id" class="form-control" value="<?= h($cfg(['smtp', 'tenant_id'], '')) ?>">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Client ID</label>
+                                <input type="text" name="smtp_client_id" class="form-control" value="<?= h($cfg(['smtp', 'client_id'], '')) ?>">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Client secret</label>
+                                <input type="password" name="smtp_client_secret" class="form-control" placeholder="Leave blank to keep">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Refresh token</label>
+                                <input type="password" readonly name="smtp_refresh_token" class="form-control" placeholder="Leave blank to keep" value="<?= h($code, '') ?>">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Authorize URL</label>
+                                <input type="text" name="auth_url" class="form-control" placeholder="https://login.microsoftonline.com/common/oauth2/v2.0/authorize">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Access Token URL</label>
+                                <input type="text" name="token_url" class="form-control" placeholder="https://login.microsoftonline.com/common/oauth2/v2.0/token">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Resource Owner Details</label>
+                                <input type="text" name="resource_url" class="form-control" placeholder="https://graph.microsoft.com/v1.0/me">
+                            </div>
+                            <div class="col-md-6 toggle-xoath">
+                                <label class="form-label">Scope</label>
+                                <input type="text" name="scope" class="form-control" placeholder="offline_access SMTP.Send">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
@@ -2764,6 +2825,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
         } else {
             updateBlackoutRemoveButtons();
         }
+    }
+
+    const authMethod = document.querySelector('select[name="smtp_auth_method"]');
+    const xoathFields = document.getElementsByClassName('toggle-xoath');
+
+    if (authMethod) {
+        authMethod.addEventListener('change', (e) => {
+            if (xoathFields) {
+                if (e.target.value === 'xoauth2') {
+                    for (var i = 0; i < xoathFields.length; i ++) {
+                        xoathFields[i].style.display = 'block';
+                    }
+                }
+                else {
+                    for (var i = 0; i < xoathFields.length; i ++) {
+                        xoathFields[i].style.display = 'none';
+                    }
+                }
+            }
+        });
+        authMethod.dispatchEvent(new Event('change'));
     }
 })();
 </script>

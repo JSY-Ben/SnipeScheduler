@@ -1,0 +1,9 @@
+{
+    "name": "pieterjanput/snipescheduler",
+    "require": {
+        "phpmailer/phpmailer": "^7.0",
+        "greew/oauth2-azure-provider": "^2.0",
+        "league/oauth2-client": "^2.9"
+    },
+    "config": { }
+}
