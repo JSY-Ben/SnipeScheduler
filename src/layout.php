@@ -494,7 +494,8 @@ if (!function_exists('layout_footer')) {
         $versionRaw  = is_file($versionFile) ? trim((string)@file_get_contents($versionFile)) : '';
         $version     = $versionRaw !== '' ? $versionRaw : 'dev';
         $versionEsc  = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
-        $flatpickrCfg = app_flatpickr_settings(layout_cached_config());
+        $cfg = layout_cached_config();
+        $flatpickrCfg = app_flatpickr_settings($cfg);
         $flatpickrCfgJson = json_encode($flatpickrCfg, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
         layout_render_pending_upgrade_modal();
@@ -738,10 +739,12 @@ if (!function_exists('layout_footer')) {
 })();
 </script>
 SCRIPT;
-        echo '<footer class="text-center text-muted mt-4 small">'
-            . 'SnipeScheduler Version ' . $versionEsc . ' - Created by '
-            . '<a href="https://www.linkedin.com/in/ben-pirozzolo-76212a88" target="_blank" rel="noopener noreferrer">Ben Pirozzolo</a>'
-            . '</footer>';
+        if (!$cfg['app']['hide_footer'] || (isset($_SESSION['user']) && ($_SESSION['user']['is_admin'] || $_SESSION['user']['is_staff']))) {
+            echo '<footer class="text-center text-muted mt-4 small">'
+                . 'SnipeScheduler Version ' . $versionEsc . ' - Created by '
+                . '<a href="https://www.linkedin.com/in/ben-pirozzolo-76212a88" target="_blank" rel="noopener noreferrer">Ben Pirozzolo</a>'
+                . '</footer>';
+        }
     }
 }
 

@@ -509,6 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $app['timezone']              = in_array($timezoneRaw, $timezoneOptions, true) ? $timezoneRaw : $currentTimezone;
     $app['debug']                 = isset($_POST['app_debug']);
+    $app['hide_footer']           = isset($_POST['hide_footer']);
     $app['base_url']              = trim((string)$post('app_base_url', $app['base_url'] ?? ''));
     $app['logo_url']              = $post('app_logo_url', $app['logo_url'] ?? '');
     if ($action === 'save' && isset($_FILES['app_logo_file']) && is_array($_FILES['app_logo_file'])) {
@@ -2238,6 +2239,12 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="hide_footer" id="hide_footer" <?= $cfg(['app', 'hide_footer'], false) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="hide_footer">Hide footer for non-admins</label>
                                 </div>
                             </div>
                         </div>
