@@ -35,6 +35,9 @@ try {
 }
 $loadedConfig = $config;
 $settingsShowNonRequestableEquipment = !empty($config['catalogue']['show_non_requestable_equipment']);
+$settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
+$settingsTabAllowed = ['frontend', 'backend', 'permissions', 'notifications'];
+$settingsTab = in_array($settingsTabRaw, $settingsTabAllowed, true) ? $settingsTabRaw : 'frontend';
 
 $dateFormatOptions = app_date_format_options();
 $timeFormatOptions = app_time_format_options();
@@ -1021,9 +1024,6 @@ if (empty($reservationBlackoutRows)) {
     $reservationBlackoutRows[] = ['start' => '', 'end' => '', 'reason' => ''];
 }
 
-$settingsTabRaw = strtolower(trim((string)($_POST['settings_tab'] ?? $_GET['settings_tab'] ?? 'frontend')));
-$settingsTabAllowed = ['frontend', 'backend', 'permissions', 'notifications'];
-$settingsTab = in_array($settingsTabRaw, $settingsTabAllowed, true) ? $settingsTabRaw : 'frontend';
 $selectedPermissionGroupId = (int)($_POST['permissions_group_id'] ?? $_GET['permissions_group_id'] ?? 0);
 $selectedPermissionGroupName = '';
 foreach ($permissionGroups as $permissionGroup) {
