@@ -2393,11 +2393,11 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                        id="catalogue_apply_permissions_to_quick_checkout"
                                     <?= $cfg(['catalogue', 'apply_permissions_to_quick_checkout'], false) ? 'checked' : '' ?>>
                                 <label class="form-check-label fw-semibold" for="catalogue_apply_permissions_to_quick_checkout">
-                                    Apply catalogue permissions to Quick Checkout
+                                    Apply restrictions to Quick Checkout
                                 </label>
                             </div>
                             <div class="form-text">
-                                When enabled, Quick Checkout checks the selected user's Snipe-IT group permissions before checking out equipment or accessories. This is disabled by default.
+                                When enabled, Quick Checkout checks the selected user's Snipe-IT group permissions before allowing checking out of restricted equipment or accessories.
                             </div>
                         </div>
 
