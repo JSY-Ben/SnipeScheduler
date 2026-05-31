@@ -4,6 +4,60 @@ require_once __DIR__ . '/bootstrap.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
 
+function catalogue_permissions_pdo(): PDO
+{
+    if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
+        return $GLOBALS['pdo'];
+    }
+
+    global $pdo;
+    require_once SRC_PATH . '/db.php';
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $GLOBALS['pdo'] = $pdo;
+        return $pdo;
+    }
+    if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
+        return $GLOBALS['pdo'];
+    }
+
+    $config = load_config();
+    $db = $config['db_booking'] ?? [];
+    if (empty($db)) {
+        throw new RuntimeException('Booking database configuration (db_booking) is missing in config.php');
+    }
+
+    $dsn = sprintf(
+        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+        $db['host'] ?? 'localhost',
+        (int)($db['port'] ?? 3306),
+        $db['dbname'] ?? '',
+        $db['charset'] ?? 'utf8mb4'
+    );
+
+    $GLOBALS['pdo'] = new PDO(
+        $dsn,
+        $db['username'] ?? '',
+        $db['password'] ?? '',
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+
+    return $GLOBALS['pdo'];
+}
+
+function catalogue_permissions_last_db_error(?Throwable $error = null): string
+{
+    static $lastError = '';
+
+    if ($error !== null) {
+        $lastError = $error->getMessage();
+    }
+
+    return $lastError;
+}
+
 function catalogue_permissions_table_exists(bool $create = true): bool
 {
     static $exists = null;
@@ -13,12 +67,12 @@ function catalogue_permissions_table_exists(bool $create = true): bool
     }
 
     try {
-        global $pdo;
-        require_once SRC_PATH . '/db.php';
+        $pdo = catalogue_permissions_pdo();
         $pdo->query('SELECT 1 FROM catalogue_group_restrictions LIMIT 1');
         $exists = true;
         return true;
     } catch (Throwable $e) {
+        catalogue_permissions_last_db_error($e);
         $exists = false;
     }
 
@@ -27,8 +81,7 @@ function catalogue_permissions_table_exists(bool $create = true): bool
     }
 
     try {
-        global $pdo;
-        require_once SRC_PATH . '/db.php';
+        $pdo = catalogue_permissions_pdo();
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS catalogue_group_restrictions (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -49,6 +102,7 @@ function catalogue_permissions_table_exists(bool $create = true): bool
         $exists = true;
         return true;
     } catch (Throwable $e) {
+        catalogue_permissions_last_db_error($e);
         $exists = false;
         return false;
     }
@@ -196,8 +250,7 @@ function catalogue_permissions_denied_item_map_for_group(int $groupId): array
         return [];
     }
 
-    global $pdo;
-    require_once SRC_PATH . '/db.php';
+    $pdo = catalogue_permissions_pdo();
     $stmt = $pdo->prepare("
         SELECT item_type, item_id
           FROM catalogue_group_restrictions
@@ -228,8 +281,7 @@ function catalogue_permissions_denied_item_map_for_groups(array $groupIds): arra
         return [];
     }
 
-    global $pdo;
-    require_once SRC_PATH . '/db.php';
+    $pdo = catalogue_permissions_pdo();
     $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
     $stmt = $pdo->prepare("
         SELECT item_type, item_id
@@ -273,7 +325,11 @@ function catalogue_permissions_save_group_restrictions(int $groupId, string $gro
         throw new InvalidArgumentException('Select a valid Snipe-IT group.');
     }
     if (!catalogue_permissions_table_exists()) {
-        throw new RuntimeException('Catalogue permissions table is not available.');
+        $details = catalogue_permissions_last_db_error();
+        throw new RuntimeException(
+            'Catalogue permissions table is not available.'
+            . ($details !== '' ? ' Database error: ' . $details : '')
+        );
     }
 
     $allowedLookup = [];
@@ -284,8 +340,7 @@ function catalogue_permissions_save_group_restrictions(int $groupId, string $gro
         }
     }
 
-    global $pdo;
-    require_once SRC_PATH . '/db.php';
+    $pdo = catalogue_permissions_pdo();
     $pdo->beginTransaction();
     try {
         $delete = $pdo->prepare('DELETE FROM catalogue_group_restrictions WHERE group_id = :group_id');
