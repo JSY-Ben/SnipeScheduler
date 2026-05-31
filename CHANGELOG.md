@@ -6,9 +6,19 @@
 
 1) New Permissions System! You can now restrict access to reserve certain items based on the Snipe-IT Group the user is in. You can choose to hide the items from the catalogue entirely or have them appear but grayed out if they are not allowed to book said item.
 
+2) You have the option to choose whether such restrictions are applied to the 'Quick Checkout' page or not.
+
 ### SMTP 
 
-1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution
+1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution.
+
+### Bug Fixes
+
+1) Due to multiple authentication methods doing usernames in different ways, sometimes user search got confused and couldn't match up with users on Snipe-IT. Therefore user search now uses email address as primary method of matching users, as this is the most likely to be the same on all authentication methods as well as the Snipe-IT database.
+
+### Other Additions
+
+1) You can now choose to disable the footer for non-admin users. Many thanks to PieterJanPut for the Contribution.
 
 
 
