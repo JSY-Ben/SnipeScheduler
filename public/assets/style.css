@@ -32,6 +32,23 @@ body {
     color: var(--text);
 }
 
+body.settings-page {
+    min-height: 100vh;
+    background-attachment: fixed;
+    background-size: 100vw 100vh;
+    background-repeat: no-repeat;
+}
+
+body.settings-page > footer ~ :not(script):not(style):not(link) {
+    display: none !important;
+}
+
+body.settings-page .settings-form [data-settings-group].d-none,
+body.settings-page .settings-form [data-permissions-row].d-none,
+body.settings-page .settings-form [data-permissions-row][hidden] {
+    display: none !important;
+}
+
 a {
     color: var(--primary-strong);
 }
@@ -2303,4 +2320,152 @@ form .form-select {
 .basket-toast.show {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
+}
+
+.catalogue-card--restricted {
+    background: #f3f4f6;
+    border-color: #cbd5e1;
+    filter: grayscale(0.75);
+}
+
+.catalogue-card--restricted .model-image {
+    opacity: 0.55;
+}
+
+.catalogue-card--restricted .card-title,
+.catalogue-card--restricted .card-text {
+    color: #6b7280;
+}
+
+.settings-permissions-table {
+    max-height: 620px;
+    overflow: auto;
+    contain: layout paint;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.settings-permissions-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #ffffff;
+}
+
+.settings-permissions-filter-panel {
+    background: rgb(var(--primary-rgb));
+    border: 1px solid rgba(var(--primary-rgb), 0.55);
+    box-shadow: 0 14px 30px rgba(var(--primary-rgb), 0.18);
+    color: #ffffff;
+}
+
+.settings-permissions-filter-panel::after {
+    display: none;
+}
+
+.settings-permissions-filter-panel .filter-panel__title {
+    color: #ffffff;
+}
+
+.settings-permissions-filter-panel .filter-panel__dot {
+    box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0.1);
+}
+
+.settings-permissions-filter-panel .form-label {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"],
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"],
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"]:nth-child(even),
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"]:nth-child(even),
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"]:hover,
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"]:hover {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+.settings-permissions-filter-panel .form-control,
+.settings-permissions-filter-panel .form-select {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.65);
+    color: #1f2937;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.settings-permissions-filter-panel .filter-search {
+    background: #ffffff !important;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.settings-permissions-filter-panel .filter-search__icon {
+    background: transparent !important;
+    background-image: none !important;
+}
+
+.settings-permissions-filter-panel .filter-search__input {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ffffff !important;
+    background-image: none !important;
+    box-shadow: none;
+}
+
+.settings-permissions-filter-panel .form-select {
+    padding-right: 2.35rem;
+    background: #ffffff url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat right 0.85rem center / 16px 12px !important;
+}
+
+.settings-permissions-filter-panel .form-select option {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #1f2937;
+}
+
+.settings-permissions-thumb {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    flex: 0 0 44px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-permissions-thumb__image {
+    width: 100%;
+    height: 100%;
+    max-width: 44px;
+    max-height: 44px;
+    object-fit: contain;
+    display: block;
+}
+
+.settings-permissions-thumb__placeholder {
+    color: #6b7280;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* Closed Flatpickr calendars are appended near the footer; keep them out of layout even if CDN CSS is unavailable. */
+.flatpickr-calendar:not(.open) {
+    display: none !important;
+}
+
+.flatpickr-calendar.open {
+    position: absolute;
+    z-index: 99999;
 }

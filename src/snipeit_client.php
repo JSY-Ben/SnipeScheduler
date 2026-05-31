@@ -2206,18 +2206,42 @@ function find_single_user_by_email_or_name(string $query): array
         throw new InvalidArgumentException('User search query cannot be empty.');
     }
 
-    $params = [
-        'search' => $q,
-        'limit'  => 20,
-    ];
-
-    $data = snipeit_request('GET', 'users', $params);
-
-    if (!isset($data['rows']) || !is_array($data['rows']) || count($data['rows']) === 0) {
-        throw new Exception("No Snipe-IT users found matching '{$q}'.");
+    $qLower = strtolower($q);
+    $rows = [];
+    if (filter_var($q, FILTER_VALIDATE_EMAIL)) {
+        try {
+            $emailData = snipeit_request('GET', 'users', [
+                'email' => $q,
+                'limit' => 20,
+            ], false);
+            $emailRows = isset($emailData['rows']) && is_array($emailData['rows']) ? $emailData['rows'] : [];
+            foreach ($emailRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $email = $row['email'] ?? '';
+                if ($email !== '' && strtolower(trim($email)) === $qLower) {
+                    $rows[] = $row;
+                }
+            }
+        } catch (Throwable $e) {
+            $rows = [];
+        }
     }
 
-    $rows = $data['rows'];
+    if (empty($rows)) {
+        $params = [
+            'search' => $q,
+            'limit'  => 20,
+        ];
+
+        $data = snipeit_request('GET', 'users', $params);
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+    }
+
+    if (count($rows) === 0) {
+        throw new Exception("No Snipe-IT users found matching '{$q}'.");
+    }
 
     // If exactly one result, use it
     if (count($rows) === 1) {
@@ -2227,7 +2251,6 @@ function find_single_user_by_email_or_name(string $query): array
     // Try to find exact email match
     $exactEmailMatches = [];
     $exactNameMatches  = [];
-    $qLower = strtolower($q);
     foreach ($rows as $row) {
         $email = $row['email'] ?? '';
         $name  = $row['name'] ?? ($row['username'] ?? '');
@@ -2265,18 +2288,42 @@ function find_user_by_email_or_name_with_candidates(string $query): array
         throw new InvalidArgumentException('User search query cannot be empty.');
     }
 
-    $params = [
-        'search' => $q,
-        'limit'  => 20,
-    ];
-
-    $data = snipeit_request('GET', 'users', $params);
-
-    if (!isset($data['rows']) || !is_array($data['rows']) || count($data['rows']) === 0) {
-        throw new Exception("No Snipe-IT users found matching '{$q}'.");
+    $qLower = strtolower($q);
+    $rows = [];
+    if (filter_var($q, FILTER_VALIDATE_EMAIL)) {
+        try {
+            $emailData = snipeit_request('GET', 'users', [
+                'email' => $q,
+                'limit' => 20,
+            ], false);
+            $emailRows = isset($emailData['rows']) && is_array($emailData['rows']) ? $emailData['rows'] : [];
+            foreach ($emailRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $email = $row['email'] ?? '';
+                if ($email !== '' && strtolower(trim($email)) === $qLower) {
+                    $rows[] = $row;
+                }
+            }
+        } catch (Throwable $e) {
+            $rows = [];
+        }
     }
 
-    $rows = $data['rows'];
+    if (empty($rows)) {
+        $params = [
+            'search' => $q,
+            'limit'  => 20,
+        ];
+
+        $data = snipeit_request('GET', 'users', $params);
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+    }
+
+    if (count($rows) === 0) {
+        throw new Exception("No Snipe-IT users found matching '{$q}'.");
+    }
 
     if (count($rows) === 1) {
         return ['user' => $rows[0], 'candidates' => []];
@@ -2284,7 +2331,6 @@ function find_user_by_email_or_name_with_candidates(string $query): array
 
     $exactEmailMatches = [];
     $exactNameMatches  = [];
-    $qLower = strtolower($q);
     foreach ($rows as $row) {
         $email = $row['email'] ?? '';
         $name  = $row['name'] ?? ($row['username'] ?? '');

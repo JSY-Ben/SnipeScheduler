@@ -4,6 +4,7 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/catalogue_permissions.php';
 
 function basket_add_is_ajax_request(): bool
 {
@@ -119,6 +120,11 @@ $window = basket_add_window_bounds();
 $windowStartTs = $window['start_ts'];
 $windowStart = $window['start'];
 $windowEnd = $window['end'];
+$isAdmin = !empty($currentUser['is_admin']);
+$isStaff = !empty($currentUser['is_staff']) || $isAdmin;
+$activeUser = ($isStaff && isset($_SESSION['booking_user_override']) && is_array($_SESSION['booking_user_override']))
+    ? $_SESSION['booking_user_override']
+    : $currentUser;
 
 if ($itemId <= 0 || $qtyRequested <= 0) {
     basket_add_respond(false, 'Invalid item selection.', 400);
@@ -158,6 +164,9 @@ try {
             $perKitQty = max(1, (int)($supportedItem['qty'] ?? 1));
             if ($supportedId <= 0) {
                 continue;
+            }
+            if (!catalogue_permissions_is_item_allowed($activeUser, $supportedType, $supportedId)) {
+                basket_add_respond(false, 'You do not have permission to reserve one or more items in this kit.', 403);
             }
 
             $availableUnits = basket_add_available_units_for_item(
@@ -202,6 +211,10 @@ try {
         $_SESSION['basket'] = booking_session_basket_export($basketItems);
         $message = $maxKits === 1 ? "Added {$kitName} to basket." : "Added {$maxKits} kits of {$kitName} to basket.";
         basket_add_respond(true, $message);
+    }
+
+    if (!catalogue_permissions_is_item_allowed($activeUser, $itemType, $itemId)) {
+        basket_add_respond(false, 'You do not have permission to reserve this item.', 403);
     }
 
     $availableUnits = basket_add_available_units_for_item(

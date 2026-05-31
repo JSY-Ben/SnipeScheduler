@@ -6,6 +6,7 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/favourites.php';
+require_once SRC_PATH . '/catalogue_permissions.php';
 
 $config   = load_config();
 $authCfg  = $config['auth'] ?? [];
@@ -503,6 +504,47 @@ function catalogue_kit_detail_items(array $kitBreakdown): array
     }
 
     return $items;
+}
+
+function catalogue_kit_restricted_by_permission(int $kitId, array $deniedPermissionMap): bool
+{
+    if ($kitId <= 0 || empty($deniedPermissionMap)) {
+        return false;
+    }
+
+    try {
+        $breakdown = get_kit_booking_breakdown($kitId);
+        foreach (($breakdown['supported_items'] ?? []) as $supportedItem) {
+            if (!is_array($supportedItem)) {
+                continue;
+            }
+
+            $supportedType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+            $supportedId = (int)($supportedItem['id'] ?? 0);
+            if ($supportedId > 0 && !empty($deniedPermissionMap[$supportedType . ':' . $supportedId])) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return false;
+}
+
+function catalogue_category_value_map_from_rows(array $rows): array
+{
+    $values = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        foreach (snipeit_category_filter_values($row) as $value) {
+            $values[$value] = true;
+        }
+    }
+
+    return $values;
 }
 
 function google_directory_search(string $q, array $config): array
@@ -1540,6 +1582,12 @@ $favouriteModelIds = [];
 $favouriteModelMap = [];
 $favouritesUserEmail = '';
 $canUseFavourites = false;
+$catalogueUserGroupIds = $isAuthenticated ? catalogue_permissions_user_group_ids($activeUser) : [];
+$catalogueDeniedPermissionMap = catalogue_permissions_denied_item_map_for_groups($catalogueUserGroupIds);
+$catalogueShowRestrictedItems = !array_key_exists('show_restricted_items', $config['catalogue'] ?? [])
+    || !empty($config['catalogue']['show_restricted_items']);
+$catalogueHideRestrictedItems = !$catalogueShowRestrictedItems && !empty($catalogueDeniedPermissionMap);
+$cataloguePermissionFetchLimit = 10000;
 $catalogueReturnUrl = 'catalogue.php';
 
 if ($catalogueTab === 'models' && $isAuthenticated) {
@@ -1636,6 +1684,80 @@ if (is_array($allowedCfg)) {
     }
 }
 
+if ($catalogueTabsEnabled && $catalogueHideRestrictedItems && ($catalogueTab === 'models' || $catalogueTab === 'accessories')) {
+    try {
+        if ($catalogueTab === 'accessories') {
+            $categoryScopeData = get_bookable_accessories(
+                1,
+                $search ?? '',
+                $sort,
+                $cataloguePermissionFetchLimit,
+                null
+            );
+            $categoryScopeRows = isset($categoryScopeData['rows']) && is_array($categoryScopeData['rows'])
+                ? $categoryScopeData['rows']
+                : [];
+            $categoryScopeRows = array_values(array_filter($categoryScopeRows, static function (array $accessory) use ($catalogueDeniedPermissionMap): bool {
+                $accessoryId = (int)($accessory['id'] ?? 0);
+                return $accessoryId <= 0 || empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+            }));
+            $visibleCategoryValues = catalogue_category_value_map_from_rows($categoryScopeRows);
+            $categories = array_values(array_filter($categories, static function (array $cat) use ($visibleCategoryValues): bool {
+                foreach (snipeit_category_filter_values($cat) as $value) {
+                    if (!empty($visibleCategoryValues[$value])) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+            if ($categoryRaw !== '') {
+                $selectedCategoryVisible = false;
+                foreach (snipeit_normalize_category_filter_values([$categoryRaw]) as $selectedCategoryValue) {
+                    if (!empty($visibleCategoryValues[$selectedCategoryValue])) {
+                        $selectedCategoryVisible = true;
+                        break;
+                    }
+                }
+                if (!$selectedCategoryVisible) {
+                    $categoryRaw = '';
+                }
+            }
+        } else {
+            $categoryModelAllowlist = $favouritesOnly ? $favouriteModelIds : [];
+            $categoryScopeData = ($favouritesOnly && empty($categoryModelAllowlist))
+                ? ['rows' => [], 'total' => 0]
+                : get_bookable_models(
+                    1,
+                    $search ?? '',
+                    null,
+                    $sort,
+                    $cataloguePermissionFetchLimit,
+                    $allowedCategoryIds,
+                    $categoryModelAllowlist,
+                    $showNonRequestableItems
+                );
+            $categoryScopeRows = isset($categoryScopeData['rows']) && is_array($categoryScopeData['rows'])
+                ? $categoryScopeData['rows']
+                : [];
+            $categoryScopeRows = array_values(array_filter($categoryScopeRows, static function (array $model) use ($catalogueDeniedPermissionMap): bool {
+                $modelId = (int)($model['id'] ?? 0);
+                return $modelId <= 0 || empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+            }));
+            $visibleCategoryValues = catalogue_category_value_map_from_rows($categoryScopeRows);
+            $categories = array_values(array_filter($categories, static function (array $cat) use ($visibleCategoryValues): bool {
+                $categoryId = (int)($cat['id'] ?? 0);
+                return $categoryId > 0 && !empty($visibleCategoryValues['id:' . $categoryId]);
+            }));
+            if ($category !== null && empty($visibleCategoryValues['id:' . $category])) {
+                $categoryRaw = '';
+                $category = null;
+            }
+        }
+    } catch (Throwable $e) {
+        // Keep the unfiltered category list if the permission-aware category pass fails.
+    }
+}
+
 // ---------------------------------------------------------------------
 // Load catalogue rows from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
@@ -1643,13 +1765,48 @@ try {
     if (!$catalogueTabsEnabled) {
         $totalModels = 0;
     } elseif ($catalogueTab === 'accessories') {
-        $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage, $categoryRaw);
-        $accessories = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
+        $data = get_bookable_accessories(
+            $catalogueHideRestrictedItems ? 1 : $page,
+            $search ?? '',
+            $sort,
+            $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage,
+            $categoryRaw
+        );
+        $accessoryRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $accessoryRows = array_values(array_filter($accessoryRows, static function (array $accessory) use ($catalogueDeniedPermissionMap): bool {
+                $accessoryId = (int)($accessory['id'] ?? 0);
+                return $accessoryId <= 0 || empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+            }));
+            $totalModels = count($accessoryRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $accessories = array_slice($accessoryRows, ($page - 1) * $perPage, $perPage);
+        } else {
+            $accessories = $accessoryRows;
+            $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
+        }
     } elseif ($catalogueTab === 'kits') {
-        $data = get_bookable_kits($page, $search ?? '', $sort, $perPage);
-        $kits = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        $totalModels = isset($data['total']) ? (int)$data['total'] : count($kits);
+        $data = get_bookable_kits(
+            $catalogueHideRestrictedItems ? 1 : $page,
+            $search ?? '',
+            $sort,
+            $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage
+        );
+        $kitRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $kitRows = array_values(array_filter($kitRows, static function (array $kit) use ($catalogueDeniedPermissionMap): bool {
+                $kitId = (int)($kit['id'] ?? 0);
+                return !catalogue_kit_restricted_by_permission($kitId, $catalogueDeniedPermissionMap);
+            }));
+            $totalModels = count($kitRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $kits = array_slice($kitRows, ($page - 1) * $perPage, $perPage);
+        } else {
+            $kits = $kitRows;
+            $totalModels = isset($data['total']) ? (int)$data['total'] : count($kits);
+        }
     } else {
         $modelAllowlist = [];
         if ($favouritesOnly) {
@@ -1659,21 +1816,41 @@ try {
         if ($favouritesOnly && empty($modelAllowlist)) {
             $data = ['rows' => [], 'total' => 0];
         } else {
-            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist, $showNonRequestableItems);
+            $data = get_bookable_models(
+                $catalogueHideRestrictedItems ? 1 : $page,
+                $search ?? '',
+                $category,
+                $sort,
+                $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage,
+                $allowedCategoryIds,
+                $modelAllowlist,
+                $showNonRequestableItems
+            );
         }
 
-        if (isset($data['rows']) && is_array($data['rows'])) {
-            $models = $data['rows'];
-        }
-
-        if (isset($data['total'])) {
-            $totalModels = (int)$data['total'];
+        $modelRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $modelRows = array_values(array_filter($modelRows, static function (array $model) use ($catalogueDeniedPermissionMap): bool {
+                $modelId = (int)($model['id'] ?? 0);
+                return $modelId <= 0 || empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+            }));
+            $totalModels = count($modelRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $models = array_slice($modelRows, ($page - 1) * $perPage, $perPage);
         } else {
-            $totalModels = count($models);
+            $models = $modelRows;
+            if (isset($data['total'])) {
+                $totalModels = (int)$data['total'];
+            } else {
+                $totalModels = count($models);
+            }
         }
     }
 
-    if ($perPage > 0) {
+    if ($catalogueHideRestrictedItems) {
+        $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+    } elseif ($perPage > 0) {
         $totalPages = max(1, (int)ceil($totalModels / $perPage));
     } else {
         $totalPages = 1;
@@ -2171,9 +2348,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         if ($imagePath !== '') {
                             $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                         }
+                        $permissionAllowed = empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+                        if (!$permissionAllowed && !$catalogueShowRestrictedItems) {
+                            continue;
+                        }
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card">
+                        <div class="card h-100 model-card<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>">
                             <?php if ($proxiedImage !== ''): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--zoomable"
@@ -2207,7 +2388,14 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                     <?php endif; ?>
                                 </p>
 
-                                <?php if ($isAuthenticated): ?>
+                                <?php if (!$permissionAllowed): ?>
+                                    <div class="mt-auto">
+                                        <div class="alert alert-secondary small mb-0">
+                                            You do not have permission to reserve this item.
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                    </div>
+                                <?php elseif ($isAuthenticated): ?>
                                     <form method="post" action="basket_add.php" class="mt-auto add-to-basket-form">
                                         <input type="hidden" name="item_type" value="accessory">
                                         <input type="hidden" name="item_id" value="<?= $accessoryId ?>">
@@ -2272,6 +2460,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $kitMoreItemCount = 0;
                         $kitUnsupportedLabels = [];
                         $kitCanAdd = true;
+                        $kitRestricted = false;
                         $kitModelImageItems = [];
                         $kitDetailItems = [];
                         try {
@@ -2286,11 +2475,23 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             ));
                             $kitMoreItemCount = max(0, count($supportedItems) - 4);
                             $kitIncludedNames = [];
+                            foreach ($supportedItems as $supportedItem) {
+                                $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+                                $supportedItemId = (int)($supportedItem['id'] ?? 0);
+                                if (
+                                    in_array($itemType, ['model', 'accessory'], true)
+                                    && $supportedItemId > 0
+                                    && !empty($catalogueDeniedPermissionMap[$itemType . ':' . $supportedItemId])
+                                ) {
+                                    $kitRestricted = true;
+                                }
+                            }
                             foreach (array_slice($supportedItems, 0, 4) as $supportedItem) {
                                 $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+                                $supportedItemId = (int)($supportedItem['id'] ?? 0);
                                 $itemName = trim((string)($supportedItem['name'] ?? ''));
                                 if ($itemName === '') {
-                                    $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . (int)$supportedItem['id'];
+                                    $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . $supportedItemId;
                                 }
                                 $kitIncludedNames[] = $itemName;
                             }
@@ -2310,13 +2511,19 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             if (!empty($kitUnsupportedLabels) || empty($kitBreakdown['supported_items'] ?? [])) {
                                 $kitCanAdd = false;
                             }
+                            if ($kitRestricted) {
+                                $kitCanAdd = false;
+                            }
                         } catch (Throwable $e) {
                             $kitContainsText = 'Unable to load kit contents right now.';
                             $kitCanAdd = false;
                         }
+                        if ($kitRestricted && !$catalogueShowRestrictedItems) {
+                            continue;
+                        }
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card">
+                        <div class="card h-100 model-card<?= $kitRestricted ? ' catalogue-card--restricted' : '' ?>">
                             <?php if (!empty($kitModelImageItems)): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--kit-grid model-image-wrapper--kit-details"
@@ -2389,6 +2596,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 <?php if (!empty($kitUnsupportedLabels)): ?>
                                     <div class="alert alert-warning small">
                                         Unsupported kit contents: <?= h(implode(', ', $kitUnsupportedLabels)) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($kitRestricted): ?>
+                                    <div class="alert alert-secondary small">
+                                        You do not have permission to reserve one or more items in this kit.
                                     </div>
                                 <?php endif; ?>
 
@@ -2605,9 +2817,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                     }
                     $isFavourite = $isAuthenticated && isset($favouriteModelMap[$modelId]);
+                    $permissionAllowed = empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+                    if (!$permissionAllowed && !$catalogueShowRestrictedItems) {
+                        continue;
+                    }
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card model-card--details"
+                        <div class="card h-100 model-card model-card--details<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>"
                              data-model-id="<?= $modelId ?>"
                              data-model-name="<?= h($name) ?>"
                              role="button"
@@ -2657,7 +2873,32 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                     <?php endif; ?>
                                 </p>
 
-                                <?php if ($isAuthenticated): ?>
+                                <?php if (!$permissionAllowed): ?>
+                                    <div class="mt-auto">
+                                        <?php if ($canUseFavourites): ?>
+                                            <div class="form-check model-favourite-inline mb-2">
+                                                <input class="form-check-input model-favourite-checkbox"
+                                                       type="checkbox"
+                                                       id="model_favourite_<?= $modelId ?>"
+                                                       data-model-id="<?= $modelId ?>"
+                                                       data-return-url="<?= h($catalogueReturnUrl) ?>"
+                                                       <?= $isFavourite ? 'checked' : '' ?>>
+                                                <label class="form-check-label small fw-semibold"
+                                                       for="model_favourite_<?= $modelId ?>">
+                                                    Add to Favourites
+                                                </label>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div class="alert alert-secondary small mb-0">
+                                            You do not have permission to reserve this item.
+                                        </div>
+                                        <button type="button"
+                                                class="btn btn-sm btn-secondary w-100 mt-2"
+                                                disabled>
+                                            Add to basket
+                                        </button>
+                                    </div>
+                                <?php elseif ($isAuthenticated): ?>
                                     <form method="post"
                                           action="basket_add.php"
                                           class="mt-auto add-to-basket-form">

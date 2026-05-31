@@ -210,6 +210,10 @@ return [
         'show_kits_tab' => true,
         // Allow users to include equipment models that are not marked requestable in Snipe-IT.
         'show_non_requestable_equipment' => false,
+        // Show group-restricted catalogue items as disabled cards instead of hiding them.
+        'show_restricted_items' => true,
+        // Apply group-based catalogue permissions to Quick Checkout target users.
+        'apply_permissions_to_quick_checkout' => false,
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
         // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.

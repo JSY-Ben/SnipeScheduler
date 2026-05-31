@@ -11,9 +11,12 @@ require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/reservation_policy.php';
+require_once SRC_PATH . '/catalogue_permissions.php';
 
 $config = load_config();
 $quickCheckoutCfg = is_array($config['quick_checkout'] ?? null) ? $config['quick_checkout'] : [];
+$catalogueCfg = is_array($config['catalogue'] ?? null) ? $config['catalogue'] : [];
+$quickCheckoutPermissionChecks = !empty($catalogueCfg['apply_permissions_to_quick_checkout']);
 $quickCheckoutItemsPerPage = defined('QUICK_CHECKOUT_ITEMS_PER_PAGE')
     ? max(1, (int)QUICK_CHECKOUT_ITEMS_PER_PAGE)
     : 5;
@@ -747,6 +750,42 @@ function qc_checkout_entry_display_label(array $entry): string
     return trim((string)($entry['name'] ?? 'Asset'));
 }
 
+function qc_permission_denied_checkout_labels(array $targetUser, array $checkoutEntries): array
+{
+    $labels = [];
+    $seen = [];
+
+    foreach ($checkoutEntries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        if (($entry['entry_type'] ?? '') === 'accessory') {
+            $itemType = 'accessory';
+            $itemId = (int)($entry['item_id'] ?? 0);
+        } else {
+            $itemType = 'model';
+            $itemId = (int)($entry['model_id'] ?? 0);
+        }
+
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $key = booking_catalogue_item_key($itemType, $itemId);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+
+        if (!catalogue_permissions_is_item_allowed($targetUser, $itemType, $itemId)) {
+            $labels[] = qc_checkout_entry_display_label($entry);
+        }
+    }
+
+    return $labels;
+}
+
 function qc_history_items_from_checkout_items(array $checkoutItems): array
 {
     $grouped = [];
@@ -1080,6 +1119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new RuntimeException('Matched user has no valid ID.');
                     }
 
+                    if ($quickCheckoutPermissionChecks) {
+                        $permissionDeniedLabels = qc_permission_denied_checkout_labels($user, $checkoutEntries);
+                        if (!empty($permissionDeniedLabels)) {
+                            $errors[] = 'The selected user does not have permission to reserve: ' . implode(', ', $permissionDeniedLabels) . '.';
+                        }
+                    }
+
                     $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy, [
                         'start_ts' => $startTs,
                         'end_ts' => $endTs,
@@ -1090,13 +1136,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_on_behalf' => true,
                         'is_quick_checkout' => true,
                     ]);
-                    if (!empty($policyViolations)) {
+                    if (empty($errors) && !empty($policyViolations)) {
                         foreach ($policyViolations as $violation) {
                             $errors[] = $violation;
                         }
                     }
 
-                    if (empty($policyViolations)) {
+                    if (empty($errors)) {
                         $windowStartIso = date('Y-m-d H:i:s', $startTs);
                         $windowEndIso   = date('Y-m-d H:i:s', $endTs);
                         $reservationConflicts = [];
