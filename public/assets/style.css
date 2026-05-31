@@ -2341,6 +2341,9 @@ form .form-select {
     max-height: 620px;
     overflow: auto;
     contain: layout paint;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
 }
 
 .settings-permissions-table thead th {
