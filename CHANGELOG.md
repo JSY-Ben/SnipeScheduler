@@ -1,6 +1,6 @@
 # Changelog
 
-## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.2-Beta) - 31/05/2026
+## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 
 ### SMTP 
 
