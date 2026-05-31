@@ -2355,6 +2355,20 @@ form .form-select {
     color: rgba(255, 255, 255, 0.88);
 }
 
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"],
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"],
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"]:nth-child(even),
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"]:nth-child(even),
+.settings-form .card .settings-permissions-filter-panel .row.g-3 > [class*="col-"]:hover,
+.settings-form .card .settings-permissions-filter-panel .row.g-2 > [class*="col-"]:hover {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
 .settings-permissions-filter-panel .form-control,
 .settings-permissions-filter-panel .form-select {
     -webkit-appearance: none;
