@@ -1074,7 +1074,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
     <link rel="stylesheet" href="assets/style.css">
     <?= layout_theme_styles($config) ?>
 </head>
-<body class="p-4">
+<body class="p-4 settings-page">
 <div class="container">
     <div class="page-shell">
         <?= layout_logo_tag($config) ?>

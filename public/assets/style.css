@@ -32,6 +32,21 @@ body {
     color: var(--text);
 }
 
+body.settings-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+body.settings-page > .container {
+    flex: 0 0 auto;
+}
+
+body.settings-page > footer {
+    margin-top: auto !important;
+    padding-top: 1rem;
+}
+
 a {
     color: var(--primary-strong);
 }
