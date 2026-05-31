@@ -1543,6 +1543,8 @@ $favouritesUserEmail = '';
 $canUseFavourites = false;
 $catalogueUserGroupIds = $isAuthenticated ? catalogue_permissions_user_group_ids($activeUser) : [];
 $catalogueDeniedPermissionMap = catalogue_permissions_denied_item_map_for_groups($catalogueUserGroupIds);
+$catalogueShowRestrictedItems = !array_key_exists('show_restricted_items', $config['catalogue'] ?? [])
+    || !empty($config['catalogue']['show_restricted_items']);
 $catalogueReturnUrl = 'catalogue.php';
 
 if ($catalogueTab === 'models' && $isAuthenticated) {
@@ -2175,6 +2177,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                         }
                         $permissionAllowed = empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+                        if (!$permissionAllowed && !$catalogueShowRestrictedItems) {
+                            continue;
+                        }
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>">
@@ -2340,6 +2345,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         } catch (Throwable $e) {
                             $kitContainsText = 'Unable to load kit contents right now.';
                             $kitCanAdd = false;
+                        }
+                        if ($kitRestricted && !$catalogueShowRestrictedItems) {
+                            continue;
                         }
                     ?>
                     <div class="col-md-4">
@@ -2638,6 +2646,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     }
                     $isFavourite = $isAuthenticated && isset($favouriteModelMap[$modelId]);
                     $permissionAllowed = empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+                    if (!$permissionAllowed && !$catalogueShowRestrictedItems) {
+                        continue;
+                    }
                     ?>
                     <div class="col-md-4">
                         <div class="card h-100 model-card model-card--details<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>"

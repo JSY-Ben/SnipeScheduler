@@ -686,6 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_accessories_tab'] = isset($_POST['catalogue_show_accessories_tab']);
     $catalogue['show_kits_tab'] = isset($_POST['catalogue_show_kits_tab']);
     $catalogue['show_non_requestable_equipment'] = isset($_POST['catalogue_show_non_requestable_equipment']);
+    $catalogue['show_restricted_items'] = isset($_POST['catalogue_show_restricted_items']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -2348,7 +2349,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue Permissions</h5>
-                        <p class="text-muted small mb-3">Choose a Snipe-IT group, then choose which requestable equipment and accessories members of that group can reserve. Unchecked items stay visible in the catalogue but cannot be added to a basket.</p>
+                        <p class="text-muted small mb-3">Choose a Snipe-IT group, then choose which requestable equipment and accessories members of that group can reserve.</p>
 
                         <?php if ($permissionGroupsFetchNotice): ?>
                             <div class="alert alert-warning small mb-3"><?= h($permissionGroupsFetchNotice) ?></div>
@@ -2366,6 +2367,22 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 Could not load requestable catalogue items: <?= h($permissionCatalogueFetchError) ?>
                             </div>
                         <?php endif; ?>
+
+                        <div class="border rounded p-3 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="catalogue_show_restricted_items"
+                                       id="catalogue_show_restricted_items"
+                                    <?= $cfg(['catalogue', 'show_restricted_items'], true) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="catalogue_show_restricted_items">
+                                    Show restricted items in the catalogue
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                When enabled, restricted items still appear but are greyed out and cannot be added to a basket. When disabled, restricted items are hidden from affected users.
+                            </div>
+                        </div>
 
                         <?php if (empty($permissionGroups)): ?>
                             <div class="text-muted small">No Snipe-IT groups are available.</div>
