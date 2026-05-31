@@ -1,5 +1,13 @@
 # Changelog
 
+## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.2-Beta) - 31/05/2026
+
+### SMTP 
+
+1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution
+
+
+
 ## [v1.5.2-Beta](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.5.2-Beta) - 17/04/2026
 
 ### Reports
