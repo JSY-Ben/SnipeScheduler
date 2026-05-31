@@ -2879,16 +2879,17 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
     }
 
     const permissionChecks = () => Array.from(form.querySelectorAll('[data-permissions-item]'));
+    const visiblePermissionChecks = () => Array.from(form.querySelectorAll('[data-permissions-row]:not(.d-none) [data-permissions-item]'));
     const permissionSelectAll = form.querySelector('[data-permissions-select-all]');
     const permissionSelectNone = form.querySelector('[data-permissions-select-none]');
     if (permissionSelectAll) {
         permissionSelectAll.addEventListener('click', () => {
-            permissionChecks().forEach((input) => { input.checked = true; });
+            visiblePermissionChecks().forEach((input) => { input.checked = true; });
         });
     }
     if (permissionSelectNone) {
         permissionSelectNone.addEventListener('click', () => {
-            permissionChecks().forEach((input) => { input.checked = false; });
+            visiblePermissionChecks().forEach((input) => { input.checked = false; });
         });
     }
 
