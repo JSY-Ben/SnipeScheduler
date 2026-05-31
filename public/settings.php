@@ -2370,65 +2370,81 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         <?php if (empty($permissionGroups)): ?>
                             <div class="text-muted small">No Snipe-IT groups are available.</div>
                         <?php else: ?>
-                            <div class="row g-3 align-items-end mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Snipe-IT group</label>
-                                    <select name="permissions_group_id"
-                                            class="form-select"
-                                            id="permissions_group_id"
-                                            data-permissions-group-select>
-                                        <?php foreach ($permissionGroups as $permissionGroup): ?>
-                                            <?php
-                                            $permissionGroupId = (int)($permissionGroup['id'] ?? 0);
-                                            if ($permissionGroupId <= 0) {
-                                                continue;
-                                            }
-                                            ?>
-                                            <option value="<?= $permissionGroupId ?>" <?= $selectedPermissionGroupId === $permissionGroupId ? 'selected' : '' ?>>
-                                                <?= h((string)($permissionGroup['name'] ?? ('Group #' . $permissionGroupId))) ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <div class="form-text">Changing group reloads this tab with that group's saved restrictions.</div>
-                                </div>
-                                <div class="col-md-6 d-flex gap-2 justify-content-md-end">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-permissions-select-all>Allow all</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-permissions-select-none>Restrict all</button>
-                                </div>
-                            </div>
-
                             <?php if (empty($permissionCatalogueItems)): ?>
                                 <div class="text-muted small">No requestable equipment or accessories are available.</div>
                             <?php else: ?>
-                                <div class="row g-3 align-items-end mb-3" data-permissions-filters>
-                                    <div class="col-md-5">
-                                        <label class="form-label">Search items</label>
-                                        <input type="search"
-                                               class="form-control"
-                                               placeholder="Search by item, category, or manufacturer"
-                                               data-permissions-search>
+                                <div class="filter-panel mb-3" data-permissions-filters>
+                                    <div class="filter-panel__header d-flex align-items-center gap-3">
+                                        <span class="filter-panel__dot"></span>
+                                        <div class="filter-panel__title">PERMISSIONS FILTER</div>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Type</label>
-                                        <select class="form-select" data-permissions-type-filter>
-                                            <option value="">All types</option>
-                                            <option value="model">Equipment</option>
-                                            <option value="accessory">Accessories</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Category</label>
-                                        <select class="form-select" data-permissions-category-filter>
-                                            <option value="">All categories</option>
-                                            <?php foreach ($permissionCategoryOptions as $permissionCategoryOption): ?>
-                                                <option value="<?= h($permissionCategoryOption) ?>">
-                                                    <?= h($permissionCategoryOption) ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-12 col-lg-4">
+                                            <label class="form-label mb-1 fw-semibold">Snipe-IT group</label>
+                                            <select name="permissions_group_id"
+                                                    class="form-select"
+                                                    id="permissions_group_id"
+                                                    data-permissions-group-select>
+                                                <?php foreach ($permissionGroups as $permissionGroup): ?>
+                                                    <?php
+                                                    $permissionGroupId = (int)($permissionGroup['id'] ?? 0);
+                                                    if ($permissionGroupId <= 0) {
+                                                        continue;
+                                                    }
+                                                    ?>
+                                                    <option value="<?= $permissionGroupId ?>" <?= $selectedPermissionGroupId === $permissionGroupId ? 'selected' : '' ?>>
+                                                        <?= h((string)($permissionGroup['name'] ?? ('Group #' . $permissionGroupId))) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-lg-4">
+                                            <label class="form-label mb-1 fw-semibold">Search items</label>
+                                            <div class="input-group filter-search">
+                                                <span class="input-group-text filter-search__icon" aria-hidden="true">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                                                        <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                                    </svg>
+                                                </span>
+                                                <input type="search"
+                                                       class="form-control form-control-lg filter-search__input"
+                                                       placeholder="Search by item, category, or manufacturer"
+                                                       data-permissions-search>
+                                            </div>
+                                        </div>
+                                        <div class="col-6 col-lg-2">
+                                            <label class="form-label mb-1 fw-semibold">Type</label>
+                                            <select class="form-select" data-permissions-type-filter>
+                                                <option value="">All types</option>
+                                                <option value="model">Equipment</option>
+                                                <option value="accessory">Accessories</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6 col-lg-2">
+                                            <label class="form-label mb-1 fw-semibold">Category</label>
+                                            <select class="form-select" data-permissions-category-filter>
+                                                <option value="">All categories</option>
+                                                <?php foreach ($permissionCategoryOptions as $permissionCategoryOption): ?>
+                                                    <option value="<?= h($permissionCategoryOption) ?>">
+                                                        <?= h($permissionCategoryOption) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="text-muted small mb-2" data-permissions-result-count></div>
+                                <div class="mb-2">
+                                    <div class="text-muted small" data-permissions-result-count></div>
+                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-permissions-select-all>
+                                            Allow all
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-permissions-select-none>
+                                            Restrict all
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="table-responsive settings-permissions-table">
                                     <table class="table table-sm align-middle">
                                         <thead>
