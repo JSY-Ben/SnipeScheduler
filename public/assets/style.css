@@ -2438,3 +2438,13 @@ form .form-select {
     font-weight: 700;
     text-transform: uppercase;
 }
+
+/* Closed Flatpickr calendars are appended near the footer; keep them out of layout even if CDN CSS is unavailable. */
+.flatpickr-calendar:not(.open) {
+    display: none !important;
+}
+
+.flatpickr-calendar.open {
+    position: absolute;
+    z-index: 99999;
+}
