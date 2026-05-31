@@ -18,9 +18,9 @@ While i will always provide my software for free, donations are extremely helpfu
 
 [![Donate with PayPal to help me continue developing these apps!](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate/?business=5TRANVZF49AN6&no_recurring=0&item_name=Thank+you+for+any+donations%21+It+will+help+me+put+money+into+the+tools+I+use+to+develop+my+apps+and+services.&currency_code=GBP)
 
-<img width="999" height="1120" alt="Catalogue" src="https://github.com/user-attachments/assets/b5bf0d5b-82a3-4cca-84cc-3cdea3864176" />
+<img width="1998" height="2240" alt="Catalogue" src="https://github.com/user-attachments/assets/95b59217-e50c-426e-b3d7-9e56bd6c3720" />
 
-<img width="999" height="1440" alt="Reservations" src="https://github.com/user-attachments/assets/4f48417d-1eea-4b4e-842a-355b453d9288" />
+<img width="1998" height="1440" alt="Reservations" src="https://github.com/user-attachments/assets/c7106b92-d18b-476d-b582-52c84c51d21a" />
 
 
 # Introduction
