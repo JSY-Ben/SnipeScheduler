@@ -532,6 +532,21 @@ function catalogue_kit_restricted_by_permission(int $kitId, array $deniedPermiss
     return false;
 }
 
+function catalogue_category_value_map_from_rows(array $rows): array
+{
+    $values = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        foreach (snipeit_category_filter_values($row) as $value) {
+            $values[$value] = true;
+        }
+    }
+
+    return $values;
+}
+
 function google_directory_search(string $q, array $config): array
 {
     $dirCfg = $config['google_directory'] ?? [];
@@ -1571,6 +1586,8 @@ $catalogueUserGroupIds = $isAuthenticated ? catalogue_permissions_user_group_ids
 $catalogueDeniedPermissionMap = catalogue_permissions_denied_item_map_for_groups($catalogueUserGroupIds);
 $catalogueShowRestrictedItems = !array_key_exists('show_restricted_items', $config['catalogue'] ?? [])
     || !empty($config['catalogue']['show_restricted_items']);
+$catalogueHideRestrictedItems = !$catalogueShowRestrictedItems && !empty($catalogueDeniedPermissionMap);
+$cataloguePermissionFetchLimit = 10000;
 $catalogueReturnUrl = 'catalogue.php';
 
 if ($catalogueTab === 'models' && $isAuthenticated) {
@@ -1667,11 +1684,83 @@ if (is_array($allowedCfg)) {
     }
 }
 
+if ($catalogueTabsEnabled && $catalogueHideRestrictedItems && ($catalogueTab === 'models' || $catalogueTab === 'accessories')) {
+    try {
+        if ($catalogueTab === 'accessories') {
+            $categoryScopeData = get_bookable_accessories(
+                1,
+                $search ?? '',
+                $sort,
+                $cataloguePermissionFetchLimit,
+                null
+            );
+            $categoryScopeRows = isset($categoryScopeData['rows']) && is_array($categoryScopeData['rows'])
+                ? $categoryScopeData['rows']
+                : [];
+            $categoryScopeRows = array_values(array_filter($categoryScopeRows, static function (array $accessory) use ($catalogueDeniedPermissionMap): bool {
+                $accessoryId = (int)($accessory['id'] ?? 0);
+                return $accessoryId <= 0 || empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+            }));
+            $visibleCategoryValues = catalogue_category_value_map_from_rows($categoryScopeRows);
+            $categories = array_values(array_filter($categories, static function (array $cat) use ($visibleCategoryValues): bool {
+                foreach (snipeit_category_filter_values($cat) as $value) {
+                    if (!empty($visibleCategoryValues[$value])) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+            if ($categoryRaw !== '') {
+                $selectedCategoryVisible = false;
+                foreach (snipeit_normalize_category_filter_values([$categoryRaw]) as $selectedCategoryValue) {
+                    if (!empty($visibleCategoryValues[$selectedCategoryValue])) {
+                        $selectedCategoryVisible = true;
+                        break;
+                    }
+                }
+                if (!$selectedCategoryVisible) {
+                    $categoryRaw = '';
+                }
+            }
+        } else {
+            $categoryModelAllowlist = $favouritesOnly ? $favouriteModelIds : [];
+            $categoryScopeData = ($favouritesOnly && empty($categoryModelAllowlist))
+                ? ['rows' => [], 'total' => 0]
+                : get_bookable_models(
+                    1,
+                    $search ?? '',
+                    null,
+                    $sort,
+                    $cataloguePermissionFetchLimit,
+                    $allowedCategoryIds,
+                    $categoryModelAllowlist,
+                    $showNonRequestableItems
+                );
+            $categoryScopeRows = isset($categoryScopeData['rows']) && is_array($categoryScopeData['rows'])
+                ? $categoryScopeData['rows']
+                : [];
+            $categoryScopeRows = array_values(array_filter($categoryScopeRows, static function (array $model) use ($catalogueDeniedPermissionMap): bool {
+                $modelId = (int)($model['id'] ?? 0);
+                return $modelId <= 0 || empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+            }));
+            $visibleCategoryValues = catalogue_category_value_map_from_rows($categoryScopeRows);
+            $categories = array_values(array_filter($categories, static function (array $cat) use ($visibleCategoryValues): bool {
+                $categoryId = (int)($cat['id'] ?? 0);
+                return $categoryId > 0 && !empty($visibleCategoryValues['id:' . $categoryId]);
+            }));
+            if ($category !== null && empty($visibleCategoryValues['id:' . $category])) {
+                $categoryRaw = '';
+                $category = null;
+            }
+        }
+    } catch (Throwable $e) {
+        // Keep the unfiltered category list if the permission-aware category pass fails.
+    }
+}
+
 // ---------------------------------------------------------------------
 // Load catalogue rows from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
-$catalogueHideRestrictedItems = !$catalogueShowRestrictedItems && !empty($catalogueDeniedPermissionMap);
-$cataloguePermissionFetchLimit = 10000;
 try {
     if (!$catalogueTabsEnabled) {
         $totalModels = 0;
