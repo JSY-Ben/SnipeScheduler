@@ -2333,8 +2333,11 @@ form .form-select {
 }
 
 .settings-permissions-thumb {
-    width: 56px;
-    height: 56px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    flex: 0 0 44px;
     border: 1px solid #d1d5db;
     border-radius: 6px;
     background: #f8fafc;
@@ -2347,6 +2350,8 @@ form .form-select {
 .settings-permissions-thumb__image {
     width: 100%;
     height: 100%;
+    max-width: 44px;
+    max-height: 44px;
     object-fit: contain;
     display: block;
 }

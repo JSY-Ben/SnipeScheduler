@@ -2434,7 +2434,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                         <thead>
                                         <tr>
                                             <th style="width: 120px;">Can reserve</th>
-                                            <th style="width: 78px;">Image</th>
+                                            <th style="width: 60px;">Image</th>
                                             <th>Item</th>
                                             <th style="width: 140px;">Type</th>
                                             <th>Category</th>
