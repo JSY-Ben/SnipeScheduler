@@ -8,6 +8,8 @@
 
 2) You have the option to choose whether such restrictions are applied to the 'Quick Checkout' page or not.
 
+Please remember there is a database upgrade to enable this feature. You should be warned of this when you next login after upgrading to this version.
+
 ### SMTP 
 
 1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution.
