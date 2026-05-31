@@ -2913,6 +2913,8 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             const matchesCategory = category === '' || rowCategory === category;
             const visible = matchesSearch && matchesType && matchesCategory;
             row.classList.toggle('d-none', !visible);
+            row.hidden = !visible;
+            row.style.display = visible ? '' : 'none';
             if (visible) {
                 visibleCount++;
             }

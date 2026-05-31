@@ -44,7 +44,8 @@ body.settings-page > footer ~ :not(script):not(style):not(link) {
 }
 
 body.settings-page .settings-form [data-settings-group].d-none,
-body.settings-page .settings-form [data-permissions-row].d-none {
+body.settings-page .settings-form [data-permissions-row].d-none,
+body.settings-page .settings-form [data-permissions-row][hidden] {
     display: none !important;
 }
 
