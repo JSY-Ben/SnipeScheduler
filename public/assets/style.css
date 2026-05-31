@@ -2333,10 +2333,10 @@ form .form-select {
 }
 
 .settings-permissions-filter-panel {
-    background: #ffffff;
-    border: 1px solid #dbe3ee;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-    color: var(--text);
+    background: rgb(var(--primary-rgb));
+    border: 1px solid rgba(var(--primary-rgb), 0.55);
+    box-shadow: 0 14px 30px rgba(var(--primary-rgb), 0.18);
+    color: #ffffff;
 }
 
 .settings-permissions-filter-panel::after {
@@ -2344,7 +2344,7 @@ form .form-select {
 }
 
 .settings-permissions-filter-panel .filter-panel__title {
-    color: var(--text);
+    color: #ffffff;
 }
 
 .settings-permissions-filter-panel .filter-panel__dot {
@@ -2352,13 +2352,13 @@ form .form-select {
 }
 
 .settings-permissions-filter-panel .form-label {
-    color: var(--text);
+    color: rgba(255, 255, 255, 0.88);
 }
 
 .settings-permissions-filter-panel .form-control,
 .settings-permissions-filter-panel .form-select {
-    border-color: #d1d5db;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    border-color: rgba(255, 255, 255, 0.65);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
 .settings-permissions-thumb {
