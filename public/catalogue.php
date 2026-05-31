@@ -506,6 +506,32 @@ function catalogue_kit_detail_items(array $kitBreakdown): array
     return $items;
 }
 
+function catalogue_kit_restricted_by_permission(int $kitId, array $deniedPermissionMap): bool
+{
+    if ($kitId <= 0 || empty($deniedPermissionMap)) {
+        return false;
+    }
+
+    try {
+        $breakdown = get_kit_booking_breakdown($kitId);
+        foreach (($breakdown['supported_items'] ?? []) as $supportedItem) {
+            if (!is_array($supportedItem)) {
+                continue;
+            }
+
+            $supportedType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+            $supportedId = (int)($supportedItem['id'] ?? 0);
+            if ($supportedId > 0 && !empty($deniedPermissionMap[$supportedType . ':' . $supportedId])) {
+                return true;
+            }
+        }
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return false;
+}
+
 function google_directory_search(string $q, array $config): array
 {
     $dirCfg = $config['google_directory'] ?? [];
@@ -1644,17 +1670,54 @@ if (is_array($allowedCfg)) {
 // ---------------------------------------------------------------------
 // Load catalogue rows from Snipe-IT (deferred so loader shows immediately)
 // ---------------------------------------------------------------------
+$catalogueHideRestrictedItems = !$catalogueShowRestrictedItems && !empty($catalogueDeniedPermissionMap);
+$cataloguePermissionFetchLimit = 10000;
 try {
     if (!$catalogueTabsEnabled) {
         $totalModels = 0;
     } elseif ($catalogueTab === 'accessories') {
-        $data = get_bookable_accessories($page, $search ?? '', $sort, $perPage, $categoryRaw);
-        $accessories = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
+        $data = get_bookable_accessories(
+            $catalogueHideRestrictedItems ? 1 : $page,
+            $search ?? '',
+            $sort,
+            $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage,
+            $categoryRaw
+        );
+        $accessoryRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $accessoryRows = array_values(array_filter($accessoryRows, static function (array $accessory) use ($catalogueDeniedPermissionMap): bool {
+                $accessoryId = (int)($accessory['id'] ?? 0);
+                return $accessoryId <= 0 || empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
+            }));
+            $totalModels = count($accessoryRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $accessories = array_slice($accessoryRows, ($page - 1) * $perPage, $perPage);
+        } else {
+            $accessories = $accessoryRows;
+            $totalModels = isset($data['total']) ? (int)$data['total'] : count($accessories);
+        }
     } elseif ($catalogueTab === 'kits') {
-        $data = get_bookable_kits($page, $search ?? '', $sort, $perPage);
-        $kits = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        $totalModels = isset($data['total']) ? (int)$data['total'] : count($kits);
+        $data = get_bookable_kits(
+            $catalogueHideRestrictedItems ? 1 : $page,
+            $search ?? '',
+            $sort,
+            $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage
+        );
+        $kitRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $kitRows = array_values(array_filter($kitRows, static function (array $kit) use ($catalogueDeniedPermissionMap): bool {
+                $kitId = (int)($kit['id'] ?? 0);
+                return !catalogue_kit_restricted_by_permission($kitId, $catalogueDeniedPermissionMap);
+            }));
+            $totalModels = count($kitRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $kits = array_slice($kitRows, ($page - 1) * $perPage, $perPage);
+        } else {
+            $kits = $kitRows;
+            $totalModels = isset($data['total']) ? (int)$data['total'] : count($kits);
+        }
     } else {
         $modelAllowlist = [];
         if ($favouritesOnly) {
@@ -1664,21 +1727,41 @@ try {
         if ($favouritesOnly && empty($modelAllowlist)) {
             $data = ['rows' => [], 'total' => 0];
         } else {
-            $data = get_bookable_models($page, $search ?? '', $category, $sort, $perPage, $allowedCategoryIds, $modelAllowlist, $showNonRequestableItems);
+            $data = get_bookable_models(
+                $catalogueHideRestrictedItems ? 1 : $page,
+                $search ?? '',
+                $category,
+                $sort,
+                $catalogueHideRestrictedItems ? $cataloguePermissionFetchLimit : $perPage,
+                $allowedCategoryIds,
+                $modelAllowlist,
+                $showNonRequestableItems
+            );
         }
 
-        if (isset($data['rows']) && is_array($data['rows'])) {
-            $models = $data['rows'];
-        }
-
-        if (isset($data['total'])) {
-            $totalModels = (int)$data['total'];
+        $modelRows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        if ($catalogueHideRestrictedItems) {
+            $modelRows = array_values(array_filter($modelRows, static function (array $model) use ($catalogueDeniedPermissionMap): bool {
+                $modelId = (int)($model['id'] ?? 0);
+                return $modelId <= 0 || empty($catalogueDeniedPermissionMap['model:' . $modelId]);
+            }));
+            $totalModels = count($modelRows);
+            $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+            $page = min($page, $totalPages);
+            $models = array_slice($modelRows, ($page - 1) * $perPage, $perPage);
         } else {
-            $totalModels = count($models);
+            $models = $modelRows;
+            if (isset($data['total'])) {
+                $totalModels = (int)$data['total'];
+            } else {
+                $totalModels = count($models);
+            }
         }
     }
 
-    if ($perPage > 0) {
+    if ($catalogueHideRestrictedItems) {
+        $totalPages = $perPage > 0 ? max(1, (int)ceil($totalModels / $perPage)) : 1;
+    } elseif ($perPage > 0) {
         $totalPages = max(1, (int)ceil($totalModels / $perPage));
     } else {
         $totalPages = 1;
