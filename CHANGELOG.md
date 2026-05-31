@@ -8,7 +8,11 @@
 
 2) You have the option to choose whether such restrictions are applied to the 'Quick Checkout' page or not.
 
-Please remember there is a database upgrade to enable this feature. You should be warned of this when you next login after upgrading to this version.
+This new feature requires a database upgrade. After updating the files to v1.6.0, you will be warned when logging in that you will need to run the upgrade script. However, if you'd prefer to do this manually, please do the following:
+
+Run the upgrade script at www.yourinstallation.com/install/upgrade through a browser.
+
+Use the new SQL backup button on the upgrade page to download a database backup before applying the upgrades.
 
 ### SMTP 
 
