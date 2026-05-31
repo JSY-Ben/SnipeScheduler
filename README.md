@@ -20,7 +20,7 @@ While i will always provide my software for free, donations are extremely helpfu
 
 <img width="1998" height="2240" alt="Catalogue" src="https://github.com/user-attachments/assets/95b59217-e50c-426e-b3d7-9e56bd6c3720" />
 
-<img width="1998" height="1440" alt="Reservations" src="https://github.com/user-attachments/assets/c7106b92-d18b-476d-b582-52c84c51d21a" />
+<img width="1998" height="2881" alt="Reservations" src="https://github.com/user-attachments/assets/c7106b92-d18b-476d-b582-52c84c51d21a" />
 
 
 # Introduction
