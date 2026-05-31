@@ -13,8 +13,8 @@ function catalogue_permissions_table_exists(bool $create = true): bool
     }
 
     try {
-        require_once SRC_PATH . '/db.php';
         global $pdo;
+        require_once SRC_PATH . '/db.php';
         $pdo->query('SELECT 1 FROM catalogue_group_restrictions LIMIT 1');
         $exists = true;
         return true;
@@ -27,8 +27,8 @@ function catalogue_permissions_table_exists(bool $create = true): bool
     }
 
     try {
-        require_once SRC_PATH . '/db.php';
         global $pdo;
+        require_once SRC_PATH . '/db.php';
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS catalogue_group_restrictions (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
