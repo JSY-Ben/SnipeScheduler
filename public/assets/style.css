@@ -34,19 +34,13 @@ body {
 
 body.settings-page {
     min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    background-attachment: fixed;
+    background-size: 100vw 100vh;
+    background-repeat: no-repeat;
 }
 
-body.settings-page > .container {
-    order: 0;
-    flex: 0 0 auto;
-}
-
-body.settings-page > footer {
-    order: 1000000;
-    margin-top: auto !important;
-    padding-top: 1rem;
+body.settings-page > footer ~ :not(script):not(style):not(link) {
+    display: none !important;
 }
 
 a {
