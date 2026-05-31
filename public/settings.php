@@ -687,6 +687,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_kits_tab'] = isset($_POST['catalogue_show_kits_tab']);
     $catalogue['show_non_requestable_equipment'] = isset($_POST['catalogue_show_non_requestable_equipment']);
     $catalogue['show_restricted_items'] = isset($_POST['catalogue_show_restricted_items']);
+    $catalogue['apply_permissions_to_quick_checkout'] = isset($_POST['catalogue_apply_permissions_to_quick_checkout']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -2381,6 +2382,22 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             </div>
                             <div class="form-text">
                                 When enabled, restricted items still appear but are greyed out and cannot be added to a basket. When disabled, restricted items are hidden from affected users.
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="catalogue_apply_permissions_to_quick_checkout"
+                                       id="catalogue_apply_permissions_to_quick_checkout"
+                                    <?= $cfg(['catalogue', 'apply_permissions_to_quick_checkout'], false) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="catalogue_apply_permissions_to_quick_checkout">
+                                    Apply catalogue permissions to Quick Checkout
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                When enabled, Quick Checkout checks the selected user's Snipe-IT group permissions before checking out equipment or accessories. This is disabled by default.
                             </div>
                         </div>
 

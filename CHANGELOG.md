@@ -2,6 +2,10 @@
 
 ## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 
+### Group Permissions
+
+1) New Permissions System! You can now restrict access to reserve certain items based on the Snipe-IT Group the user is in. You can choose to hide the items from the catalogue entirely or have them appear but grayed out if they are not allowed to book said item.
+
 ### SMTP 
 
 1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution
