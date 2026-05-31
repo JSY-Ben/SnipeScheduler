@@ -2332,6 +2332,35 @@ form .form-select {
     background: #ffffff;
 }
 
+.settings-permissions-filter-panel {
+    background: #ffffff;
+    border: 1px solid #dbe3ee;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    color: var(--text);
+}
+
+.settings-permissions-filter-panel::after {
+    display: none;
+}
+
+.settings-permissions-filter-panel .filter-panel__title {
+    color: var(--text);
+}
+
+.settings-permissions-filter-panel .filter-panel__dot {
+    box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0.1);
+}
+
+.settings-permissions-filter-panel .form-label {
+    color: var(--text);
+}
+
+.settings-permissions-filter-panel .form-control,
+.settings-permissions-filter-panel .form-select {
+    border-color: #d1d5db;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
 .settings-permissions-thumb {
     width: 44px;
     height: 44px;

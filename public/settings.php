@@ -2373,13 +2373,13 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             <?php if (empty($permissionCatalogueItems)): ?>
                                 <div class="text-muted small">No requestable equipment or accessories are available.</div>
                             <?php else: ?>
-                                <div class="filter-panel mb-3" data-permissions-filters>
+                                <div class="filter-panel settings-permissions-filter-panel mb-3" data-permissions-filters>
                                     <div class="filter-panel__header d-flex align-items-center gap-3">
                                         <span class="filter-panel__dot"></span>
                                         <div class="filter-panel__title">PERMISSIONS FILTER</div>
                                     </div>
-                                    <div class="row g-3 align-items-end">
-                                        <div class="col-12 col-lg-4">
+                                    <div class="row g-3 align-items-end mb-2">
+                                        <div class="col-12">
                                             <label class="form-label mb-1 fw-semibold">Snipe-IT group</label>
                                             <select name="permissions_group_id"
                                                     class="form-select"
@@ -2398,7 +2398,9 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        <div class="col-12 col-lg-4">
+                                    </div>
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-12 col-lg-6">
                                             <label class="form-label mb-1 fw-semibold">Search items</label>
                                             <div class="input-group filter-search">
                                                 <span class="input-group-text filter-search__icon" aria-hidden="true">
@@ -2413,7 +2415,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                        data-permissions-search>
                                             </div>
                                         </div>
-                                        <div class="col-6 col-lg-2">
+                                        <div class="col-6 col-lg-3">
                                             <label class="form-label mb-1 fw-semibold">Type</label>
                                             <select class="form-select" data-permissions-type-filter>
                                                 <option value="">All types</option>
@@ -2421,7 +2423,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                 <option value="accessory">Accessories</option>
                                             </select>
                                         </div>
-                                        <div class="col-6 col-lg-2">
+                                        <div class="col-6 col-lg-3">
                                             <label class="form-label mb-1 fw-semibold">Category</label>
                                             <select class="form-select" data-permissions-category-filter>
                                                 <option value="">All categories</option>
