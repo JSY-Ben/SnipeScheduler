@@ -2357,8 +2357,15 @@ form .form-select {
 
 .settings-permissions-filter-panel .form-control,
 .settings-permissions-filter-panel .form-select {
+    background-color: #ffffff;
     border-color: rgba(255, 255, 255, 0.65);
+    color: #1f2937;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.settings-permissions-filter-panel .form-select option {
+    background: #ffffff;
+    color: #1f2937;
 }
 
 .settings-permissions-thumb {
