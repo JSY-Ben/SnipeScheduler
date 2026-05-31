@@ -192,56 +192,53 @@ function catalogue_permissions_user_group_ids(array $user): array
     static $cache = [];
 
     $email = strtolower(trim((string)($user['email'] ?? '')));
-    $username = trim((string)($user['username'] ?? ''));
-    $display = trim((string)($user['display_name'] ?? ''));
-    $cacheKey = $email !== '' ? $email : strtolower($username . '|' . $display);
-    if ($cacheKey === '') {
+    if ($email === '') {
         return [];
     }
-    if (array_key_exists($cacheKey, $cache)) {
-        return $cache[$cacheKey];
+    if (array_key_exists($email, $cache)) {
+        return $cache[$email];
     }
 
     $groupIds = [];
-    $queries = array_values(array_filter(array_unique([$email, $username, $display]), 'strlen'));
-    foreach ($queries as $query) {
-        try {
-            $matched = find_single_user_by_email_or_name($query);
-            $snipeUserId = (int)($matched['id'] ?? 0);
-            if ($snipeUserId <= 0) {
+    try {
+        $matched = find_single_user_by_email_or_name($email);
+        $matchedEmail = strtolower(trim((string)($matched['email'] ?? '')));
+        if ($matchedEmail !== '' && $matchedEmail !== $email) {
+            $cache[$email] = [];
+            return $cache[$email];
+        }
+
+        $snipeUserId = (int)($matched['id'] ?? 0);
+        if ($snipeUserId <= 0) {
+            $cache[$email] = [];
+            return $cache[$email];
+        }
+
+        $full = snipeit_request('GET', 'users/' . $snipeUserId);
+        foreach (['groups', 'user_groups'] as $field) {
+            if (!array_key_exists($field, $full)) {
                 continue;
             }
-
-            $full = snipeit_request('GET', 'users/' . $snipeUserId);
-            foreach (['groups', 'user_groups'] as $field) {
-                if (!array_key_exists($field, $full)) {
-                    continue;
-                }
-                foreach (catalogue_permissions_extract_group_ids_from_value($full[$field]) as $id) {
+            foreach (catalogue_permissions_extract_group_ids_from_value($full[$field]) as $id) {
+                $groupIds[$id] = $id;
+            }
+        }
+        if (empty($groupIds)) {
+            try {
+                $groupData = snipeit_request('GET', 'users/' . $snipeUserId . '/groups');
+                foreach (catalogue_permissions_extract_group_ids_from_value($groupData['rows'] ?? $groupData) as $id) {
                     $groupIds[$id] = $id;
                 }
+            } catch (Throwable $e) {
+                // Some Snipe-IT versions do not expose a per-user groups endpoint.
             }
-            if (empty($groupIds)) {
-                try {
-                    $groupData = snipeit_request('GET', 'users/' . $snipeUserId . '/groups');
-                    foreach (catalogue_permissions_extract_group_ids_from_value($groupData['rows'] ?? $groupData) as $id) {
-                        $groupIds[$id] = $id;
-                    }
-                } catch (Throwable $e) {
-                    // Some Snipe-IT versions do not expose a per-user groups endpoint.
-                }
-            }
-
-            if (!empty($groupIds)) {
-                break;
-            }
-        } catch (Throwable $e) {
-            continue;
         }
+    } catch (Throwable $e) {
+        $groupIds = [];
     }
 
-    $cache[$cacheKey] = array_values($groupIds);
-    return $cache[$cacheKey];
+    $cache[$email] = array_values($groupIds);
+    return $cache[$email];
 }
 
 function catalogue_permissions_denied_item_map_for_group(int $groupId): array
