@@ -43,6 +43,11 @@ body.settings-page > footer ~ :not(script):not(style):not(link) {
     display: none !important;
 }
 
+body.settings-page .settings-form [data-settings-group].d-none,
+body.settings-page .settings-form [data-permissions-row].d-none {
+    display: none !important;
+}
+
 a {
     color: var(--primary-strong);
 }
@@ -2334,6 +2339,7 @@ form .form-select {
 .settings-permissions-table {
     max-height: 620px;
     overflow: auto;
+    contain: layout paint;
 }
 
 .settings-permissions-table thead th {
