@@ -14,6 +14,8 @@ Run the upgrade script at www.yourinstallation.com/install/upgrade through a bro
 
 Use the new SQL backup button on the upgrade page to download a database backup before applying the upgrades.
 
+**It is worth noting that this feature does seem to require your API user to have full Super-Admin privileges on Snipe-IT in order to read the Snipe-IT user groups for configuring per-group restrictions, as there are no separate user permissions for editing groups on Snipe-IT. You can however revert to normal permissions after the group restrictions are configured, and it won't break the feature.**
+
 ### SMTP 
 
 1) SMTP Configuration now Supports XOAUTH2 Authentication. Many thanks to PieterJanPut for the Contribution.
