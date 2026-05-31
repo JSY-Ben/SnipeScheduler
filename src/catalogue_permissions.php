@@ -359,6 +359,7 @@ function catalogue_permissions_bookable_items(): array
                 'name' => trim((string)($model['name'] ?? ('Model #' . $id))),
                 'category' => trim((string)($model['category']['name'] ?? '')),
                 'manufacturer' => trim((string)($model['manufacturer']['name'] ?? '')),
+                'image_path' => catalogue_permissions_extract_image_path($model),
             ];
         }
     } catch (Throwable $e) {
@@ -386,6 +387,7 @@ function catalogue_permissions_bookable_items(): array
                         ? ($accessory['manufacturer']['name'] ?? '')
                         : ($accessory['manufacturer_name'] ?? '')
                 )),
+                'image_path' => catalogue_permissions_extract_image_path($accessory),
             ];
         }
     } catch (Throwable $e) {
@@ -401,4 +403,52 @@ function catalogue_permissions_bookable_items(): array
     });
 
     return $items;
+}
+
+function catalogue_permissions_extract_image_path(array $record): string
+{
+    $candidates = [
+        $record['image'] ?? null,
+        $record['image_url'] ?? null,
+        $record['image_path'] ?? null,
+        $record['thumbnail'] ?? null,
+        $record['thumbnail_url'] ?? null,
+    ];
+
+    foreach ($candidates as $candidate) {
+        $path = catalogue_permissions_image_path_from_value($candidate);
+        if ($path !== '') {
+            return $path;
+        }
+    }
+
+    foreach (['model', 'asset_model', 'category'] as $nestedKey) {
+        if (isset($record[$nestedKey]) && is_array($record[$nestedKey])) {
+            $path = catalogue_permissions_extract_image_path($record[$nestedKey]);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+    }
+
+    return '';
+}
+
+function catalogue_permissions_image_path_from_value($value): string
+{
+    if (is_array($value)) {
+        foreach (['url', 'src', 'href', 'path', 'image'] as $key) {
+            if (!array_key_exists($key, $value)) {
+                continue;
+            }
+            $path = catalogue_permissions_image_path_from_value($value[$key]);
+            if ($path !== '') {
+                return $path;
+            }
+        }
+
+        return '';
+    }
+
+    return trim((string)$value);
 }

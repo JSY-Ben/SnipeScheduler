@@ -2331,3 +2331,29 @@ form .form-select {
     z-index: 1;
     background: #ffffff;
 }
+
+.settings-permissions-thumb {
+    width: 56px;
+    height: 56px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-permissions-thumb__image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.settings-permissions-thumb__placeholder {
+    color: #6b7280;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}

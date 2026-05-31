@@ -1041,6 +1041,15 @@ foreach ($permissionGroups as $permissionGroup) {
 $permissionDeniedMap = $selectedPermissionGroupId > 0
     ? catalogue_permissions_denied_item_map_for_group($selectedPermissionGroupId)
     : [];
+$permissionCategoryOptions = [];
+foreach ($permissionCatalogueItems as $permissionItem) {
+    $permissionCategory = trim((string)($permissionItem['category'] ?? ''));
+    if ($permissionCategory === '') {
+        $permissionCategory = 'Uncategorised';
+    }
+    $permissionCategoryOptions[$permissionCategory] = $permissionCategory;
+}
+ksort($permissionCategoryOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $selectedTimezone = (string)$cfg(['app', 'timezone'], 'Europe/Jersey');
 if (!in_array($selectedTimezone, $timezoneOptions, true)) {
     $selectedTimezone = 'Europe/Jersey';
@@ -2391,11 +2400,41 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             <?php if (empty($permissionCatalogueItems)): ?>
                                 <div class="text-muted small">No requestable equipment or accessories are available.</div>
                             <?php else: ?>
+                                <div class="row g-3 align-items-end mb-3" data-permissions-filters>
+                                    <div class="col-md-5">
+                                        <label class="form-label">Search items</label>
+                                        <input type="search"
+                                               class="form-control"
+                                               placeholder="Search by item, category, or manufacturer"
+                                               data-permissions-search>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Type</label>
+                                        <select class="form-select" data-permissions-type-filter>
+                                            <option value="">All types</option>
+                                            <option value="model">Equipment</option>
+                                            <option value="accessory">Accessories</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Category</label>
+                                        <select class="form-select" data-permissions-category-filter>
+                                            <option value="">All categories</option>
+                                            <?php foreach ($permissionCategoryOptions as $permissionCategoryOption): ?>
+                                                <option value="<?= h($permissionCategoryOption) ?>">
+                                                    <?= h($permissionCategoryOption) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="text-muted small mb-2" data-permissions-result-count></div>
                                 <div class="table-responsive settings-permissions-table">
                                     <table class="table table-sm align-middle">
                                         <thead>
                                         <tr>
                                             <th style="width: 120px;">Can reserve</th>
+                                            <th style="width: 78px;">Image</th>
                                             <th>Item</th>
                                             <th style="width: 140px;">Type</th>
                                             <th>Category</th>
@@ -2413,8 +2452,26 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                             $permissionItemKey = $permissionItemType . ':' . $permissionItemId;
                                             $permissionInputId = 'permissions_item_' . $permissionItemType . '_' . $permissionItemId;
                                             $permissionAllowed = empty($permissionDeniedMap[$permissionItemKey]);
+                                            $permissionCategory = trim((string)($permissionItem['category'] ?? ''));
+                                            if ($permissionCategory === '') {
+                                                $permissionCategory = 'Uncategorised';
+                                            }
+                                            $permissionManufacturer = trim((string)($permissionItem['manufacturer'] ?? ''));
+                                            $permissionSearchText = strtolower(trim(implode(' ', [
+                                                (string)($permissionItem['name'] ?? ''),
+                                                $permissionCategory,
+                                                $permissionManufacturer,
+                                                $permissionItemType === 'accessory' ? 'accessory' : 'equipment',
+                                            ])));
+                                            $permissionImagePath = trim((string)($permissionItem['image_path'] ?? ''));
+                                            $permissionImageUrl = $permissionImagePath !== ''
+                                                ? 'image_proxy.php?src=' . urlencode($permissionImagePath)
+                                                : '';
                                             ?>
-                                            <tr>
+                                            <tr data-permissions-row
+                                                data-permissions-search-text="<?= h($permissionSearchText) ?>"
+                                                data-permissions-type="<?= h($permissionItemType) ?>"
+                                                data-permissions-category="<?= h($permissionCategory) ?>">
                                                 <td>
                                                     <div class="form-check form-switch mb-0">
                                                         <input class="form-check-input"
@@ -2431,13 +2488,27 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                                     </div>
                                                 </td>
                                                 <td>
+                                                    <div class="settings-permissions-thumb">
+                                                        <?php if ($permissionImageUrl !== ''): ?>
+                                                            <img src="<?= h($permissionImageUrl) ?>"
+                                                                 alt=""
+                                                                 class="settings-permissions-thumb__image"
+                                                                 loading="lazy">
+                                                        <?php else: ?>
+                                                            <div class="settings-permissions-thumb__placeholder">
+                                                                <?= h($permissionItemType === 'accessory' ? 'Acc' : 'Eq') ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </td>
+                                                <td>
                                                     <label class="mb-0 fw-semibold" for="<?= h($permissionInputId) ?>">
                                                         <?= h((string)($permissionItem['name'] ?? '')) ?>
                                                     </label>
                                                 </td>
                                                 <td><?= h($permissionItemType === 'accessory' ? 'Accessory' : 'Equipment') ?></td>
-                                                <td><?= h((string)($permissionItem['category'] ?? '')) ?></td>
-                                                <td><?= h((string)($permissionItem['manufacturer'] ?? '')) ?></td>
+                                                <td><?= h($permissionCategory) ?></td>
+                                                <td><?= h($permissionManufacturer) ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                         </tbody>
@@ -2802,6 +2873,42 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             permissionChecks().forEach((input) => { input.checked = false; });
         });
     }
+
+    const permissionSearch = form.querySelector('[data-permissions-search]');
+    const permissionTypeFilter = form.querySelector('[data-permissions-type-filter]');
+    const permissionCategoryFilter = form.querySelector('[data-permissions-category-filter]');
+    const permissionRows = Array.from(form.querySelectorAll('[data-permissions-row]'));
+    const permissionResultCount = form.querySelector('[data-permissions-result-count]');
+    const applyPermissionFilters = () => {
+        const q = String(permissionSearch ? permissionSearch.value : '').trim().toLowerCase();
+        const type = String(permissionTypeFilter ? permissionTypeFilter.value : '').trim();
+        const category = String(permissionCategoryFilter ? permissionCategoryFilter.value : '').trim().toLowerCase();
+        let visibleCount = 0;
+
+        permissionRows.forEach((row) => {
+            const rowText = String(row.dataset.permissionsSearchText || '');
+            const rowType = String(row.dataset.permissionsType || '');
+            const rowCategory = String(row.dataset.permissionsCategory || '').trim().toLowerCase();
+            const matchesSearch = q === '' || rowText.includes(q);
+            const matchesType = type === '' || rowType === type;
+            const matchesCategory = category === '' || rowCategory === category;
+            const visible = matchesSearch && matchesType && matchesCategory;
+            row.classList.toggle('d-none', !visible);
+            if (visible) {
+                visibleCount++;
+            }
+        });
+
+        if (permissionResultCount) {
+            permissionResultCount.textContent = visibleCount + ' of ' + permissionRows.length + ' items shown';
+        }
+    };
+    [permissionSearch, permissionTypeFilter, permissionCategoryFilter].forEach((control) => {
+        if (!control) return;
+        control.addEventListener('input', applyPermissionFilters);
+        control.addEventListener('change', applyPermissionFilters);
+    });
+    applyPermissionFilters();
 
     const primaryColorPicker = document.getElementById('app_primary_color_picker');
     const primaryColorInput = document.getElementById('app_primary_color');
