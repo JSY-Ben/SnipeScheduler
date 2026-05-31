@@ -39,10 +39,12 @@ body.settings-page {
 }
 
 body.settings-page > .container {
+    order: 0;
     flex: 0 0 auto;
 }
 
 body.settings-page > footer {
+    order: 1000000;
     margin-top: auto !important;
     padding-top: 1rem;
 }
