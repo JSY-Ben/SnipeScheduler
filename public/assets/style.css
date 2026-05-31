@@ -2304,3 +2304,30 @@ form .form-select {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
 }
+
+.catalogue-card--restricted {
+    background: #f3f4f6;
+    border-color: #cbd5e1;
+    filter: grayscale(0.75);
+}
+
+.catalogue-card--restricted .model-image {
+    opacity: 0.55;
+}
+
+.catalogue-card--restricted .card-title,
+.catalogue-card--restricted .card-text {
+    color: #6b7280;
+}
+
+.settings-permissions-table {
+    max-height: 620px;
+    overflow: auto;
+}
+
+.settings-permissions-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #ffffff;
+}

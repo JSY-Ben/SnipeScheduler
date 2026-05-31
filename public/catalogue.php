@@ -6,6 +6,7 @@ require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/layout.php';
 require_once SRC_PATH . '/favourites.php';
+require_once SRC_PATH . '/catalogue_permissions.php';
 
 $config   = load_config();
 $authCfg  = $config['auth'] ?? [];
@@ -1540,6 +1541,8 @@ $favouriteModelIds = [];
 $favouriteModelMap = [];
 $favouritesUserEmail = '';
 $canUseFavourites = false;
+$catalogueUserGroupIds = $isAuthenticated ? catalogue_permissions_user_group_ids($activeUser) : [];
+$catalogueDeniedPermissionMap = catalogue_permissions_denied_item_map_for_groups($catalogueUserGroupIds);
 $catalogueReturnUrl = 'catalogue.php';
 
 if ($catalogueTab === 'models' && $isAuthenticated) {
@@ -2171,9 +2174,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         if ($imagePath !== '') {
                             $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                         }
+                        $permissionAllowed = empty($catalogueDeniedPermissionMap['accessory:' . $accessoryId]);
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card">
+                        <div class="card h-100 model-card<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>">
                             <?php if ($proxiedImage !== ''): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--zoomable"
@@ -2207,7 +2211,14 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                     <?php endif; ?>
                                 </p>
 
-                                <?php if ($isAuthenticated): ?>
+                                <?php if (!$permissionAllowed): ?>
+                                    <div class="mt-auto">
+                                        <div class="alert alert-secondary small mb-0">
+                                            Your group is not allowed to reserve this item.
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                    </div>
+                                <?php elseif ($isAuthenticated): ?>
                                     <form method="post" action="basket_add.php" class="mt-auto add-to-basket-form">
                                         <input type="hidden" name="item_type" value="accessory">
                                         <input type="hidden" name="item_id" value="<?= $accessoryId ?>">
@@ -2272,6 +2283,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $kitMoreItemCount = 0;
                         $kitUnsupportedLabels = [];
                         $kitCanAdd = true;
+                        $kitRestricted = false;
                         $kitModelImageItems = [];
                         $kitDetailItems = [];
                         try {
@@ -2286,11 +2298,23 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             ));
                             $kitMoreItemCount = max(0, count($supportedItems) - 4);
                             $kitIncludedNames = [];
+                            foreach ($supportedItems as $supportedItem) {
+                                $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+                                $supportedItemId = (int)($supportedItem['id'] ?? 0);
+                                if (
+                                    in_array($itemType, ['model', 'accessory'], true)
+                                    && $supportedItemId > 0
+                                    && !empty($catalogueDeniedPermissionMap[$itemType . ':' . $supportedItemId])
+                                ) {
+                                    $kitRestricted = true;
+                                }
+                            }
                             foreach (array_slice($supportedItems, 0, 4) as $supportedItem) {
                                 $itemType = booking_normalize_item_type((string)($supportedItem['type'] ?? 'model'));
+                                $supportedItemId = (int)($supportedItem['id'] ?? 0);
                                 $itemName = trim((string)($supportedItem['name'] ?? ''));
                                 if ($itemName === '') {
-                                    $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . (int)$supportedItem['id'];
+                                    $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . $supportedItemId;
                                 }
                                 $kitIncludedNames[] = $itemName;
                             }
@@ -2310,13 +2334,16 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             if (!empty($kitUnsupportedLabels) || empty($kitBreakdown['supported_items'] ?? [])) {
                                 $kitCanAdd = false;
                             }
+                            if ($kitRestricted) {
+                                $kitCanAdd = false;
+                            }
                         } catch (Throwable $e) {
                             $kitContainsText = 'Unable to load kit contents right now.';
                             $kitCanAdd = false;
                         }
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card">
+                        <div class="card h-100 model-card<?= $kitRestricted ? ' catalogue-card--restricted' : '' ?>">
                             <?php if (!empty($kitModelImageItems)): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--kit-grid model-image-wrapper--kit-details"
@@ -2389,6 +2416,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 <?php if (!empty($kitUnsupportedLabels)): ?>
                                     <div class="alert alert-warning small">
                                         Unsupported kit contents: <?= h(implode(', ', $kitUnsupportedLabels)) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($kitRestricted): ?>
+                                    <div class="alert alert-secondary small">
+                                        Your group is not allowed to reserve one or more items in this kit.
                                     </div>
                                 <?php endif; ?>
 
@@ -2605,9 +2637,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         $proxiedImage = 'image_proxy.php?src=' . urlencode($imagePath);
                     }
                     $isFavourite = $isAuthenticated && isset($favouriteModelMap[$modelId]);
+                    $permissionAllowed = empty($catalogueDeniedPermissionMap['model:' . $modelId]);
                     ?>
                     <div class="col-md-4">
-                        <div class="card h-100 model-card model-card--details"
+                        <div class="card h-100 model-card model-card--details<?= $permissionAllowed ? '' : ' catalogue-card--restricted' ?>"
                              data-model-id="<?= $modelId ?>"
                              data-model-name="<?= h($name) ?>"
                              role="button"
@@ -2657,7 +2690,32 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                     <?php endif; ?>
                                 </p>
 
-                                <?php if ($isAuthenticated): ?>
+                                <?php if (!$permissionAllowed): ?>
+                                    <div class="mt-auto">
+                                        <?php if ($canUseFavourites): ?>
+                                            <div class="form-check model-favourite-inline mb-2">
+                                                <input class="form-check-input model-favourite-checkbox"
+                                                       type="checkbox"
+                                                       id="model_favourite_<?= $modelId ?>"
+                                                       data-model-id="<?= $modelId ?>"
+                                                       data-return-url="<?= h($catalogueReturnUrl) ?>"
+                                                       <?= $isFavourite ? 'checked' : '' ?>>
+                                                <label class="form-check-label small fw-semibold"
+                                                       for="model_favourite_<?= $modelId ?>">
+                                                    Add to Favourites
+                                                </label>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div class="alert alert-secondary small mb-0">
+                                            Your group is not allowed to reserve this item.
+                                        </div>
+                                        <button type="button"
+                                                class="btn btn-sm btn-secondary w-100 mt-2"
+                                                disabled>
+                                            Add to basket
+                                        </button>
+                                    </div>
+                                <?php elseif ($isAuthenticated): ?>
                                     <form method="post"
                                           action="basket_add.php"
                                           class="mt-auto add-to-basket-form">
