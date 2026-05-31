@@ -2219,7 +2219,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 <?php if (!$permissionAllowed): ?>
                                     <div class="mt-auto">
                                         <div class="alert alert-secondary small mb-0">
-                                            Your group is not allowed to reserve this item.
+                                            You do not have permission to reserve this item.
                                         </div>
                                         <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
                                     </div>
@@ -2428,7 +2428,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 <?php endif; ?>
                                 <?php if ($kitRestricted): ?>
                                     <div class="alert alert-secondary small">
-                                        Your group is not allowed to reserve one or more items in this kit.
+                                        You do not have permission to reserve one or more items in this kit.
                                     </div>
                                 <?php endif; ?>
 
@@ -2718,7 +2718,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                             </div>
                                         <?php endif; ?>
                                         <div class="alert alert-secondary small mb-0">
-                                            Your group is not allowed to reserve this item.
+                                            You do not have permission to reserve this item.
                                         </div>
                                         <button type="button"
                                                 class="btn btn-sm btn-secondary w-100 mt-2"

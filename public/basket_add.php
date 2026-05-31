@@ -166,7 +166,7 @@ try {
                 continue;
             }
             if (!catalogue_permissions_is_item_allowed($activeUser, $supportedType, $supportedId)) {
-                basket_add_respond(false, 'Your group is not allowed to reserve one or more items in this kit.', 403);
+                basket_add_respond(false, 'You do not have permission to reserve one or more items in this kit.', 403);
             }
 
             $availableUnits = basket_add_available_units_for_item(
@@ -214,7 +214,7 @@ try {
     }
 
     if (!catalogue_permissions_is_item_allowed($activeUser, $itemType, $itemId)) {
-        basket_add_respond(false, 'Your group is not allowed to reserve this item.', 403);
+        basket_add_respond(false, 'You do not have permission to reserve this item.', 403);
     }
 
     $availableUnits = basket_add_available_units_for_item(
