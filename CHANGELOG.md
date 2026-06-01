@@ -8,6 +8,7 @@
 
 When enabled, checkout users only see matching-group users' reservations on 'Today's Reservations (Checkout)', 'Checked Out Reservations', and 'All Reservations'. Admin users can still view and manage all reservations.
 
+
 ## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 
 ### Group Permissions

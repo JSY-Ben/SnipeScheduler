@@ -56,6 +56,11 @@ function staff_group_visibility_user_can_see_email(array $currentUser, string $t
         return false;
     }
 
+    $visibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, $restrictionEnabled);
+    if (is_array($visibleEmails)) {
+        return in_array($targetEmail, $visibleEmails, true);
+    }
+
     if (!array_key_exists($currentEmail, $currentUserGroupCache)) {
         $currentUserGroupCache[$currentEmail] = staff_group_visibility_group_ids_for_user($currentUser);
     }
@@ -70,6 +75,103 @@ function staff_group_visibility_user_can_see_email(array $currentUser, string $t
     }
 
     return !empty(array_intersect($currentUserGroupCache[$currentEmail], $targetGroupCache[$targetEmail]));
+}
+
+function staff_group_visibility_visible_user_emails_for_current_user(array $currentUser, bool $restrictionEnabled): ?array
+{
+    static $requestCache = [];
+
+    if (!$restrictionEnabled) {
+        return null;
+    }
+
+    $currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
+    if ($currentEmail === '') {
+        return [];
+    }
+
+    $groupIds = staff_group_visibility_group_ids_for_user($currentUser);
+    if (empty($groupIds)) {
+        return [];
+    }
+
+    sort($groupIds);
+    $cacheKey = $currentEmail . '|' . implode(',', $groupIds);
+    if (array_key_exists($cacheKey, $requestCache)) {
+        return $requestCache[$cacheKey];
+    }
+
+    $sessionKey = 'staff_group_visibility_emails_' . sha1($cacheKey);
+    if (
+        session_status() === PHP_SESSION_ACTIVE
+        && isset($_SESSION[$sessionKey])
+        && is_array($_SESSION[$sessionKey])
+        && (int)($_SESSION[$sessionKey]['expires_at'] ?? 0) > time()
+        && isset($_SESSION[$sessionKey]['emails'])
+        && is_array($_SESSION[$sessionKey]['emails'])
+    ) {
+        $requestCache[$cacheKey] = $_SESSION[$sessionKey]['emails'];
+        return $requestCache[$cacheKey];
+    }
+
+    $emails = [];
+    $hadFetchError = false;
+    $limit = 500;
+
+    foreach ($groupIds as $groupId) {
+        $offset = 0;
+        do {
+            try {
+                $data = snipeit_request('GET', 'users', [
+                    'group_id' => (int)$groupId,
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+            } catch (Throwable $e) {
+                $hadFetchError = true;
+                break;
+            }
+
+            $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $email = strtolower(trim((string)($row['email'] ?? '')));
+                if ($email !== '') {
+                    $emails[$email] = $email;
+                }
+            }
+
+            if (count($rows) < $limit) {
+                break;
+            }
+            $offset += $limit;
+        } while (true);
+
+        if ($hadFetchError) {
+            break;
+        }
+    }
+
+    if ($hadFetchError) {
+        $requestCache[$cacheKey] = null;
+        return null;
+    }
+
+    $emails[$currentEmail] = $currentEmail;
+    $emailList = array_values($emails);
+    sort($emailList);
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION[$sessionKey] = [
+            'expires_at' => time() + 300,
+            'emails' => $emailList,
+        ];
+    }
+
+    $requestCache[$cacheKey] = $emailList;
+    return $emailList;
 }
 
 function staff_group_visibility_reservation_visible(array $reservation, array $currentUser, bool $restrictionEnabled): bool

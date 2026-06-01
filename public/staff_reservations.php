@@ -194,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 try {
     $where  = [];
     $params = [];
+    $usePostFilterForGroupVisibility = false;
 
     if ($q !== null) {
         $where[] = '(user_name LIKE :q OR asset_name_cache LIKE :q)';
@@ -210,6 +211,25 @@ try {
         $params[':to'] = $dateTo . ' 23:59:59';
     }
 
+    if ($restrictReservationsToSameGroup) {
+        $visibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
+        if (is_array($visibleEmails)) {
+            if (empty($visibleEmails)) {
+                $where[] = '1 = 0';
+            } else {
+                $emailPlaceholders = [];
+                foreach ($visibleEmails as $idx => $email) {
+                    $paramName = ':visible_email_' . $idx;
+                    $emailPlaceholders[] = $paramName;
+                    $params[$paramName] = strtolower(trim((string)$email));
+                }
+                $where[] = 'LOWER(user_email) IN (' . implode(',', $emailPlaceholders) . ')';
+            }
+        } else {
+            $usePostFilterForGroupVisibility = true;
+        }
+    }
+
     $sql = "SELECT * FROM reservations";
 
     $countSql = "SELECT COUNT(*) FROM reservations";
@@ -219,7 +239,7 @@ try {
         $countSql .= $whereSql;
     }
 
-    if ($restrictReservationsToSameGroup) {
+    if ($usePostFilterForGroupVisibility) {
         $sql .= ' ORDER BY ' . $sortOptions[$sort];
         $stmt = $pdo->prepare($sql);
         foreach ($params as $key => $value) {
