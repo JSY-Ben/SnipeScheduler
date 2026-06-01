@@ -8,7 +8,7 @@
 
 When enabled, checkout users only see matching-group users' reservations on 'Today's Reservations (Checkout)', 'Checked Out Reservations', and 'All Reservations'. Admin users can still view and manage all reservations.
 
-2) Improved the performance of restricted 'Checked Out Reservations' and 'All Reservations' views by caching a verified Snipe-IT group-member email list when the users API includes group membership data, while still falling back to direct user checks when needed.
+2) Improved the performance of restricted 'Checked Out Reservations' and 'All Reservations' views by caching checkout-user group lookups and per-user visibility decisions while preserving direct Snipe-IT user group checks for correctness.
 
 ## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 

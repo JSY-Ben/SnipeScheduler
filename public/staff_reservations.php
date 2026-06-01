@@ -211,38 +211,35 @@ try {
     }
 
     if ($restrictReservationsToSameGroup) {
-        $authoritativeVisibleEmails = staff_group_visibility_authoritative_visible_user_emails_for_current_user(
-            $currentUser,
-            $restrictReservationsToSameGroup
-        );
+        $fastVisibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
         $visibleEmails = [];
 
-        if (is_array($authoritativeVisibleEmails)) {
-            foreach ($authoritativeVisibleEmails as $email) {
+        if (is_array($fastVisibleEmails)) {
+            foreach ($fastVisibleEmails as $email) {
                 $email = strtolower(trim((string)$email));
                 if ($email !== '') {
                     $visibleEmails[$email] = $email;
                 }
             }
-        } else {
-            $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
-            if (!empty($where)) {
-                $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
-            }
-            $emailStmt = $pdo->prepare($distinctEmailSql);
-            foreach ($params as $key => $value) {
-                $emailStmt->bindValue($key, $value);
-            }
-            $emailStmt->execute();
+        }
 
-            foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
-                $email = strtolower(trim((string)$email));
-                if (
-                    $email !== ''
-                    && staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)
-                ) {
-                    $visibleEmails[$email] = $email;
-                }
+        $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
+        if (!empty($where)) {
+            $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $emailStmt = $pdo->prepare($distinctEmailSql);
+        foreach ($params as $key => $value) {
+            $emailStmt->bindValue($key, $value);
+        }
+        $emailStmt->execute();
+
+        foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
+            $email = strtolower(trim((string)$email));
+            if ($email === '' || isset($visibleEmails[$email])) {
+                continue;
+            }
+            if (staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)) {
+                $visibleEmails[$email] = $email;
             }
         }
 
