@@ -1,0 +1,783 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: equipment-booking\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.9\n"
+
+msgid "Equipment Booking – Login"
+msgstr "Materiaalreservering – Aanmelden"
+
+msgid "Sign in"
+msgstr "Aanmelden"
+
+msgid "Choose an available sign-in option below."
+msgstr "Kies hieronder een beschikbare aanmeldmethode."
+
+msgid "Email address"
+msgstr "E-mailadres"
+
+msgid "Password"
+msgstr "Wachtwoord"
+
+msgid "Sign in with Google"
+msgstr "Aanmelden met Google"
+
+msgid "Sign in with Microsoft"
+msgstr "Aanmelden met Microsoft"
+
+msgid "No authentication methods are enabled. Please contact an administrator."
+msgstr "Er zijn geen authenticatiemethoden ingeschakeld. Neem contact op met een beheerder."
+
+msgid "Equipment Booking – Dashboard"
+msgstr "Materiaalreservering – Dashboard"
+
+msgid "Equipment Booking"
+msgstr "Materiaalreservering"
+
+msgid "Browse bookable equipment, manage your basket, and review your bookings."
+msgstr "Bekijk reserveerbare toestellen, bekijk en beheer je reservaties."
+
+msgid "Sign in to add items to your basket and place reservations."
+msgstr "Meld je aan om items aan je winkelmandje toe te voegen en reservaties te maken."
+
+msgid "Log in"
+msgstr "Aanmelden"
+
+msgid "Browse equipment"
+msgstr "Beschikbare toestellen bekijken"
+
+msgid "View the catalogue of equipment models available for users to book."
+msgstr "Bekijk de catalogus van toestelen die je kan reserveren."
+
+msgid "Add items to your basket and request them for specific dates."
+msgstr "Voeg items toe aan je winkelmandje en vraag ze aan voor specifieke data."
+
+msgid "You can browse publicly; sign in when ready to add items to your basket."
+msgstr "Je kan vrij browsen; meld je aan wanneer je items wilt toevoegen aan je winkelmandje."
+
+msgid "Go to catalogue"
+msgstr "Ga naar catalogus"
+
+msgid "My Reservations"
+msgstr "Mijn reservaties"
+
+msgid "See all of your upcoming and past reservations, including which models you requested, and cancel future bookings where allowed."
+msgstr "Bekijk en beheer al je toekomstige en vorige reservaties."
+
+msgid "View my reservations"
+msgstr "Bekijk mijn reservaties"
+
+msgid "Sign in to book"
+msgstr "Meld je aan om te reserveren"
+
+msgid "Adding items to basket, viewing basket, and creating reservations require a logged-in account."
+msgstr "Items toevoegen aan het winkelmandje, het bekijken ervan en reservaties maken vereisen een ingelogd account."
+
+msgid "Go to login"
+msgstr "Ga naar aanmelden"
+
+msgid "Reservations"
+msgstr "Reservaties"
+
+msgid "Review reservation history, process today’s checkouts, and view checked-out assets."
+msgstr "Bekijk reservatiegeschiedenis, verwerk uitleningen van vandaag en raadpleeg uitgeleende items."
+
+msgid "Go to reservations"
+msgstr "Ga naar reservaties"
+
+msgid "Quick Checkout"
+msgstr "Snelle uitgifte"
+
+msgid "Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation."
+msgstr "Voer ad-hoc bulkuitgiftes uit via Snipe-IT zonder een reservatie te selecteren."
+
+msgid "Go to quick checkout"
+msgstr "Ga naar snelle uitgifte"
+
+msgid "Quick Checkin"
+msgstr "Snelle inname"
+
+msgid "Scan asset tags to check items back in via Snipe-IT (quick scan style)."
+msgstr "Scan assetlabels om items terug in te nemen via Snipe-IT (snelle scanmodus)."
+
+msgid "Go to quick checkin"
+msgstr "Ga naar snelle inname"
+
+msgid "Need help or something is missing from the catalogue? Please contact staff."
+msgstr "Hulp nodig of ontbreekt er iets in de catalogus? Neem contact op met de ICT-dienst."
+
+msgid "Catalogue – Book Equipment"
+msgstr "Catalogus – Apparatuur reserveren"
+
+msgid "Fetching assets..."
+msgstr "Assets laden..."
+
+msgid "Equipment catalogue"
+msgstr "Apparatuurcatalogus"
+
+msgid "Browse bookable models, accessories, and kits and add them to your basket."
+msgstr "Bekijk reserveerbare modellen, accessoires en kits en voeg ze toe aan je winkelmandje."
+
+msgid "Add to basket and View basket will take you to login."
+msgstr "Toevoegen aan winkelmandje en bekijken brengt je naar aanmelden."
+
+msgid "Booking for:"
+msgstr "Reserveren voor:"
+
+msgid "Start typing email or name"
+msgstr "Begin te typen: e-mailadres of naam"
+
+msgid "Use"
+msgstr "Gebruik"
+
+msgid "Revert to logged in user"
+msgstr "Herstel naar ingelogde gebruiker"
+
+msgid "Catalogue unavailable"
+msgstr "Catalogus niet beschikbaar"
+
+msgid "All catalogue sections are currently hidden in Frontend settings."
+msgstr "Alle catalogussecties zijn momenteel verborgen in de frontend-instellingen."
+
+msgid "Equipment"
+msgstr "Apparatuur"
+
+msgid "Accessories"
+msgstr "Accessoires"
+
+msgid "Kits"
+msgstr "Kits"
+
+msgid "Could not load categories from Snipe-IT:"
+msgstr "Kon categorieën niet laden uit Snipe-IT:"
+
+msgid "Error talking to Snipe-IT"
+msgstr "Fout bij communicatie met Snipe-IT"
+
+msgid "SEARCH"
+msgstr "ZOEKEN"
+
+msgid "Search by name"
+msgstr "Zoek op naam"
+
+msgid "Search by accessory name or manufacturer"
+msgstr "Zoek op accessoirenaam of fabrikant"
+
+msgid "Search by kit name"
+msgstr "Zoek op kitnaam"
+
+msgid "Search by model name or manufacturer"
+msgstr "Zoek op modelnaam of fabrikant"
+
+msgid "Category"
+msgstr "Categorie"
+
+msgid "All categories"
+msgstr "Alle categorieën"
+
+msgid "Sort"
+msgstr "Sorteren"
+
+msgid "Kit name (A–Z)"
+msgstr "Kitnaam (A–Z)"
+
+msgid "Kit Name (Ascending)"
+msgstr "Kitnaam (oplopend)"
+
+msgid "Kit Name (Descending)"
+msgstr "Kitnaam (aflopend)"
+
+msgid "Accessory name (A–Z)"
+msgstr "Accessoirenaam (A–Z)"
+
+msgid "Model name (A–Z)"
+msgstr "Modelnaam (A–Z)"
+
+msgid "Accessory Name (Ascending)"
+msgstr "Accessoirenaam (oplopend)"
+
+msgid "Accessory Name (Descending)"
+msgstr "Accessoirenaam (aflopend)"
+
+msgid "Model Name (Ascending)"
+msgstr "Modelnaam (oplopend)"
+
+msgid "Model Name (Descending)"
+msgstr "Modelnaam (aflopend)"
+
+msgid "Manufacturer (Ascending)"
+msgstr "Fabrikant (oplopend)"
+
+msgid "Manufacturer (Descending)"
+msgstr "Fabrikant (aflopend)"
+
+msgid "Available Units (Ascending)"
+msgstr "Beschikbare eenheden (oplopend)"
+
+msgid "Available Units (Descending)"
+msgstr "Beschikbare eenheden (aflopend)"
+
+msgid "Units in Total (Ascending)"
+msgstr "Totaal aantal eenheden (oplopend)"
+
+msgid "Units in Total (Descending)"
+msgstr "Totaal aantal eenheden (aflopend)"
+
+msgid "Filter results"
+msgstr "Resultaten filteren"
+
+msgid "Show Favourites Only"
+msgstr "Alleen favorieten tonen"
+
+msgid "RESERVATION WINDOW"
+msgstr "RESERVERINGSPERIODE"
+
+msgid "Start date & time"
+msgstr "Startdatum en -tijd"
+
+msgid "End date & time"
+msgstr "Einddatum en -tijd"
+
+msgid "Today"
+msgstr "Vandaag"
+
+msgid "No accessories found. Try adjusting your filters."
+msgstr "Geen accessoires gevonden. Probeer je filters aan te passen."
+
+msgid "No kits found. Try adjusting your filters."
+msgstr "Geen kits gevonden. Probeer je filters aan te passen."
+
+msgid "No favourite models found for the selected filters."
+msgstr "Geen favoriete modellen gevonden voor de geselecteerde filters."
+
+msgid "No models found. Try adjusting your filters."
+msgstr "Geen modellen gevonden. Probeer je filters aan te passen."
+
+msgid "Accessory"
+msgstr "Accessoire"
+
+msgid "Manufacturer:"
+msgstr "Fabrikant:"
+
+msgid "Category:"
+msgstr "Categorie:"
+
+msgid "Requestable Units:"
+msgstr "Aanvraagbare eenheden:"
+
+msgid "Requestable units:"
+msgstr "Aanvraagbare eenheden:"
+
+msgid "Available for selected dates:"
+msgstr "Beschikbaar voor geselecteerde data:"
+
+msgid "Available now:"
+msgstr "Nu beschikbaar:"
+
+msgid "Quantity"
+msgstr "Aantal"
+
+msgid "Add to basket"
+msgstr "Toevoegen aan winkelmandje"
+
+msgid "No units available for selected dates."
+msgstr "Geen eenheden beschikbaar voor geselecteerde data."
+
+msgid "No units available right now."
+msgstr "Momenteel geen eenheden beschikbaar."
+
+msgid "Kit"
+msgstr "Kit"
+
+msgid "Model"
+msgstr "Model"
+
+msgid "Model #"
+msgstr "Model #"
+
+msgid "Accessory #"
+msgstr "Accessoire #"
+
+msgid "No supported bookable items detected."
+msgstr "Geen ondersteunde reserveerbare items gevonden."
+
+msgid "more item"
+msgstr "meer item"
+
+msgid "more items"
+msgstr "meer items"
+
+msgid "Unable to load kit contents right now."
+msgstr "Kan kitinhoud momenteel niet laden."
+
+msgid "View kit contents for"
+msgstr "Bekijk kitinhoud voor"
+
+msgid "No supported bookable items were found for this kit."
+msgstr "Geen ondersteunde reserveerbare items gevonden voor deze kit."
+
+msgid "No additional details available."
+msgstr "Geen extra details beschikbaar."
+
+msgid "Kit Contains:"
+msgstr "Kit bevat:"
+
+msgid "Unsupported kit contents:"
+msgstr "Niet-ondersteunde kitinhoud:"
+
+msgid "No requestable units available."
+msgstr "Geen aanvraagbare eenheden beschikbaar."
+
+msgid "Add to Favourites"
+msgstr "Toevoegen aan favorieten"
+
+msgid "No image"
+msgstr "Geen afbeelding"
+
+msgid "Announcements"
+msgstr "Mededelingen"
+
+msgid "Announcement"
+msgstr "Mededeling"
+
+msgid "Dismiss"
+msgstr "Sluiten"
+
+msgid "Model details"
+msgstr "Modeldetails"
+
+msgid "Close"
+msgstr "Sluiten"
+
+msgid "MORE INFORMATION"
+msgstr "MEER INFORMATIE"
+
+msgid "Select a model to load more information."
+msgstr "Selecteer een model om meer informatie te laden."
+
+msgid "BOOKINGS CALENDAR"
+msgstr "RESERVERINGSKALENDER"
+
+msgid "Previous"
+msgstr "Vorige"
+
+msgid "Next"
+msgstr "Volgende"
+
+msgid "Selected Month's Bookings"
+msgstr "Reservaties van geselecteerde maand"
+
+msgid "Reservation"
+msgstr "Reservatie"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Source"
+msgstr "Bron"
+
+msgid "Qty"
+msgstr "Aantal"
+
+msgid "Start"
+msgstr "Start"
+
+msgid "End"
+msgstr "Einde"
+
+msgid "No bookings found for the selected month."
+msgstr "Geen reservaties gevonden voor de geselecteerde maand."
+
+msgid "Kit contents"
+msgstr "Kitinhoud"
+
+msgid "Select a kit to view its contents."
+msgstr "Selecteer een kit om de inhoud te bekijken."
+
+msgid "Model image"
+msgstr "Modelafbeelding"
+
+msgid "Model image zoomed view"
+msgstr "Ingezoomde modelafbeelding"
+
+msgid "View all your past, current and future reservations."
+msgstr "Bekijk al je vroegere, huidige en toekomstige reserveringen."
+
+msgid "Reservation #%d has been deleted."
+msgstr "Reservering #%d is verwijderd."
+
+msgid "Error loading your reservations:"
+msgstr "Fout bij laden van je reserveringen:"
+
+msgid "My Checked Out Items"
+msgstr "Mijn uitgeleende items"
+
+msgid "Error loading checked-out items:"
+msgstr "Fout bij laden van uitgeleende items:"
+
+msgid "You don’t have any checked-out items right now."
+msgstr "Je hebt momenteel geen uitgeleende items."
+
+msgid "Asset Tag"
+msgstr "Asset tag"
+
+msgid "Name"
+msgstr "Naam"
+
+msgid "Assigned Since"
+msgstr "Toegekend sinds"
+
+msgid "Expected Check-in"
+msgstr "Verwachte inleverdatum"
+
+msgid "You don’t have any reservations yet."
+msgstr "Je hebt nog geen reserveringen."
+
+msgid "Reservation #%d"
+msgstr "Reservering #%d"
+
+msgid "User Name:"
+msgstr "Gebruikersnaam:"
+
+msgid "Start:"
+msgstr "Start:"
+
+msgid "End:"
+msgstr "Einde:"
+
+msgid "Status:"
+msgstr "Status:"
+
+msgid "Items:"
+msgstr "Items:"
+
+msgid "Checked-out assets:"
+msgstr "Uitgeleende assets:"
+
+msgid "Items in this reservation"
+msgstr "Items in deze reservering"
+
+msgid "Item"
+msgstr "Item"
+
+msgid "Edit"
+msgstr "Bewerken"
+
+msgid "Delete reservation"
+msgstr "Reservering verwijderen"
+
+msgid "Delete this reservation and all its items? This cannot be undone."
+msgstr "Deze reservering en alle items verwijderen? Dit kan niet ongedaan gemaakt worden."
+
+msgid "Catalogue"
+msgstr "Catalogus"
+
+msgid "Basket – Book Equipment"
+msgstr "Winkelmand – Materiaal reserveren"
+
+msgid "Your basket"
+msgstr "Je winkelmandje"
+
+msgid "Review reserved items and quantities, check date-specific availability, and confirm your booking."
+msgstr "Controleer gereserveerde toestellen en aantallen, bekijk beschikbaarheid per datum en bevestig je reservering."
+
+msgid "Back to catalogue"
+msgstr "Terug naar catalogus"
+
+msgid "Error talking to Snipe-IT:"
+msgstr "Fout bij communiceren met Snipe-IT:"
+
+msgid "Your basket is empty. Add items from the <a href=\"catalogue.php\">catalogue</a>."
+msgstr "Je winkelmand is leeg. Voeg items toe vanuit de <a href=\"catalogue.php\">catalogus</a>."
+
+msgid "line item(s),"
+msgstr "lijn(en),"
+
+msgid "item(s) total"
+msgstr "item(s) totaal"
+
+msgid "Invalid date/time for availability preview."
+msgstr "Ongeldige datum/tijd voor beschikbaarheidscontrole."
+
+msgid "End time must be after start time for availability preview."
+msgstr "De eindtijd moet na de starttijd liggen voor de beschikbaarheidscontrole."
+
+msgid "Showing availability for:"
+msgstr "Beschikbaarheid voor:"
+
+msgid "Choose a start and end date below to automatically refresh availability."
+msgstr "Kies hieronder een begin- en einddatum om de beschikbaarheid automatisch te vernieuwen."
+
+msgid "Reservation window not allowed:"
+msgstr "Reservatieperiode niet toegestaan:"
+
+msgid "Manufacturer"
+msgstr "Fabrikant"
+
+msgid "Requested qty"
+msgstr "Gevraagd aantal"
+
+msgid "Availability (for chosen dates)"
+msgstr "Beschikbaarheid (voor gekozen data)"
+
+msgid "Not calculated yet"
+msgstr "Nog niet berekend"
+
+msgid "units free"
+msgstr "toestellen vrij"
+
+msgid "not enough for requested quantity"
+msgstr "onvoldoende voor het gevraagde aantal"
+
+msgid "units total (unable to compute free units)"
+msgstr "eenheden totaal (vrije aantallen niet berekenbaar)"
+
+msgid "Availability unknown (no total count from Snipe-IT)"
+msgstr "Beschikbaarheid onbekend (geen totaal beschikbaar in Snipe-IT)"
+
+msgid "Remove"
+msgstr "Verwijderen"
+
+msgid "Decrease requested quantity"
+msgstr "Verminder gevraagd aantal"
+
+msgid "Increase requested quantity"
+msgstr "Verhoog gevraagd aantal"
+
+msgid "Select reservation window"
+msgstr "Selecteer reservatieperiode"
+
+msgid "Start defaults to now, end to tomorrow at 09:00"
+msgstr "Start is standaard nu, einde morgen om 09:00"
+
+msgid "When you click <strong>Confirm booking</strong>, the system will re-check availability and reject the booking if another user has taken items in the meantime."
+msgstr "Wanneer je op <strong>Bevestig reservering</strong> klikt, controleert het systeem opnieuw de beschikbaarheid en weigert het de reservatie als een andere gebruiker ondertussen items heeft gereserveerd."
+
+msgid "Confirm booking"
+msgstr "Bevestig reservering"
+
+msgid "Confirm booking for all items"
+msgstr "Bevestig reservering voor alle items"
+
+msgid "Please choose a valid reservation window."
+msgstr "Kies een geldige reservatieperiode."
+
+msgid "Please resolve the reservation rule violations above."
+msgstr "Los eerst de bovenstaande overtredingen van de reservatieregels op."
+
+msgid "of"
+msgstr "van"
+
+msgid "Your basket is empty."
+msgstr "Je winkelmand is leeg."
+
+msgid "Start and end date/time are required."
+msgstr "Start- en einddatum/-tijd zijn verplicht."
+
+msgid "Invalid date/time."
+msgstr "Ongeldige datum/tijd."
+
+msgid "End time must be after start time."
+msgstr "De eindtijd moet na de starttijd liggen."
+
+msgid "Could not create booking:"
+msgstr "Kon reservering niet aanmaken:"
+
+msgid "This installation must run the latest database upgrade before accessories or kits can be booked."
+msgstr "Deze installatie moet eerst de laatste database-upgrade uitvoeren voordat accessoires of kits gereserveerd kunnen worden."
+
+msgid "Invalid item/quantity in basket."
+msgstr "Ongeldig item of aantal in de winkelmand."
+
+msgid "not found in Snipe-IT: ID"
+msgstr "niet gevonden in Snipe-IT: ID"
+
+msgid "Booking submitted"
+msgstr "Reservering ingediend"
+
+msgid "Thank you"
+msgstr "Bedankt"
+
+msgid "Your booking has been submitted."
+msgstr "Je reservering is ingediend."
+
+msgid "Book more equipment"
+msgstr "Meer materiaal reserveren"
+
+msgid "View my bookings"
+msgstr "Mijn reserveringen bekijken"
+
+msgid "Reservation #"
+msgstr "Reservatie #"
+
+msgid "has been deleted."
+msgstr "is verwijderd."
+
+msgid "HTTP request failed: "
+msgstr "HTTP-verzoek mislukt: "
+
+msgid "HTTP request failed with status "
+msgstr "HTTP-verzoek mislukt met status "
+
+msgid "Unexpected response format."
+msgstr "Onverwacht antwoordformaat."
+
+msgid "Google directory service account JSON is invalid."
+msgstr "Google directory serviceaccount JSON is ongeldig."
+
+msgid "Google directory service account credentials are missing."
+msgstr "Google directory serviceaccount gegevens ontbreken."
+
+msgid "Failed to sign Google service account JWT."
+msgstr "Ondertekenen van Google serviceaccount JWT mislukt."
+
+msgid "Google directory token response missing access token."
+msgstr "Google directory token bevat geen access token."
+
+msgid "Cannot connect to LDAP host"
+msgstr "Kan geen verbinding maken met LDAP-host"
+
+msgid "LDAP service bind failed: "
+msgstr "LDAP service bind mislukt: "
+
+msgid "Unable to check overdue items at the moment."
+msgstr "Kan momenteel geen achterstallige items controleren."
+
+msgid "Directory search is disabled."
+msgstr "Directory zoeken is uitgeschakeld."
+
+msgid "Microsoft directory search requires signing in with Microsoft."
+msgstr "Microsoft directory zoeken vereist aanmelden met Microsoft."
+
+msgid "Directory search error"
+msgstr "Fout bij directory zoeken"
+
+msgid "Unknown tag"
+msgstr "Onbekende tag"
+
+msgid "No default location"
+msgstr "Geen standaardlocatie"
+
+msgid "Invalid model ID."
+msgstr "Ongeldig model-ID."
+
+msgid "Model not found."
+msgstr "Model niet gevonden."
+
+msgid "Could not load model assets: "
+msgstr "Kon model assets niet laden: "
+
+msgid "Could not load all model assets."
+msgstr "Kon niet alle model assets laden."
+
+msgid "Unable to load model details right now."
+msgstr "Kan modeldetails momenteel niet laden."
+
+msgid "Please enter a valid start and end date/time."
+msgstr "Voer een geldige start- en einddatum/tijd in."
+
+msgid "End date/time must be after start date/time."
+msgstr "Einddatum/tijd moet na de startdatum/tijd liggen."
+
+msgid "Logged in as:"
+msgstr "Ingelogd als:"
+
+msgid "View basket"
+msgstr "Bekijk mandje"
+
+msgid "Log out"
+msgstr "Uitloggen"
+
+msgid "Browsing as"
+msgstr "Bekijken als"
+
+msgid "Guest"
+msgstr "Gast"
+
+msgid "Click to zoom image for"
+msgstr "Klik om afbeelding te vergroten voor"
+
+msgid "and"
+msgstr "en"
+
+msgid "due"
+msgstr "vervaldatum"
+
+msgid "Could not add to basket"
+msgstr "Kon niet toevoegen aan mandje"
+
+msgid "Added to basket"
+msgstr "Toegevoegd aan mandje"
+
+msgid "Pending"
+msgstr "In afwachting"
+
+msgid "Confirmed"
+msgstr "Bevestigd"
+
+msgid "Completed"
+msgstr "Voltooid"
+
+msgid "Missed"
+msgstr "Gemist"
+
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+msgid "Unknown"
+msgstr "Onbekend"
+
+msgid "Asset"
+msgstr "Asset"
+
+msgid "Model + Asset"
+msgstr "Model + asset"
+
+msgid "No bookings found for"
+msgstr "Geen boekingen gevonden voor"
+
+msgid "N/A"
+msgstr "N.v.t."
+
+msgid "booking"
+msgstr "boeking"
+
+msgid "bookings"
+msgstr "boekingen"
+
+msgid "more"
+msgstr "meer"
+
+msgid "contents"
+msgstr "inhoud"
+
+msgid "image"
+msgstr "afbeelding"
+
+msgid "zoomed image"
+msgstr "vergrote afbeelding"
+
+msgid "Loading more information..."
+msgstr "Meer informatie laden..."
+
+msgid "Loading bookings..."
+msgstr "Boekingen laden..."
+
+msgid "Unable to load model details."
+msgstr "Kan modeldetails niet laden."
+
+msgid "No additional information available for this model."
+msgstr "Geen extra informatie beschikbaar voor dit model."
+
+msgid "No bookings found for this model."
+msgstr "Geen boekingen gevonden voor dit model."
+
+msgid "Unable to load more information for this model."
+msgstr "Kan geen extra informatie laden voor dit model."

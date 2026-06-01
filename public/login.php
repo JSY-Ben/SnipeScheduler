@@ -36,7 +36,7 @@ if (!empty($_SESSION['user']['email'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Equipment Booking – Login</title>
+    <title><?= _('Equipment Booking – Login') ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -47,9 +47,9 @@ if (!empty($_SESSION['user']['email'])) {
     <div class="page-shell" style="max-width: 480px; margin: 0 auto;">
         <?= layout_logo_tag($config) ?>
         <div class="page-header">
-            <h1>Sign in</h1>
+            <h1><?= _('Sign in') ?></h1>
             <div class="page-subtitle">
-                Choose an available sign-in option below.
+                <?= _('Choose an available sign-in option below.') ?>
             </div>
         </div>
 
@@ -63,7 +63,7 @@ if (!empty($_SESSION['user']['email'])) {
             <form method="post" action="login_process.php" class="card p-3 mt-3">
                 <input type="hidden" name="provider" value="ldap">
                 <div class="mb-3">
-                    <label for="email" class="form-label">Email address</label>
+                    <label for="email" class="form-label"><?= _('Email address') ?></label>
                     <input type="email"
                            class="form-control"
                            id="email"
@@ -73,7 +73,7 @@ if (!empty($_SESSION['user']['email'])) {
                 </div>
 
                 <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password" class="form-label"><?= _('Password') ?></label>
                     <input type="password"
                            class="form-control"
                            id="password"
@@ -83,7 +83,7 @@ if (!empty($_SESSION['user']['email'])) {
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100">
-                    Sign in
+                    <?= _('Sign in') ?>
                 </button>
 
                 <?php if ($showGoogle): ?>
@@ -94,7 +94,7 @@ if (!empty($_SESSION['user']['email'])) {
                             <path fill="#4A90E2" d="M123.6 330.1c-10.8-32.5-10.8-67.7 0-100.2l-90-69.4c-39.2 78.4-39.2 170.6 0 249.1l90-69.5z"/>
                             <path fill="#FBBC05" d="M272 106.1c37.8-.6 74.2 13 102 38.2l76.1-76.1C403.9 24.8 339.7.5 272 1 163.1 1 72.8 62 33.6 160.5l90 69.4C144.6 152.6 203 106.1 272 106.1z"/>
                         </svg>
-                        <span>Sign in with Google</span>
+                        <span><?= _('Sign in with Google') ?></span>
                     </a>
                 <?php endif; ?>
 
@@ -106,7 +106,7 @@ if (!empty($_SESSION['user']['email'])) {
                             <rect width="10.5" height="10.5" x="0.5" y="12" fill="#05A6F0"/>
                             <rect width="10.5" height="10.5" x="12" y="12" fill="#FFBA08"/>
                         </svg>
-                        <span>Sign in with Microsoft</span>
+                        <span><?= _('Sign in with Microsoft') ?></span>
                     </a>
                 <?php endif; ?>
             </form>
@@ -119,7 +119,7 @@ if (!empty($_SESSION['user']['email'])) {
                         <path fill="#4A90E2" d="M123.6 330.1c-10.8-32.5-10.8-67.7 0-100.2l-90-69.4c-39.2 78.4-39.2 170.6 0 249.1l90-69.5z"/>
                         <path fill="#FBBC05" d="M272 106.1c37.8-.6 74.2 13 102 38.2l76.1-76.1C403.9 24.8 339.7.5 272 1 163.1 1 72.8 62 33.6 160.5l90 69.4C144.6 152.6 203 106.1 272 106.1z"/>
                     </svg>
-                    <span>Sign in with Google</span>
+                    <span><?= _('Sign in with Google') ?></span>
                 </a>
             <?php endif; ?>
             <?php if ($showMicrosoft): ?>
@@ -130,14 +130,14 @@ if (!empty($_SESSION['user']['email'])) {
                         <rect width="10.5" height="10.5" x="0.5" y="12" fill="#05A6F0"/>
                         <rect width="10.5" height="10.5" x="12" y="12" fill="#FFBA08"/>
                     </svg>
-                    <span>Sign in with Microsoft</span>
+                    <span><?= _('Sign in with Microsoft') ?></span>
                 </a>
             <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!$showGoogle && !$showMicrosoft && !$showLdap): ?>
             <div class="alert alert-warning mt-3">
-                No authentication methods are enabled. Please contact an administrator.
+                <?= _('No authentication methods are enabled. Please contact an administrator.') ?>
             </div>
         <?php endif; ?>
     </div>

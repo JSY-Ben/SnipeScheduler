@@ -60,9 +60,9 @@ if ($previewStartRaw && $previewEndRaw) {
     $previewEndTs   = strtotime($previewEndRaw);
 
     if ($previewStartTs === false || $previewEndTs === false) {
-        $previewError = 'Invalid date/time for availability preview.';
+        $previewError = _('Invalid date/time for availability preview.');
     } elseif ($previewEndTs <= $previewStartTs) {
-        $previewError = 'End time must be after start time for availability preview.';
+        $previewError = _('End time must be after start time for availability preview.');
     } else {
         $previewStart = date('Y-m-d H:i:s', $previewStartTs);
         $previewEnd   = date('Y-m-d H:i:s', $previewEndTs);
@@ -193,7 +193,7 @@ if (!empty($basket)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Basket – Book Equipment</title>
+    <title><?= _('Basket – Book Equipment') ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -206,9 +206,9 @@ if (!empty($basket)) {
     <div class="page-shell">
         <?= layout_logo_tag() ?>
         <div class="page-header">
-            <h1>Your basket</h1>
+            <h1><?= _('Your basket') ?></h1>
             <div class="page-subtitle">
-                Review reserved items and quantities, check date-specific availability, and confirm your booking.
+                <?= _('Review reserved items and quantities, check date-specific availability, and confirm your booking.') ?>
             </div>
         </div>
 
@@ -216,32 +216,32 @@ if (!empty($basket)) {
 
         <div class="top-bar mb-3">
             <div class="top-bar-user">
-                Logged in as:
+                <?= _('Logged in as:') ?>
                 <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
                 (<?= h($currentUser['email'] ?? '') ?>)
             </div>
             <div class="top-bar-actions">
                 <a href="<?= h($catalogueBackUrl) ?>" class="btn btn-outline-primary">
-                    Back to catalogue
+                    <?= _('Back to catalogue') ?>
                 </a>
-                <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
+                <a href="logout.php" class="btn btn-link btn-sm"><?= _('Log out') ?></a>
             </div>
         </div>
 
         <?php if ($errorMsg): ?>
             <div class="alert alert-danger">
-                Error talking to Snipe-IT: <?= htmlspecialchars($errorMsg) ?>
+                <?= _('Error talking to Snipe-IT:') ?> <?= htmlspecialchars($errorMsg) ?>
             </div>
         <?php endif; ?>
 
         <?php if (empty($basket)): ?>
             <div class="alert alert-info">
-                Your basket is empty. Add items from the <a href="catalogue.php">catalogue</a>.
+                <?= _('Your basket is empty. Add items from the <a href="catalogue.php">catalogue</a>.') ?>
             </div>
         <?php else: ?>
             <div class="mb-3">
                 <span class="badge-summary">
-                    <?= $distinctItems ?> line item(s), <?= $totalItems ?> item(s) total
+                    <?= $distinctItems ?> <?= _('line item(s),') ?> <?= $totalItems ?> <?= _('item(s) total') ?>
                 </span>
             </div>
 
@@ -251,7 +251,7 @@ if (!empty($basket)) {
                 </div>
             <?php elseif ($previewStart && $previewEnd): ?>
                 <div class="alert alert-info">
-                    Showing availability for:
+                    <?= _('Showing availability for:') ?>
                     <strong>
                         <?= h(app_format_datetime($previewStart)) ?>
                         &ndash;
@@ -260,12 +260,12 @@ if (!empty($basket)) {
                 </div>
             <?php else: ?>
                 <div class="alert alert-secondary">
-                    Choose a start and end date below to automatically refresh availability.
+                    <?= _('Choose a start and end date below to automatically refresh availability.') ?>
                 </div>
             <?php endif; ?>
             <?php if (!empty($policyViolations)): ?>
                 <div class="alert alert-danger">
-                    <div class="fw-semibold mb-2">Reservation window not allowed:</div>
+                    <div class="fw-semibold mb-2"><?= _('Reservation window not allowed:') ?></div>
                     <ul class="mb-0">
                         <?php foreach ($policyViolations as $violation): ?>
                             <li><?= h($violation) ?></li>
@@ -278,12 +278,12 @@ if (!empty($basket)) {
                 <table class="table table-striped table-bookings align-middle">
                     <thead>
                         <tr>
-                            <th>Item</th>
-                            <th>Type</th>
-                            <th>Manufacturer</th>
-                            <th>Category</th>
-                            <th>Requested qty</th>
-                            <th>Availability (for chosen dates)</th>
+                            <th><?= _('Item') ?></th>
+                            <th><?= _('Type') ?></th>
+                            <th><?= _('Manufacturer') ?></th>
+                            <th><?= _('Category') ?></th>
+                            <th><?= _('Requested qty') ?></th>
+                            <th><?= _('Availability (for chosen dates)') ?></th>
                             <th></th>
                         </tr>
                     </thead>
@@ -302,15 +302,15 @@ if (!empty($basket)) {
                             if ($previewStart && $previewEnd && isset($availability[$itemKey])) {
                                 $a = $availability[$itemKey];
                                 if ($a['total'] > 0 && $a['free'] !== null) {
-                                    $availText = $a['free'] . ' of ' . $a['total'] . ' units free';
+                                    $availText = $a['free'] . ' ' . _('of') . ' ' . $a['total'] . ' '. _('units free');
                                     if ($qty > $a['free']) {
                                         $warnClass = 'text-danger fw-semibold';
-                                        $availText .= ' – not enough for requested quantity';
+                                        $availText .= _(' – not enough for requested quantity');
                                     }
                                 } elseif ($a['total'] > 0) {
-                                    $availText = $a['total'] . ' units total (unable to compute free units)';
+                                    $availText = $a['total'] . _(' units total (unable to compute free units)');
                                 } else {
-                                    $availText = 'Availability unknown (no total count from Snipe-IT)';
+                                    $availText = _('Availability unknown (no total count from Snipe-IT)');
                                 }
                             }
 
@@ -337,14 +337,14 @@ if (!empty($basket)) {
                                 <form method="post"
                                       action="basket_quantity.php"
                                       class="basket-qty-form"
-                                      aria-label="Adjust quantity for <?= h($record['name'] ?? 'item') ?>">
+                                      aria-label="<?= _('Adjust quantity for') ?> <?= h($record['name'] ?? 'item') ?>">
                                     <input type="hidden" name="item_type" value="<?= h($itemType) ?>">
                                     <input type="hidden" name="item_id" value="<?= $itemId ?>">
                                     <button type="submit"
                                             name="direction"
                                             value="down"
                                             class="btn btn-sm btn-outline-secondary basket-qty-btn"
-                                            aria-label="Decrease requested quantity"
+                                            aria-label="<?= _('Decrease requested quantity') ?>"
                                             <?= $qty <= 1 ? 'disabled' : '' ?>>
                                         -
                                     </button>
@@ -353,7 +353,7 @@ if (!empty($basket)) {
                                             name="direction"
                                             value="up"
                                             class="btn btn-sm btn-outline-secondary basket-qty-btn"
-                                            aria-label="Increase requested quantity">
+                                            aria-label="<?= _('Increase requested quantity') ?>">
                                         +
                                     </button>
                                 </form>
@@ -362,7 +362,7 @@ if (!empty($basket)) {
                             <td>
                                 <a href="basket_remove.php?item_type=<?= rawurlencode($itemType) ?>&item_id=<?= $itemId ?>"
                                    class="btn btn-sm btn-outline-danger">
-                                    Remove
+                                    <?= _('Remove') ?>
                                 </a>
                             </td>
                         </tr>
@@ -374,20 +374,20 @@ if (!empty($basket)) {
             <!-- Form to preview availability for chosen dates -->
             <div class="availability-box mb-4">
                 <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
-                    <div class="availability-pill">Select reservation window</div>
-                    <div class="text-muted small">Start defaults to now, end to tomorrow at 09:00</div>
+                    <div class="availability-pill"><?= _('Select reservation window') ?></div>
+                    <div class="text-muted small"><?= _('Start defaults to now, end to tomorrow at 09:00') ?></div>
                 </div>
                 <form method="get" action="basket.php" id="basket-window-form">
                     <div class="row g-3">
                         <div class="col-md-5">
-                            <label class="form-label fw-semibold">Start date &amp; time</label>
+                            <label class="form-label fw-semibold"><?= _('Start date & time') ?></label>
                             <input type="datetime-local" name="start_datetime"
                                    id="basket_start_datetime"
                                    class="form-control form-control-lg"
                                    value="<?= htmlspecialchars($previewStartRaw) ?>">
                         </div>
                         <div class="col-md-5">
-                            <label class="form-label fw-semibold">End date &amp; time</label>
+                            <label class="form-label fw-semibold"><?= _('End date & time') ?></label>
                             <input type="datetime-local" name="end_datetime"
                                    id="basket_end_datetime"
                                    class="form-control form-control-lg"
@@ -397,7 +397,7 @@ if (!empty($basket)) {
                             <button class="btn btn-primary btn-lg w-100 flex-md-fill mt-3 mt-md-0 reservation-window-btn"
                                     type="button"
                                     id="basket-today-btn">
-                                Today
+                                <?= _('Today') ?>
                             </button>
                         </div>
                     </div>
@@ -412,22 +412,21 @@ if (!empty($basket)) {
                        value="<?= htmlspecialchars($previewEndRaw) ?>">
 
                 <p class="mb-2 text-muted">
-                    When you click <strong>Confirm booking</strong>, the system will re-check availability
-                    and reject the booking if another user has taken items in the meantime.
+                    <?= _('When you click <strong>Confirm booking</strong>, the system will re-check availability and reject the booking if another user has taken items in the meantime.') ?>
                 </p>
 
                 <button class="btn btn-primary btn-lg px-4"
                         type="submit"
                         <?= (!$previewStart || !$previewEnd || !empty($policyViolations)) ? 'disabled' : '' ?>>
-                    Confirm booking for all items
+                    <?= _('Confirm booking for all items') ?>
                 </button>
                 <?php if (!$previewStart || !$previewEnd): ?>
                     <span class="ms-2 text-danger small">
-                        Please choose a valid reservation window.
+                        <?= _('Please choose a valid reservation window.') ?>
                     </span>
                 <?php elseif (!empty($policyViolations)): ?>
                     <span class="ms-2 text-danger small">
-                        Please resolve the reservation rule violations above.
+                        <?= _('Please resolve the reservation rule violations above.') ?>
                     </span>
                 <?php endif; ?>
             </form>

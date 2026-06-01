@@ -532,6 +532,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app = $config['app'] ?? [];
     $appNameRaw = trim((string)$post('app_name', (string)($app['name'] ?? 'SnipeScheduler')));
     $app['name'] = $appNameRaw !== '' ? $appNameRaw : 'SnipeScheduler';
+    $app['language'] = $post('language', $app['language'] ?? 'C');
     $timezoneRaw = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
     $currentTimezone = (string)($app['timezone'] ?? 'Europe/Jersey');
     if (!in_array($currentTimezone, $timezoneOptions, true)) {
@@ -1063,6 +1064,7 @@ if ($selectedAppName === '') {
 }
 $configuredLogoUrl = trim((string)$cfg(['app', 'logo_url'], ''));
 $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_default_logo_url();
+$selectedLanguage = (string)$cfg(['app', 'language'], 'C');
 
 ?>
 <!DOCTYPE html>
@@ -1503,6 +1505,17 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             <div class="col-md-6">
                                 <label class="form-label">App Name</label>
                                 <input type="text" name="app_name" class="form-control" value="<?= h($selectedAppName) ?>" maxlength="120">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Language</label>
+                                <select name="language" class="form-select">
+                                    <?php foreach (explode('.utf8' . "\n", shell_exec('locale -a|grep .utf8')) as $language): ?>
+                                        <?php if (empty($language)) continue; ?>
+                                        <option value="<?= $language ?>" <?= $selectedLanguage === $language ? 'selected' : '' ?>>
+                                            <?= $language ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                         </div>
                     </div>

@@ -73,7 +73,7 @@ if ($tab === 'checked_out') {
 
 $deletedMsg = '';
 if (!empty($_GET['deleted'])) {
-    $deletedMsg = 'Reservation #' . (int)$_GET['deleted'] . ' has been deleted.';
+    $deletedMsg = _('Reservation #') . (int)$_GET['deleted'] . ' ' . _('has been deleted.');
 }
 ?>
 <!DOCTYPE html>
@@ -81,7 +81,7 @@ if (!empty($_GET['deleted'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>My Reservations</title>
+    <title><?= _('My Reservations') ?></title>
 
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -93,9 +93,9 @@ if (!empty($_GET['deleted'])) {
     <div class="page-shell">
         <?= layout_logo_tag() ?>
         <div class="page-header">
-            <h1>My Reservations</h1>
+            <h1><?= _('My Reservations') ?></h1>
             <div class="page-subtitle">
-                View all your past, current and future reservations.
+                <?= _('View all your past, current and future reservations.') ?>
             </div>
         </div>
 
@@ -105,12 +105,12 @@ if (!empty($_GET['deleted'])) {
         <!-- Top bar -->
         <div class="top-bar mb-3">
             <div class="top-bar-user">
-                Logged in as:
+                <?= _('Logged in as:') ?>
                 <strong><?= h($userName) ?></strong>
                 (<?= h($currentUser['email'] ?? '') ?>)
             </div>
             <div class="top-bar-actions">
-                <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
+                <a href="logout.php" class="btn btn-link btn-sm"><?= _('Log out') ?></a>
             </div>
         </div>
 
@@ -122,7 +122,7 @@ if (!empty($_GET['deleted'])) {
 
         <?php if (!empty($loadError ?? '')): ?>
             <div class="alert alert-danger">
-                Error loading your reservations: <?= htmlspecialchars($loadError) ?>
+                <?= _('Error loading your reservations:') ?> <?= htmlspecialchars($loadError) ?>
             </div>
         <?php endif; ?>
 
@@ -133,33 +133,33 @@ if (!empty($_GET['deleted'])) {
         <ul class="nav nav-tabs reservations-subtabs mb-3">
             <li class="nav-item">
                 <a class="nav-link <?= $tab === 'reservations' ? 'active' : '' ?>"
-                   href="<?= h($reservationsUrl) ?>">My Reservations</a>
+                   href="<?= h($reservationsUrl) ?>"><?= _('My Reservations') ?></a>
             </li>
             <li class="nav-item">
                 <a class="nav-link <?= $tab === 'checked_out' ? 'active' : '' ?>"
-                   href="<?= h($checkedOutUrl) ?>">My Checked Out Items</a>
+                   href="<?= h($checkedOutUrl) ?>"><?= _('My Checked Out Items') ?></a>
             </li>
         </ul>
 
         <?php if ($tab === 'checked_out'): ?>
             <?php if (!empty($checkedOutError)): ?>
                 <div class="alert alert-danger">
-                    Error loading checked-out items: <?= htmlspecialchars($checkedOutError) ?>
+                    <?= _('Error loading checked-out items:') ?> <?= htmlspecialchars($checkedOutError) ?>
                 </div>
             <?php elseif (empty($checkedOutItems)): ?>
                 <div class="alert alert-info">
-                    You don’t have any checked-out items right now.
+                    <?= _('You don’t have any checked-out items right now.') ?>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle">
                         <thead>
                             <tr>
-                                <th>Asset Tag</th>
-                                <th>Name</th>
-                                <th>Model</th>
-                                <th>Assigned Since</th>
-                                <th>Expected Check-in</th>
+                                <th><?= _('Asset Tag') ?></th>
+                                <th><?= _('Name') ?></th>
+                                <th><?= _('Model') ?></th>
+                                <th><?= _('Assigned Since') ?></th>
+                                <th><?= _('Expected Check-in') ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -179,7 +179,7 @@ if (!empty($_GET['deleted'])) {
         <?php else: ?>
             <?php if (empty($reservations)): ?>
                 <div class="alert alert-info">
-                    You don’t have any reservations yet.
+                    <?= _('You don’t have any reservations yet.') ?>
                 </div>
             <?php else: ?>
                 <?php foreach ($reservations as $res): ?>
@@ -193,40 +193,40 @@ if (!empty($_GET['deleted'])) {
                     <div class="card mb-3">
                         <div class="card-body">
                             <h5 class="card-title">
-                                Reservation #<?= $resId ?>
+                                <?= _('Reservation #') ?><?= $resId ?>
                             </h5>
                             <p class="card-text">
-                                <strong>User Name:</strong>
+                                <strong><?= _('User Name:') ?></strong>
                                 <?= h($res['user_name'] ?? $userName) ?><br>
 
-                                <strong>Start:</strong>
+                                <strong><?= _('Start:') ?></strong>
                                 <?= display_datetime($res['start_datetime'] ?? '') ?><br>
 
-                                <strong>End:</strong>
+                                <strong><?= _('End:') ?></strong>
                                 <?= display_datetime($res['end_datetime'] ?? '') ?><br>
 
-                                <strong>Status:</strong>
+                                <strong><?= _('Status:') ?></strong>
                                 <?= h($res['status'] ?? '') ?><br>
 
                                 <?php if ($summary !== ''): ?>
-                                    <strong>Items:</strong>
+                                    <strong><?= _('Items:') ?></strong>
                                     <?= h($summary) ?><br>
                                 <?php endif; ?>
 
                                 <?php if (!empty($res['asset_name_cache'])): ?>
-                                    <strong>Checked-out assets:</strong>
+                                    <strong><?= _('Checked-out assets:') ?></strong>
                                     <?= h($res['asset_name_cache']) ?>
                                 <?php endif; ?>
                             </p>
 
                             <?php if (!empty($items)): ?>
-                                <h6>Items in this reservation</h6>
+                                <h6><?= _('Items in this reservation') ?></h6>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-striped align-middle mb-0">
                                         <thead>
                                             <tr>
-                                                <th>Item</th>
-                                                <th style="width: 80px;">Qty</th>
+                                                <th><?= _('Item') ?></th>
+                                                <th style="width: 80px;"><?= _('Qty') ?></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -245,15 +245,15 @@ if (!empty($_GET['deleted'])) {
                                 <?php if ($status === 'pending' && $canEditReservation): ?>
                                     <a href="reservation_edit.php?id=<?= $resId ?>&from=my_bookings"
                                        class="btn btn-outline-primary btn-sm btn-action">
-                                        Edit
+                                        <?= _('Edit') ?>
                                     </a>
                                 <?php endif; ?>
                                 <form method="post"
                                       action="delete_reservation.php"
-                                      onsubmit="return confirm('Delete this reservation and all its items? This cannot be undone.');">
+                                      onsubmit="return confirm('<?= _('Delete this reservation and all its items? This cannot be undone.') ?>');">
                                     <input type="hidden" name="reservation_id" value="<?= $resId ?>">
                                     <button type="submit" class="btn btn-outline-danger btn-sm">
-                                        Delete reservation
+                                        <?= _('Delete reservation') ?>
                                     </button>
                                 </form>
                             </div>
