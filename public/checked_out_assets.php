@@ -4,6 +4,7 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/layout.php';
 
 function load_asset_labels(PDO $pdo, array $assetIds): array
@@ -211,6 +212,8 @@ function checked_out_parse_bulk_selection($rawItems): array
 $active    = basename($_SERVER['PHP_SELF']);
 $isAdmin   = !empty($currentUser['is_admin']);
 $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
+$config    = load_config();
+$restrictReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'checked_out_assets.php';
 $baseQuery = $embedded ? ['tab' => 'checked_out'] : [];
@@ -424,6 +427,11 @@ try {
         : list_checked_out_assets(false);
     $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
     $assets = array_merge($assets, $accessories);
+    if ($restrictReservationsToSameGroup) {
+        $assets = array_values(array_filter($assets, static function (array $row) use ($currentUser, $restrictReservationsToSameGroup): bool {
+            return staff_group_visibility_checked_out_row_visible($row, $currentUser, $restrictReservationsToSameGroup);
+        }));
+    }
     if ($view === 'overdue') {
         $now = time();
         $assets = array_values(array_filter($assets, function ($row) use ($now) {
@@ -562,6 +570,9 @@ function layout_checked_out_url(string $base, array $params): string
             <h1>Checked Out Reservations</h1>
             <div class="page-subtitle">
                 Showing equipment and accessories currently checked out in Snipe-IT.
+                <?php if ($restrictReservationsToSameGroup): ?>
+                    Only users in one of your Snipe-IT groups are shown.
+                <?php endif; ?>
             </div>
         </div>
 

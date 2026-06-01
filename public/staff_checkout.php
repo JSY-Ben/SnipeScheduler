@@ -12,7 +12,7 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
-require_once SRC_PATH . '/catalogue_permissions.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -29,8 +29,7 @@ $selfUrl    = $pageBase . (!empty($baseQuery) ? '?' . http_build_query($baseQuer
 $active     = basename($_SERVER['PHP_SELF']);
 $isAdmin    = !empty($currentUser['is_admin']);
 $isStaff    = !empty($currentUser['is_staff']) || $isAdmin;
-$restrictCheckoutReservationsToSameGroup = !$isAdmin
-    && !empty($catalogueCfg['restrict_checkout_reservations_to_same_group']);
+$restrictCheckoutReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 $tz       = new DateTimeZone($timezone);
 $now      = new DateTime('now', $tz);
 $todayStr = $now->format('Y-m-d');
@@ -229,66 +228,6 @@ function reservation_model_overlaps(PDO $pdo, int $modelId, string $start, strin
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-function staff_checkout_reservation_is_visible_to_current_user(array $reservation, array $currentUser, bool $restrictToSameGroup): bool
-{
-    static $currentUserGroupIds = null;
-    static $reservationGroupCache = [];
-
-    if (!$restrictToSameGroup) {
-        return true;
-    }
-
-    if ($currentUserGroupIds === null) {
-        $currentUserGroupIds = staff_checkout_snipeit_group_ids_for_user($currentUser);
-    }
-    if (empty($currentUserGroupIds)) {
-        return false;
-    }
-
-    $reservationEmail = strtolower(trim((string)($reservation['user_email'] ?? '')));
-    if ($reservationEmail === '') {
-        return false;
-    }
-
-    if (!array_key_exists($reservationEmail, $reservationGroupCache)) {
-        $reservationGroupCache[$reservationEmail] = staff_checkout_snipeit_group_ids_for_user([
-            'email' => $reservationEmail,
-        ]);
-    }
-
-    return !empty(array_intersect($currentUserGroupIds, $reservationGroupCache[$reservationEmail]));
-}
-
-function staff_checkout_snipeit_group_ids_for_user(array $user): array
-{
-    static $cache = [];
-
-    $email = strtolower(trim((string)($user['email'] ?? '')));
-    if ($email === '') {
-        return [];
-    }
-    if (array_key_exists($email, $cache)) {
-        return $cache[$email];
-    }
-
-    $groupIds = catalogue_permissions_user_group_ids($user);
-    if (empty($groupIds)) {
-        try {
-            foreach (catalogue_permissions_fetch_snipeit_groups() as $group) {
-                $groupId = (int)($group['id'] ?? 0);
-                if ($groupId > 0 && catalogue_permissions_group_contains_user_email($groupId, $email)) {
-                    $groupIds[$groupId] = $groupId;
-                }
-            }
-        } catch (Throwable $e) {
-            $groupIds = [];
-        }
-    }
-
-    $cache[$email] = array_values(array_unique(array_map('intval', $groupIds)));
-    return $cache[$email];
-}
-
 // ---------------------------------------------------------------------
 // Load reservation options
 // ---------------------------------------------------------------------
@@ -321,7 +260,7 @@ try {
     $todayBookings = array_values(array_filter(
         $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
         static function (array $reservation) use ($currentUser, $restrictCheckoutReservationsToSameGroup): bool {
-            return staff_checkout_reservation_is_visible_to_current_user(
+            return staff_group_visibility_reservation_visible(
                 $reservation,
                 $currentUser,
                 $restrictCheckoutReservationsToSameGroup
@@ -435,7 +374,7 @@ if ($selectedReservationId) {
     $selectedReservation = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (
         $selectedReservation
-        && !staff_checkout_reservation_is_visible_to_current_user(
+        && !staff_group_visibility_reservation_visible(
             $selectedReservation,
             $currentUser,
             $restrictCheckoutReservationsToSameGroup

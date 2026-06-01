@@ -4,11 +4,14 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/layout.php';
 
 $active    = basename($_SERVER['PHP_SELF']);
 $isAdmin   = !empty($currentUser['is_admin']);
 $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
+$config    = load_config();
+$restrictReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'staff_reservations.php';
 $baseQuery = $embedded ? ['tab' => 'history'] : [];
@@ -82,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 
             if (!$reservation || ($reservation['status'] ?? '') !== 'missed') {
                 throw new Exception('Reservation is not in a missed state.');
+            }
+            if (!staff_group_visibility_reservation_visible($reservation, $currentUser, $restrictReservationsToSameGroup)) {
+                throw new Exception('You do not have access to that reservation.');
             }
 
             $start = $reservation['start_datetime'] ?? '';
@@ -213,24 +219,51 @@ try {
         $countSql .= $whereSql;
     }
 
-    $countStmt = $pdo->prepare($countSql);
-    $countStmt->execute($params);
-    $totalRows = (int)$countStmt->fetchColumn();
-    $totalPages = max(1, (int)ceil($totalRows / $perPage));
-    if ($page > $totalPages) {
-        $page = $totalPages;
-    }
-    $offset = ($page - 1) * $perPage;
+    if ($restrictReservationsToSameGroup) {
+        $sql .= ' ORDER BY ' . $sortOptions[$sort];
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+        $filteredReservations = array_values(array_filter(
+            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            static function (array $reservation) use ($currentUser, $restrictReservationsToSameGroup): bool {
+                return staff_group_visibility_reservation_visible(
+                    $reservation,
+                    $currentUser,
+                    $restrictReservationsToSameGroup
+                );
+            }
+        ));
 
-    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
-    $stmt = $pdo->prepare($sql);
-    foreach ($params as $key => $value) {
-        $stmt->bindValue($key, $value);
+        $totalRows = count($filteredReservations);
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+        $offset = ($page - 1) * $perPage;
+        $reservations = array_slice($filteredReservations, $offset, $perPage);
+    } else {
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute($params);
+        $totalRows = (int)$countStmt->fetchColumn();
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+        $offset = ($page - 1) * $perPage;
+
+        $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $reservations = [];
     $loadError = $e->getMessage();
@@ -260,6 +293,9 @@ try {
         <h1>All Reservations</h1>
             <div class="page-subtitle">
                 View, filter, and delete any past, present or future reservation.
+                <?php if ($restrictReservationsToSameGroup): ?>
+                    Only reservations for users in one of your Snipe-IT groups are shown.
+                <?php endif; ?>
             </div>
         </div>
 
