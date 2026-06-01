@@ -688,6 +688,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_non_requestable_equipment'] = isset($_POST['catalogue_show_non_requestable_equipment']);
     $catalogue['show_restricted_items'] = isset($_POST['catalogue_show_restricted_items']);
     $catalogue['apply_permissions_to_quick_checkout'] = isset($_POST['catalogue_apply_permissions_to_quick_checkout']);
+    $catalogue['restrict_checkout_reservations_to_same_group'] = isset($_POST['catalogue_restrict_checkout_reservations_to_same_group']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
@@ -2398,6 +2399,22 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             </div>
                             <div class="form-text">
                                 When enabled, Quick Checkout checks the selected user's Snipe-IT group permissions before allowing checking out of restricted equipment or accessories.
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="catalogue_restrict_checkout_reservations_to_same_group"
+                                       id="catalogue_restrict_checkout_reservations_to_same_group"
+                                    <?= $cfg(['catalogue', 'restrict_checkout_reservations_to_same_group'], false) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="catalogue_restrict_checkout_reservations_to_same_group">
+                                    Restrict checkout reservations to matching Snipe-IT groups
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                When enabled, checkout staff can only view and check out reservations for users who share at least one Snipe-IT group with them. Admin users can still view all reservations.
                             </div>
                         </div>
 

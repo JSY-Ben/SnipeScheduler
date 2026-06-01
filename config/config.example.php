@@ -214,6 +214,8 @@ return [
         'show_restricted_items' => true,
         // Apply group-based catalogue permissions to Quick Checkout target users.
         'apply_permissions_to_quick_checkout' => false,
+        // Restrict checkout staff on Today's Reservations (Checkout) to reservations whose users share a Snipe-IT group with them.
+        'restrict_checkout_reservations_to_same_group' => false,
         // Show grouped default location availability on catalogue model cards.
         'show_available_default_locations' => true,
         // When true, currently checked-out assets still reduce future availability even if due back before the booking starts.

@@ -486,6 +486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$installLocked) {
             'show_models_tab' => true,
             'show_accessories_tab' => true,
             'show_kits_tab' => true,
+            'restrict_checkout_reservations_to_same_group' => false,
             'show_available_default_locations' => true,
             'allow_public_view' => false,
         ];
