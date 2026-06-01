@@ -194,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 try {
     $where  = [];
     $params = [];
-    $usePostFilterForGroupVisibility = false;
 
     if ($q !== null) {
         $where[] = '(user_name LIKE :q OR asset_name_cache LIKE :q)';
@@ -212,21 +211,37 @@ try {
     }
 
     if ($restrictReservationsToSameGroup) {
-        $visibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
-        if (is_array($visibleEmails)) {
-            if (empty($visibleEmails)) {
-                $where[] = '1 = 0';
-            } else {
-                $emailPlaceholders = [];
-                foreach ($visibleEmails as $idx => $email) {
-                    $paramName = ':visible_email_' . $idx;
-                    $emailPlaceholders[] = $paramName;
-                    $params[$paramName] = strtolower(trim((string)$email));
-                }
-                $where[] = 'LOWER(user_email) IN (' . implode(',', $emailPlaceholders) . ')';
+        $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
+        if (!empty($where)) {
+            $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $emailStmt = $pdo->prepare($distinctEmailSql);
+        foreach ($params as $key => $value) {
+            $emailStmt->bindValue($key, $value);
+        }
+        $emailStmt->execute();
+
+        $visibleEmails = [];
+        foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
+            $email = strtolower(trim((string)$email));
+            if (
+                $email !== ''
+                && staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)
+            ) {
+                $visibleEmails[$email] = $email;
             }
+        }
+
+        if (empty($visibleEmails)) {
+            $where[] = '1 = 0';
         } else {
-            $usePostFilterForGroupVisibility = true;
+            $emailPlaceholders = [];
+            foreach (array_values($visibleEmails) as $idx => $email) {
+                $paramName = ':visible_email_' . $idx;
+                $emailPlaceholders[] = $paramName;
+                $params[$paramName] = $email;
+            }
+            $where[] = 'LOWER(user_email) IN (' . implode(',', $emailPlaceholders) . ')';
         }
     }
 
@@ -239,51 +254,24 @@ try {
         $countSql .= $whereSql;
     }
 
-    if ($usePostFilterForGroupVisibility) {
-        $sql .= ' ORDER BY ' . $sortOptions[$sort];
-        $stmt = $pdo->prepare($sql);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-        $stmt->execute();
-        $filteredReservations = array_values(array_filter(
-            $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
-            static function (array $reservation) use ($currentUser, $restrictReservationsToSameGroup): bool {
-                return staff_group_visibility_reservation_visible(
-                    $reservation,
-                    $currentUser,
-                    $restrictReservationsToSameGroup
-                );
-            }
-        ));
-
-        $totalRows = count($filteredReservations);
-        $totalPages = max(1, (int)ceil($totalRows / $perPage));
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
-        $offset = ($page - 1) * $perPage;
-        $reservations = array_slice($filteredReservations, $offset, $perPage);
-    } else {
-        $countStmt = $pdo->prepare($countSql);
-        $countStmt->execute($params);
-        $totalRows = (int)$countStmt->fetchColumn();
-        $totalPages = max(1, (int)ceil($totalRows / $perPage));
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
-        $offset = ($page - 1) * $perPage;
-
-        $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
-        $stmt = $pdo->prepare($sql);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-        $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $totalRows = (int)$countStmt->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalRows / $perPage));
+    if ($page > $totalPages) {
+        $page = $totalPages;
     }
+    $offset = ($page - 1) * $perPage;
+
+    $sql .= ' ORDER BY ' . $sortOptions[$sort] . ' LIMIT :limit OFFSET :offset';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $reservations = [];
     $loadError = $e->getMessage();

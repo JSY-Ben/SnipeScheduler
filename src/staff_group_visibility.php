@@ -57,8 +57,8 @@ function staff_group_visibility_user_can_see_email(array $currentUser, string $t
     }
 
     $visibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, $restrictionEnabled);
-    if (is_array($visibleEmails)) {
-        return in_array($targetEmail, $visibleEmails, true);
+    if (is_array($visibleEmails) && in_array($targetEmail, $visibleEmails, true)) {
+        return true;
     }
 
     if (!array_key_exists($currentEmail, $currentUserGroupCache)) {
