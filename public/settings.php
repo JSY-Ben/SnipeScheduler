@@ -2348,6 +2348,29 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             </div>
 
             <div class="col-12<?= $settingsTab === 'permissions' ? '' : ' d-none' ?>" data-settings-group="permissions">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Checkout User Permissions</h5>
+                        <p class="text-muted small mb-3">Control which reservations checkout users can access in the staff reservation tabs.</p>
+
+                        <div class="border rounded p-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="catalogue_restrict_checkout_reservations_to_same_group"
+                                       id="catalogue_restrict_checkout_reservations_to_same_group"
+                                    <?= $cfg(['catalogue', 'restrict_checkout_reservations_to_same_group'], false) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="catalogue_restrict_checkout_reservations_to_same_group">
+                                    Restrict checkout users to viewing and checking out reservations only for members of their own Snipe-IT groups.
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                When enabled, checkout staff can only view and check out reservations for users who share at least one Snipe-IT group with them. Admin users can still view all reservations.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue Permissions</h5>
@@ -2399,22 +2422,6 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                             </div>
                             <div class="form-text">
                                 When enabled, Quick Checkout checks the selected user's Snipe-IT group permissions before allowing checking out of restricted equipment or accessories.
-                            </div>
-                        </div>
-
-                        <div class="border rounded p-3 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       name="catalogue_restrict_checkout_reservations_to_same_group"
-                                       id="catalogue_restrict_checkout_reservations_to_same_group"
-                                    <?= $cfg(['catalogue', 'restrict_checkout_reservations_to_same_group'], false) ? 'checked' : '' ?>>
-                                <label class="form-check-label fw-semibold" for="catalogue_restrict_checkout_reservations_to_same_group">
-                                    Restrict checkout reservations to matching Snipe-IT groups
-                                </label>
-                            </div>
-                            <div class="form-text">
-                                When enabled, checkout staff can only view and check out reservations for users who share at least one Snipe-IT group with them. Admin users can still view all reservations.
                             </div>
                         </div>
 
