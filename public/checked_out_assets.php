@@ -428,9 +428,22 @@ try {
     $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
     $assets = array_merge($assets, $accessories);
     if ($restrictReservationsToSameGroup) {
-        $assets = array_values(array_filter($assets, static function (array $row) use ($currentUser, $restrictReservationsToSameGroup): bool {
-            return staff_group_visibility_checked_out_row_visible($row, $currentUser, $restrictReservationsToSameGroup);
-        }));
+        $authoritativeVisibleEmails = staff_group_visibility_authoritative_visible_user_emails_for_current_user(
+            $currentUser,
+            $restrictReservationsToSameGroup
+        );
+        if (is_array($authoritativeVisibleEmails)) {
+            $assets = array_values(array_filter($assets, static function (array $row) use ($authoritativeVisibleEmails): bool {
+                return staff_group_visibility_email_is_in_visible_list(
+                    staff_group_visibility_checked_out_row_email($row),
+                    $authoritativeVisibleEmails
+                );
+            }));
+        } else {
+            $assets = array_values(array_filter($assets, static function (array $row) use ($currentUser, $restrictReservationsToSameGroup): bool {
+                return staff_group_visibility_checked_out_row_visible($row, $currentUser, $restrictReservationsToSameGroup);
+            }));
+        }
     }
     if ($view === 'overdue') {
         $now = time();
