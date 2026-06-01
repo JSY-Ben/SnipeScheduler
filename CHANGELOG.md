@@ -1,5 +1,13 @@
 # Changelog
 
+## [v1.6.5](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.5) - 01/06/2026
+
+### Checkout User Permissions
+
+1) Added a new 'Checkout User Permissions' section on the Permissions settings tab. This includes an option to restrict checkout users to viewing and checking out reservations only for members of their own Snipe-IT groups.
+
+When enabled, checkout users only see matching-group users' reservations on 'Today's Reservations (Checkout)', 'Checked Out Reservations', and 'All Reservations'. Admin users can still view and manage all reservations.
+
 ## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 
 ### Group Permissions
