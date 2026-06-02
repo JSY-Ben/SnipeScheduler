@@ -264,9 +264,10 @@ function catalogue_permissions_configured_snipeit_groups(?array $config = null):
     $cachedNames = catalogue_permissions_cached_snipeit_group_names($groupIds);
     $groups = [];
     foreach ($groupIds as $groupId) {
+        $groupName = $cachedNames[$groupId] ?? 'No Group Name Found';
         $groups[] = [
             'id' => $groupId,
-            'name' => $cachedNames[$groupId] ?? ('Group #' . $groupId),
+            'name' => 'Group ID #' . $groupId . ' (' . $groupName . ')',
         ];
     }
 
