@@ -156,7 +156,8 @@ function catalogue_permissions_normalize_group_ids($value): array
 {
     $ids = [];
     if (is_string($value)) {
-        $value = preg_split('/[\s,;]+/', $value);
+        preg_match_all('/\d+\s*-\s*\d+|\d+/', $value, $matches);
+        $value = $matches[0] ?? [];
     }
     if (!is_array($value)) {
         return [];
@@ -171,7 +172,25 @@ function catalogue_permissions_normalize_group_ids($value): array
         }
 
         $rawId = trim((string)$rawId);
-        if ($rawId === '' || !ctype_digit($rawId)) {
+        if ($rawId === '') {
+            continue;
+        }
+
+        if (preg_match('/^(\d+)\s*-\s*(\d+)$/', $rawId, $rangeMatch)) {
+            $start = (int)$rangeMatch[1];
+            $end = (int)$rangeMatch[2];
+            if ($start <= 0 || $end <= 0) {
+                continue;
+            }
+            $min = min($start, $end);
+            $max = max($start, $end);
+            for ($id = $min; $id <= $max; $id++) {
+                $ids[$id] = $id;
+            }
+            continue;
+        }
+
+        if (!ctype_digit($rawId)) {
             continue;
         }
 
