@@ -55,62 +55,6 @@ function user_group_cache_ensure_tables(PDO $pdo): void
     ");
 }
 
-function user_group_cache_extract_groups(array $user): array
-{
-    $groups = [];
-
-    foreach (['groups', 'user_groups'] as $field) {
-        if (!array_key_exists($field, $user)) {
-            continue;
-        }
-
-        $value = $user[$field];
-        $rows = is_array($value) && isset($value['rows']) && is_array($value['rows'])
-            ? $value['rows']
-            : (is_array($value) ? $value : []);
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-            $groupId = (int)($row['id'] ?? 0);
-            if ($groupId <= 0) {
-                continue;
-            }
-            $groups[$groupId] = [
-                'id' => $groupId,
-                'name' => trim((string)($row['name'] ?? ($row['label'] ?? ''))),
-            ];
-        }
-
-        foreach (catalogue_permissions_extract_group_ids_from_value($value) as $groupId) {
-            $groupId = (int)$groupId;
-            if ($groupId > 0 && !isset($groups[$groupId])) {
-                $groups[$groupId] = [
-                    'id' => $groupId,
-                    'name' => '',
-                ];
-            }
-        }
-    }
-
-    return array_values($groups);
-}
-
-function user_group_cache_fetch_user_detail_groups(int $userId): array
-{
-    if ($userId <= 0) {
-        return [];
-    }
-
-    try {
-        $detail = snipeit_request('GET', 'users/' . $userId, [], false);
-        return user_group_cache_extract_groups($detail);
-    } catch (Throwable $e) {
-        return [];
-    }
-}
-
 $logOut('info', 'Snipe-IT user group cache sync started');
 
 try {
@@ -145,59 +89,59 @@ $insert = $pdo->prepare("
 ");
 
 $limit = 500;
-$offset = 0;
 $usersSeen = 0;
 $membershipsWritten = 0;
-$detailsFetched = 0;
+$groupsSeen = 0;
+
+$writeMembership = static function (array $user, int $groupId, string $groupName) use ($insert, &$usersSeen, &$membershipsWritten): void {
+    $userId = (int)($user['id'] ?? 0);
+    $email = strtolower(trim((string)($user['email'] ?? '')));
+    if ($email === '' || $groupId <= 0) {
+        return;
+    }
+    $name = trim((string)($user['name'] ?? ($user['username'] ?? '')));
+    $insert->execute([
+        ':user_email' => $email,
+        ':snipeit_user_id' => $userId,
+        ':user_name' => $name,
+        ':group_id' => $groupId,
+        ':group_name' => $groupName,
+    ]);
+    $usersSeen++;
+    $membershipsWritten++;
+};
 
 try {
-    do {
-        $data = snipeit_request('GET', 'users', [
-            'limit' => $limit,
-            'offset' => $offset,
-        ], false);
+    $groups = catalogue_permissions_fetch_snipeit_groups(false);
+    foreach ($groups as $group) {
+        $groupId = (int)($group['id'] ?? 0);
+        $groupName = trim((string)($group['name'] ?? ''));
+        if ($groupId <= 0) {
+            continue;
+        }
+        $groupsSeen++;
 
-        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-        foreach ($rows as $user) {
-            if (!is_array($user)) {
-                continue;
-            }
+        $offset = 0;
+        do {
+            $data = snipeit_request('GET', 'users', [
+                'group_id' => $groupId,
+                'limit' => $limit,
+                'offset' => $offset,
+            ], false);
 
-            $usersSeen++;
-            $userId = (int)($user['id'] ?? 0);
-            $email = strtolower(trim((string)($user['email'] ?? '')));
-            if ($email === '') {
-                continue;
-            }
-            $name = trim((string)($user['name'] ?? ($user['username'] ?? '')));
-
-            $groups = user_group_cache_extract_groups($user);
-            if (empty($groups) && $userId > 0) {
-                $groups = user_group_cache_fetch_user_detail_groups($userId);
-                $detailsFetched++;
-            }
-
-            foreach ($groups as $group) {
-                $groupId = (int)($group['id'] ?? 0);
-                if ($groupId <= 0) {
-                    continue;
+            $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+            foreach ($rows as $user) {
+                if (is_array($user)) {
+                    $writeMembership($user, $groupId, $groupName);
                 }
-                $insert->execute([
-                    ':user_email' => $email,
-                    ':snipeit_user_id' => $userId,
-                    ':user_name' => $name,
-                    ':group_id' => $groupId,
-                    ':group_name' => trim((string)($group['name'] ?? '')),
-                ]);
-                $membershipsWritten++;
             }
-        }
 
-        if (count($rows) < $limit) {
-            break;
-        }
-        $offset += $limit;
-    } while (true);
+            if (count($rows) < $limit) {
+                break;
+            }
+            $offset += $limit;
+        } while (true);
+    }
 
     $pdo->beginTransaction();
     $pdo->exec('DELETE FROM snipeit_user_group_cache');
@@ -230,7 +174,7 @@ try {
 
 $logOut(
     'info',
-    'Snipe-IT user group cache sync complete: users=' . $usersSeen
+    'Snipe-IT user group cache sync complete: groups=' . $groupsSeen
+    . ', user_memberships_seen=' . $usersSeen
     . ', memberships=' . $membershipsWritten
-    . ', detail_fetches=' . $detailsFetched
 );
