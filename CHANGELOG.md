@@ -8,6 +8,8 @@
 
 When enabled, checkout users only see matching-group users' reservations on 'Today's Reservations (Checkout)', 'Checked Out Reservations', and 'All Reservations'. Admin users can still view and manage all reservations.
 
+In order to avoid requiring super-admin privileges on the Snipe-IT API User, you will now have to manually enter your Snipe-IT Group IDs in the 'Permissions' tab in order for all permissions features to work. There are instructions on the Permissions page that explain how to find your Group IDs on Snipe-IT.
+
 This new feature requires a database upgrade and a new cron script to be added to your cron list in the scripts folder called 'snipeit_user_group_cache_update.php'. This is to enable a new caching feature to regularly update what Snipe-IT Groups your users are in. Doing live API checks for this info slows down the app too much on large installations. It is recommended you run this new cron script as regularly as possible to keep user group information up-to-date.
 
 After updating the files to v1.6.5, you will be warned when logging in that you will need to run the upgrade script. However, if you'd prefer to do this manually, please do the following:
