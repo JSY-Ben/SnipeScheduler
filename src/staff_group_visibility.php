@@ -45,8 +45,7 @@ function staff_group_visibility_group_ids_for_user(array $user): array
     $groupIds = catalogue_permissions_user_group_ids($user);
     if (empty($groupIds)) {
         try {
-            foreach (catalogue_permissions_fetch_snipeit_groups() as $group) {
-                $groupId = (int)($group['id'] ?? 0);
+            foreach (catalogue_permissions_configured_snipeit_group_ids() as $groupId) {
                 if ($groupId > 0 && catalogue_permissions_group_contains_user_email($groupId, $email)) {
                     $groupIds[$groupId] = $groupId;
                 }

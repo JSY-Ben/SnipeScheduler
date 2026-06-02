@@ -112,7 +112,11 @@ $writeMembership = static function (array $user, int $groupId, string $groupName
 };
 
 try {
-    $groups = catalogue_permissions_fetch_snipeit_groups(false);
+    $groups = catalogue_permissions_configured_snipeit_groups($config);
+    if (empty($groups)) {
+        throw new RuntimeException('No Snipe-IT group IDs are configured in catalogue.snipeit_group_ids.');
+    }
+
     foreach ($groups as $group) {
         $groupId = (int)($group['id'] ?? 0);
         $groupName = trim((string)($group['name'] ?? ''));

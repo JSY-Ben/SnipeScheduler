@@ -202,6 +202,9 @@ return [
         // Restrict which Snipe-IT asset statuses count toward catalogue and basket availability.
         // Leave empty to include all statuses.
         'allowed_status_labels' => [],
+        // Snipe-IT group IDs available in Settings > Permissions.
+        // Enter IDs manually because the Snipe-IT groups API can require super admin privileges.
+        'snipeit_group_ids' => [],
         // Show the Models tab on the catalogue page.
         'show_models_tab' => true,
         // Show the Accessories tab on the catalogue page.

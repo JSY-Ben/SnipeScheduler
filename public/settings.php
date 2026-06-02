@@ -123,18 +123,9 @@ try {
 }
 try {
     catalogue_permissions_table_exists();
-    $permissionGroups = catalogue_permissions_fetch_snipeit_groups(false);
+    $permissionGroups = catalogue_permissions_configured_snipeit_groups($config);
 } catch (Throwable $e) {
-    try {
-        $permissionGroups = catalogue_permissions_fetch_snipeit_groups(true);
-        if (!empty($permissionGroups)) {
-            $permissionGroupsFetchNotice = 'Could not refresh live groups from Snipe-IT; showing cached API results.';
-        } else {
-            $permissionGroupsFetchError = $e->getMessage();
-        }
-    } catch (Throwable $cachedError) {
-        $permissionGroupsFetchError = $e->getMessage();
-    }
+    $permissionGroupsFetchError = $e->getMessage();
 }
 try {
     $permissionCatalogueItems = catalogue_permissions_bookable_items();
@@ -692,6 +683,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
+    $catalogue['snipeit_group_ids'] = catalogue_permissions_normalize_group_ids($post('catalogue_snipeit_group_ids', ''));
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
     if (is_array($allowedRaw)) {
@@ -1026,6 +1018,10 @@ foreach (($reservationPolicy['blackout_slots'] ?? []) as $slot) {
 if (empty($reservationBlackoutRows)) {
     $reservationBlackoutRows[] = ['start' => '', 'end' => '', 'reason' => ''];
 }
+
+$configuredPermissionGroupIds = catalogue_permissions_configured_snipeit_group_ids($config);
+$configuredPermissionGroupIdsText = implode("\n", $configuredPermissionGroupIds);
+$permissionGroups = catalogue_permissions_configured_snipeit_groups($config);
 
 $selectedPermissionGroupId = (int)($_POST['permissions_group_id'] ?? $_GET['permissions_group_id'] ?? 0);
 $selectedPermissionGroupName = '';
@@ -2394,6 +2390,18 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         <?php endif; ?>
 
                         <div class="border rounded p-3 mb-3">
+                            <label class="form-label fw-semibold" for="catalogue_snipeit_group_ids">Snipe-IT Group IDs</label>
+                            <textarea name="catalogue_snipeit_group_ids"
+                                      id="catalogue_snipeit_group_ids"
+                                      rows="3"
+                                      class="form-control"
+                                      placeholder="12&#10;34&#10;56"><?= layout_textarea_value($configuredPermissionGroupIdsText) ?></textarea>
+                            <div class="form-text">
+                                Enter group IDs separated by commas, spaces, or new lines. These IDs populate the group dropdown below without calling the privileged Snipe-IT groups API.
+                            </div>
+                        </div>
+
+                        <div class="border rounded p-3 mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input"
                                        type="checkbox"
@@ -2426,7 +2434,7 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                         </div>
 
                         <?php if (empty($permissionGroups)): ?>
-                            <div class="text-muted small">No Snipe-IT groups are available.</div>
+                            <div class="text-muted small">Enter one or more Snipe-IT Group IDs above and save settings to populate the group dropdown.</div>
                         <?php else: ?>
                             <?php if (empty($permissionCatalogueItems)): ?>
                                 <div class="text-muted small">No requestable equipment or accessories are available.</div>
