@@ -218,13 +218,55 @@ function catalogue_permissions_configured_snipeit_group_ids(?array $config = nul
     return catalogue_permissions_normalize_group_ids($catalogue['snipeit_group_ids'] ?? []);
 }
 
+function catalogue_permissions_cached_snipeit_group_names(array $groupIds): array
+{
+    $groupIds = catalogue_permissions_normalize_group_ids($groupIds);
+    if (empty($groupIds)) {
+        return [];
+    }
+
+    try {
+        $pdo = catalogue_permissions_pdo();
+        $pdo->query('SELECT 1 FROM snipeit_user_group_cache LIMIT 1');
+
+        $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT group_id, group_name
+              FROM snipeit_user_group_cache
+             WHERE group_id IN ({$placeholders})
+               AND group_name <> ''
+             ORDER BY synced_at DESC
+        ");
+        $stmt->execute($groupIds);
+
+        $names = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $groupId = (int)($row['group_id'] ?? 0);
+            $groupName = trim((string)($row['group_name'] ?? ''));
+            if ($groupId <= 0 || $groupName === '' || isset($names[$groupId])) {
+                continue;
+            }
+            if ($groupName === 'Group #' . $groupId) {
+                continue;
+            }
+            $names[$groupId] = $groupName;
+        }
+
+        return $names;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 function catalogue_permissions_configured_snipeit_groups(?array $config = null): array
 {
+    $groupIds = catalogue_permissions_configured_snipeit_group_ids($config);
+    $cachedNames = catalogue_permissions_cached_snipeit_group_names($groupIds);
     $groups = [];
-    foreach (catalogue_permissions_configured_snipeit_group_ids($config) as $groupId) {
+    foreach ($groupIds as $groupId) {
         $groups[] = [
             'id' => $groupId,
-            'name' => 'Group #' . $groupId,
+            'name' => $cachedNames[$groupId] ?? ('Group #' . $groupId),
         ];
     }
 
