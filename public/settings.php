@@ -2357,7 +2357,9 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                       class="form-control"
                                       placeholder="12&#10;34&#10;56"><?= layout_textarea_value($configuredPermissionGroupIdsText) ?></textarea>
                             <div class="form-text">
-                                Enter Snipe-IT group IDs separated by commas, spaces, or new lines. These IDs populate the group dropdown below and are used for the user group membership caching cron script (scripts/snipeit_user_group_cache_update.php) in order to avoid requiring a Super-Admin API user for Snipe-IT.
+                                Enter Snipe-IT group IDs separated by commas, spaces, or new lines. Group IDs can be found in the 'Account Permission Groups' section on Snipe-IT. Click on a group in Snipe-IT, and find the Group ID number in the URL (e.g. https://snipeit.web/admin/groups/3).
+                                <br>
+                                These IDs populate the group dropdown below and are used for the user group membership caching cron script (scripts/snipeit_user_group_cache_update.php) in order to avoid requiring a Super-Admin API user for Snipe-IT. Please press 'Save Settings' in order to populate the list below after entering group IDs.
                             </div>
                         </div>
                     </div>
