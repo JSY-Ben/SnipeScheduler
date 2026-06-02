@@ -123,7 +123,7 @@ msgid "Equipment catalogue"
 msgstr "Apparatuurcatalogus"
 
 msgid "Browse bookable models, accessories, and kits and add them to your basket."
-msgstr "Bekijk reserveerbare modellen, accessoires en kits en voeg ze toe aan je winkelmandje."
+msgstr "Bekijk reserveerbare toestellen, accessoires en kits en voeg ze toe aan je winkelmandje."
 
 msgid "Add to basket and View basket will take you to login."
 msgstr "Toevoegen aan winkelmandje en bekijken brengt je naar aanmelden."
@@ -200,17 +200,11 @@ msgstr "Accessoirenaam (A–Z)"
 msgid "Model name (A–Z)"
 msgstr "Modelnaam (A–Z)"
 
-msgid "Accessory Name (Ascending)"
-msgstr "Accessoirenaam (oplopend)"
+msgid "Name (Ascending)"
+msgstr "naam (oplopend)"
 
-msgid "Accessory Name (Descending)"
-msgstr "Accessoirenaam (aflopend)"
-
-msgid "Model Name (Ascending)"
-msgstr "Modelnaam (oplopend)"
-
-msgid "Model Name (Descending)"
-msgstr "Modelnaam (aflopend)"
+msgid "Name (Descending)"
+msgstr "naam (aflopend)"
 
 msgid "Manufacturer (Ascending)"
 msgstr "Fabrikant (oplopend)"
@@ -224,11 +218,8 @@ msgstr "Beschikbare eenheden (oplopend)"
 msgid "Available Units (Descending)"
 msgstr "Beschikbare eenheden (aflopend)"
 
-msgid "Units in Total (Ascending)"
-msgstr "Totaal aantal eenheden (oplopend)"
-
-msgid "Units in Total (Descending)"
-msgstr "Totaal aantal eenheden (aflopend)"
+msgid "Units in Total"
+msgstr "Totaal aantal eenheden"
 
 msgid "Filter results"
 msgstr "Resultaten filteren"
@@ -781,3 +772,9 @@ msgstr "Geen boekingen gevonden voor dit model."
 
 msgid "Unable to load more information for this model."
 msgstr "Kan geen extra informatie laden voor dit model."
+
+msgid "(Ascending)"
+msgstr "(oplopend)"
+
+msgid "(Descending)"
+msgstr "(aflopend)"

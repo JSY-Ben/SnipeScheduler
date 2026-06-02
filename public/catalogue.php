@@ -2217,7 +2217,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                            name="favourites_only"
                                            <?= $favouritesOnly ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold small" for="show_favourites_only">
-                                        Show Favourites Only
+                                        <?= _('Show Favourites Only') ?>
                                     </label>
                                 </div>
                             <?php endif; ?>
@@ -2231,7 +2231,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                            name="show_non_requestable_items"
                                         <?= $showNonRequestableItems ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold small" for="show_non_requestable_items">
-                                        Show Non-Requestable Items
+                                        <?= _('Show Non-Requestable Items') ?>
                                     </label>
                                 </div>
                             <?php endif; ?>
