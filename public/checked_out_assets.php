@@ -428,7 +428,13 @@ try {
     $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
     $assets = array_merge($assets, $accessories);
     if ($restrictReservationsToSameGroup) {
-        $fastVisibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
+        $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user(
+            $currentUser,
+            $restrictReservationsToSameGroup
+        );
+        $fastVisibleEmails = is_array($cachedVisibleEmails)
+            ? $cachedVisibleEmails
+            : staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
         $visibleEmailLookup = [];
         if (is_array($fastVisibleEmails)) {
             foreach ($fastVisibleEmails as $email) {
@@ -438,10 +444,13 @@ try {
                 }
             }
         }
-        $assets = array_values(array_filter($assets, static function (array $row) use ($currentUser, $restrictReservationsToSameGroup, $visibleEmailLookup): bool {
+        $assets = array_values(array_filter($assets, static function (array $row) use ($currentUser, $restrictReservationsToSameGroup, $visibleEmailLookup, $cachedVisibleEmails): bool {
             $email = strtolower(trim(staff_group_visibility_checked_out_row_email($row)));
             if ($email !== '' && isset($visibleEmailLookup[$email])) {
                 return true;
+            }
+            if (is_array($cachedVisibleEmails)) {
+                return false;
             }
 
             return staff_group_visibility_checked_out_row_visible($row, $currentUser, $restrictReservationsToSameGroup);

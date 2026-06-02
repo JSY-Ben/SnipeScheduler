@@ -211,7 +211,13 @@ try {
     }
 
     if ($restrictReservationsToSameGroup) {
-        $fastVisibleEmails = staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
+        $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user(
+            $currentUser,
+            $restrictReservationsToSameGroup
+        );
+        $fastVisibleEmails = is_array($cachedVisibleEmails)
+            ? $cachedVisibleEmails
+            : staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
         $visibleEmails = [];
 
         if (is_array($fastVisibleEmails)) {
@@ -223,23 +229,25 @@ try {
             }
         }
 
-        $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
-        if (!empty($where)) {
-            $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
-        }
-        $emailStmt = $pdo->prepare($distinctEmailSql);
-        foreach ($params as $key => $value) {
-            $emailStmt->bindValue($key, $value);
-        }
-        $emailStmt->execute();
-
-        foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
-            $email = strtolower(trim((string)$email));
-            if ($email === '' || isset($visibleEmails[$email])) {
-                continue;
+        if (!is_array($cachedVisibleEmails)) {
+            $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
+            if (!empty($where)) {
+                $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
             }
-            if (staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)) {
-                $visibleEmails[$email] = $email;
+            $emailStmt = $pdo->prepare($distinctEmailSql);
+            foreach ($params as $key => $value) {
+                $emailStmt->bindValue($key, $value);
+            }
+            $emailStmt->execute();
+
+            foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
+                $email = strtolower(trim((string)$email));
+                if ($email === '' || isset($visibleEmails[$email])) {
+                    continue;
+                }
+                if (staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)) {
+                    $visibleEmails[$email] = $email;
+                }
             }
         }
 

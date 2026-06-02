@@ -23,6 +23,12 @@ function staff_group_visibility_group_ids_for_user(array $user): array
         return $cache[$email];
     }
 
+    $cachedGroupIds = staff_group_visibility_cached_group_ids_for_email($email);
+    if ($cachedGroupIds !== null) {
+        $cache[$email] = $cachedGroupIds;
+        return $cache[$email];
+    }
+
     $sessionKey = 'staff_group_visibility_group_ids_' . sha1($email);
     if (
         session_status() === PHP_SESSION_ACTIVE
@@ -60,6 +66,115 @@ function staff_group_visibility_group_ids_for_user(array $user): array
     return $cache[$email];
 }
 
+function staff_group_visibility_cached_group_ids_for_email(string $email): ?array
+{
+    static $tableAvailable = null;
+    static $cache = [];
+
+    $email = strtolower(trim($email));
+    if ($email === '') {
+        return [];
+    }
+    if (array_key_exists($email, $cache)) {
+        return $cache[$email];
+    }
+
+    if ($tableAvailable === false) {
+        return null;
+    }
+
+    try {
+        $pdo = catalogue_permissions_pdo();
+        if ($tableAvailable === null) {
+            $pdo->query('SELECT 1 FROM snipeit_user_group_cache LIMIT 1');
+            $tableAvailable = true;
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT group_id
+              FROM snipeit_user_group_cache
+             WHERE user_email = :email
+        ");
+        $stmt->execute([':email' => $email]);
+
+        $groupIds = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $groupId) {
+            $groupId = (int)$groupId;
+            if ($groupId > 0) {
+                $groupIds[$groupId] = $groupId;
+            }
+        }
+
+        $cache[$email] = array_values($groupIds);
+        return $cache[$email];
+    } catch (Throwable $e) {
+        $tableAvailable = false;
+        return null;
+    }
+}
+
+function staff_group_visibility_cached_visible_emails_for_current_user(array $currentUser, bool $restrictionEnabled): ?array
+{
+    static $tableAvailable = null;
+    static $cache = [];
+
+    if (!$restrictionEnabled) {
+        return null;
+    }
+
+    $currentEmail = strtolower(trim((string)($currentUser['email'] ?? '')));
+    if ($currentEmail === '') {
+        return [];
+    }
+
+    $currentGroupIds = staff_group_visibility_group_ids_for_user($currentUser);
+    if (empty($currentGroupIds)) {
+        return [];
+    }
+
+    sort($currentGroupIds);
+    $cacheKey = $currentEmail . '|' . implode(',', $currentGroupIds);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    if ($tableAvailable === false) {
+        return null;
+    }
+
+    try {
+        $pdo = catalogue_permissions_pdo();
+        if ($tableAvailable === null) {
+            $pdo->query('SELECT 1 FROM snipeit_user_group_cache LIMIT 1');
+            $tableAvailable = true;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($currentGroupIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT user_email
+              FROM snipeit_user_group_cache
+             WHERE group_id IN ({$placeholders})
+        ");
+        $stmt->execute($currentGroupIds);
+
+        $emails = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
+            $email = strtolower(trim((string)$email));
+            if ($email !== '') {
+                $emails[$email] = $email;
+            }
+        }
+        $emails[$currentEmail] = $currentEmail;
+
+        $cache[$cacheKey] = array_values($emails);
+        sort($cache[$cacheKey]);
+        return $cache[$cacheKey];
+    } catch (Throwable $e) {
+        $tableAvailable = false;
+        return null;
+    }
+}
+
 function staff_group_visibility_user_can_see_email(array $currentUser, string $targetEmail, bool $restrictionEnabled): bool
 {
     static $currentUserGroupCache = [];
@@ -74,6 +189,11 @@ function staff_group_visibility_user_can_see_email(array $currentUser, string $t
     $targetEmail = strtolower(trim($targetEmail));
     if ($currentEmail === '' || $targetEmail === '') {
         return false;
+    }
+
+    $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user($currentUser, $restrictionEnabled);
+    if (is_array($cachedVisibleEmails)) {
+        return in_array($targetEmail, $cachedVisibleEmails, true);
     }
 
     $decisionKey = $currentEmail . '|' . $targetEmail;

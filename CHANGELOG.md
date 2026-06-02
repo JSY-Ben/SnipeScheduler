@@ -8,7 +8,13 @@
 
 When enabled, checkout users only see matching-group users' reservations on 'Today's Reservations (Checkout)', 'Checked Out Reservations', and 'All Reservations'. Admin users can still view and manage all reservations.
 
-2) Improved the performance of restricted 'Checked Out Reservations' and 'All Reservations' views by caching checkout-user group lookups and per-user visibility decisions while preserving direct Snipe-IT user group checks for correctness.
+This new feature requires a database upgrade and a new cron script to be added to your cron list in the scripts folder called 'snipeit_user_group_cache_update.php'. This is to enable a new caching feature to regularly update what Snipe-IT Groups your users are in. Doing live API checks for this info slows down the app too much on large installations. It is recommended you run this new cron script as regularly as possible to keep user group information up-to-date.
+
+After updating the files to v1.6.5, you will be warned when logging in that you will need to run the upgrade script. However, if you'd prefer to do this manually, please do the following:
+
+Run the upgrade script at www.yourinstallation.com/install/upgrade through a browser.
+
+Use the new SQL backup button on the upgrade page to download a database backup before applying the upgrades.
 
 ## [v1.6.0](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.0) - 31/05/2026
 
