@@ -111,6 +111,41 @@ $writeMembership = static function (array $user, int $groupId, string $groupName
     $membershipsWritten++;
 };
 
+function user_group_cache_extract_group_name_from_value($value, int $targetGroupId): string
+{
+    if ($targetGroupId <= 0 || !is_array($value)) {
+        return '';
+    }
+
+    if (isset($value['rows']) && is_array($value['rows'])) {
+        return user_group_cache_extract_group_name_from_value($value['rows'], $targetGroupId);
+    }
+
+    if (isset($value['id']) && (int)$value['id'] === $targetGroupId) {
+        foreach (['name', 'label'] as $nameKey) {
+            $name = trim((string)($value[$nameKey] ?? ''));
+            if ($name !== '') {
+                return $name;
+            }
+        }
+    }
+
+    foreach ($value as $nested) {
+        $name = user_group_cache_extract_group_name_from_value($nested, $targetGroupId);
+        if ($name !== '') {
+            return $name;
+        }
+    }
+
+    return '';
+}
+
+$updateGroupName = $pdo->prepare("
+    UPDATE snipeit_user_group_cache_build
+       SET group_name = :group_name
+     WHERE group_id = :group_id
+");
+
 try {
     $groups = catalogue_permissions_configured_snipeit_groups($config);
     if (empty($groups)) {
@@ -124,6 +159,7 @@ try {
             continue;
         }
         $groupsSeen++;
+        $resolvedGroupName = $groupName;
 
         $offset = 0;
         do {
@@ -136,7 +172,11 @@ try {
             $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
             foreach ($rows as $user) {
                 if (is_array($user)) {
-                    $writeMembership($user, $groupId, $groupName);
+                    $userGroupName = user_group_cache_extract_group_name_from_value($user['groups'] ?? ($user['user_groups'] ?? []), $groupId);
+                    if ($userGroupName !== '') {
+                        $resolvedGroupName = $userGroupName;
+                    }
+                    $writeMembership($user, $groupId, $resolvedGroupName);
                 }
             }
 
@@ -145,6 +185,13 @@ try {
             }
             $offset += $limit;
         } while (true);
+
+        if ($resolvedGroupName !== $groupName && $resolvedGroupName !== '') {
+            $updateGroupName->execute([
+                ':group_name' => $resolvedGroupName,
+                ':group_id' => $groupId,
+            ]);
+        }
     }
 
     $pdo->beginTransaction();
