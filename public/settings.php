@@ -2346,6 +2346,25 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
             <div class="col-12<?= $settingsTab === 'permissions' ? '' : ' d-none' ?>" data-settings-group="permissions">
                 <div class="card mb-3">
                     <div class="card-body">
+                        <h5 class="card-title mb-1">Snipe-IT Group IDs</h5>
+                        <p class="text-muted small mb-3">Configure the Snipe-IT groups available to permission filters and group membership caching.</p>
+
+                        <div class="border rounded p-3">
+                            <label class="form-label fw-semibold" for="catalogue_snipeit_group_ids">Snipe-IT Group IDs</label>
+                            <textarea name="catalogue_snipeit_group_ids"
+                                      id="catalogue_snipeit_group_ids"
+                                      rows="3"
+                                      class="form-control"
+                                      placeholder="12&#10;34&#10;56"><?= layout_textarea_value($configuredPermissionGroupIdsText) ?></textarea>
+                            <div class="form-text">
+                                Enter Snipe-IT group IDs separated by commas, spaces, or new lines. These IDs populate the group dropdown below and are used for the user group membership caching cron script (scripts/snipeit_user_group_cache_update.php) in order to avoid requiring a Super-Admin API user for Snipe-IT.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
                         <h5 class="card-title mb-1">Checkout User Permissions</h5>
                         <p class="text-muted small mb-3">Control which reservations checkout users can access in the staff reservation tabs.</p>
 
@@ -2388,18 +2407,6 @@ $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_defa
                                 Could not load requestable catalogue items: <?= h($permissionCatalogueFetchError) ?>
                             </div>
                         <?php endif; ?>
-
-                        <div class="border rounded p-3 mb-3">
-                            <label class="form-label fw-semibold" for="catalogue_snipeit_group_ids">Snipe-IT Group IDs</label>
-                            <textarea name="catalogue_snipeit_group_ids"
-                                      id="catalogue_snipeit_group_ids"
-                                      rows="3"
-                                      class="form-control"
-                                      placeholder="12&#10;34&#10;56"><?= layout_textarea_value($configuredPermissionGroupIdsText) ?></textarea>
-                            <div class="form-text">
-                                Enter group IDs separated by commas, spaces, or new lines. These IDs populate the group dropdown below without calling the privileged Snipe-IT groups API.
-                            </div>
-                        </div>
 
                         <div class="border rounded p-3 mb-3">
                             <div class="form-check form-switch">
