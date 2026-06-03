@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch']) && !isset(
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Catalogue – Book Equipment</title>
+        <title><?= _('Catalogue – Book Equipment') ?></title>
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
         <link rel="stylesheet" href="assets/style.css">
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['prefetch']) && !isset(
         <div class="loading-overlay">
             <div class="loading-card">
                 <div class="loading-spinner" aria-hidden="true"></div>
-                <div class="loading-text">Fetching assets...</div>
+                <div class="loading-text"><?= _('Fetching assets...') ?></div>
             </div>
         </div>
         <script>
@@ -185,7 +185,7 @@ if (($_GET['ajax'] ?? '') === 'overdue_check') {
         $payload = [
             'blocked' => false,
             'assets'  => [],
-            'error'   => $debugOn ? $e->getMessage() : 'Unable to check overdue items at the moment.',
+            'error'   => $debugOn ? $e->getMessage() : _('Unable to check overdue items at the moment.'),
         ];
         if ($overdueCacheTtl > 0) {
             $_SESSION['overdue_check_cache'][$cacheKey] = [
@@ -216,16 +216,16 @@ function http_post_form_json(string $url, array $fields, array $headers = []): a
     if ($raw === false) {
         $err = curl_error($ch);
         curl_close($ch);
-        throw new Exception('HTTP request failed: ' . $err);
+        throw new Exception(_('HTTP request failed: ') . $err);
     }
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     if ($status >= 400) {
-        throw new Exception('HTTP request failed with status ' . $status . ': ' . $raw);
+        throw new Exception(_('HTTP request failed with status ') . $status . ': ' . $raw);
     }
     $data = json_decode($raw, true);
     if (!is_array($data)) {
-        throw new Exception('Unexpected response format.');
+        throw new Exception(_('Unexpected response format.'));
     }
     return $data;
 }
@@ -564,13 +564,13 @@ function google_directory_search(string $q, array $config): array
 
     $json = json_decode($svcJson, true);
     if (!is_array($json)) {
-        throw new Exception('Google directory service account JSON is invalid.');
+        throw new Exception(_('Google directory service account JSON is invalid.'));
     }
 
     $clientEmail = $json['client_email'] ?? '';
     $privateKey  = $json['private_key'] ?? '';
     if ($clientEmail === '' || $privateKey === '') {
-        throw new Exception('Google directory service account credentials are missing.');
+        throw new Exception(_('Google directory service account credentials are missing.'));
     }
 
     $now = time();
@@ -588,7 +588,7 @@ function google_directory_search(string $q, array $config): array
     $signature = '';
     $key = openssl_pkey_get_private($privateKey);
     if (!$key || !openssl_sign($signingInput, $signature, $key, 'sha256')) {
-        throw new Exception('Failed to sign Google service account JWT.');
+        throw new Exception(_('Failed to sign Google service account JWT.'));
     }
     openssl_pkey_free($key);
     $jwt = $signingInput . '.' . base64url_encode($signature);
@@ -599,7 +599,7 @@ function google_directory_search(string $q, array $config): array
     ]);
     $accessToken = $token['access_token'] ?? '';
     if ($accessToken === '') {
-        throw new Exception('Google directory token response missing access token.');
+        throw new Exception(_('Google directory token response missing access token.'));
     }
 
     $qEsc = str_replace(['\\', '"'], ['\\\\', '\"'], $q);
@@ -721,12 +721,12 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
 
     if (!$ldapEnabled && !$googleEnabled && !$msEnabled) {
         http_response_code(403);
-        echo json_encode(['error' => 'Directory search is disabled.']);
+        echo json_encode(['error' => _('Directory search is disabled.')]);
         exit;
     }
     if ($msEnabled && !$ldapEnabled && !$googleEnabled && empty($_SESSION['ms_access_token'])) {
         http_response_code(403);
-        echo json_encode(['error' => 'Microsoft directory search requires signing in with Microsoft.']);
+        echo json_encode(['error' => _('Microsoft directory search requires signing in with Microsoft.')]);
         exit;
     }
 
@@ -758,14 +758,14 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
 
             $ldap = @ldap_connect($ldapCfg['host']);
             if (!$ldap) {
-                throw new Exception('Cannot connect to LDAP host');
+                throw new Exception(_('Cannot connect to LDAP host'));
             }
 
             ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
             ldap_set_option($ldap, LDAP_OPT_REFERRALS, 0);
 
             if (!@ldap_bind($ldap, $ldapCfg['bind_dn'], $ldapCfg['bind_password'])) {
-                throw new Exception('LDAP service bind failed: ' . ldap_error($ldap));
+                throw new Exception(_('LDAP service bind failed: ') . ldap_error($ldap));
             }
 
             $filter = sprintf(
@@ -812,7 +812,7 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
             @ldap_unbind($ldap);
         }
         http_response_code(500);
-        echo json_encode(['error' => $debugOn ? $e->getMessage() : 'Directory search error']);
+        echo json_encode(['error' => $debugOn ? $e->getMessage() : _('Directory search error')]);
     }
     exit;
 }
@@ -1025,7 +1025,7 @@ function fetch_overdue_assets_for_user(array $lookup, int $snipeUserId): array
         if ($ts === null || $ts > $now) {
             continue;
         }
-        $tag = $row['asset_tag'] ?? 'Unknown tag';
+        $tag = $row['asset_tag'] ?? _('Unknown tag');
         $modelName = $row['model_name'] ?? '';
         $due = format_overdue_date($row['expected_checkin'] ?? '');
         $overdueAssets[] = [
@@ -1110,7 +1110,7 @@ function extract_asset_default_location_name(array $asset): string
         }
     }
 
-    return 'No default location';
+    return _('No default location');
 }
 
 function subtract_units_from_location_counts(array $locationCounts, int $units): array
@@ -1327,14 +1327,14 @@ if (($_GET['ajax'] ?? '') === 'model_details') {
     $modelId = isset($_GET['model_id']) ? (int)$_GET['model_id'] : 0;
     if ($modelId <= 0) {
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid model ID.']);
+        echo json_encode(['error' => _('Invalid model ID.')]);
         exit;
     }
 
     try {
         $model = get_model($modelId);
         if (empty($model['id'])) {
-            throw new RuntimeException('Model not found.');
+            throw new RuntimeException(_('Model not found.'));
         }
 
         $notes = normalize_model_notes_text($model['notes'] ?? '');
@@ -1355,8 +1355,8 @@ if (($_GET['ajax'] ?? '') === 'model_details') {
             }
         } catch (Throwable $e) {
             $warnings[] = $debugOn
-                ? 'Could not load model assets: ' . $e->getMessage()
-                : 'Could not load all model assets.';
+                ? _('Could not load model assets: ') . $e->getMessage()
+                : _('Could not load all model assets.');
         }
 
         $bookings = fetch_catalogue_model_bookings($pdo, $modelId, $assetIds);
@@ -1376,7 +1376,7 @@ if (($_GET['ajax'] ?? '') === 'model_details') {
         echo json_encode([
             'error' => $debugOn
                 ? $e->getMessage()
-                : 'Unable to load model details right now.',
+                : _('Unable to load model details right now.'),
         ]);
     }
     exit;
@@ -1448,7 +1448,7 @@ if (!$skipOverdueCheck && !$catalogueBlocked && empty($overdueAssets)) {
         $overdueAssets = fetch_overdue_assets_for_user($lookupSqlValues, $snipeUserId);
         $catalogueBlocked = !empty($overdueAssets);
     } catch (Throwable $e) {
-        $overdueErr = $debugOn ? $e->getMessage() : 'Unable to check overdue items at the moment.';
+        $overdueErr = $debugOn ? $e->getMessage() : _('Unable to check overdue items at the moment.');
     }
 }
 
@@ -1545,9 +1545,9 @@ $windowActive  = false;
 $windowError   = '';
 if ($windowStartRaw !== '' || $windowEndRaw !== '') {
     if ($windowStartTs === false || $windowEndTs === false) {
-        $windowError = 'Please enter a valid start and end date/time.';
+        $windowError = _('Please enter a valid start and end date/time.');
     } elseif ($windowEndTs <= $windowStartTs) {
-        $windowError = 'End date/time must be after start date/time.';
+        $windowError = _('End date/time must be after start date/time.');
     } else {
         $windowActive = true;
         $_SESSION['reservation_window_start'] = $windowStartRaw;
@@ -1614,7 +1614,7 @@ unset($_SESSION['basket_feedback']);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Catalogue – Book Equipment</title>
+    <title><?= _('Catalogue – Book Equipment') ?></title>
 
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -1628,7 +1628,7 @@ unset($_SESSION['basket_feedback']);
 <div id="catalogue-loading" class="loading-overlay" aria-live="polite" aria-busy="true">
     <div class="loading-card">
         <div class="loading-spinner" aria-hidden="true"></div>
-        <div class="loading-text">Fetching assets...</div>
+        <div class="loading-text"><?= _('Fetching assets...') ?></div>
     </div>
 </div>
 <?php
@@ -1941,9 +1941,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     <div class="page-shell">
         <?= layout_logo_tag() ?>
         <div class="page-header">
-            <h1>Equipment catalogue</h1>
+            <h1><?= _('Equipment catalogue') ?></h1>
             <div class="page-subtitle">
-                Browse bookable models, accessories, and kits and add them to your basket.
+                <?= _('Browse bookable models, accessories, and kits and add them to your basket.') ?>
             </div>
         </div>
 
@@ -1966,7 +1966,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <div class="top-bar mb-3">
             <?php if ($isAuthenticated): ?>
                 <div class="top-bar-user">
-                    Logged in as:
+                    <?= _('Logged in as:') ?>
                     <strong><?= htmlspecialchars(trim((string)$currentUser['first_name'] . ' ' . (string)$currentUser['last_name'])) ?></strong>
                     (<?= htmlspecialchars((string)$currentUser['email']) ?>)
                 </div>
@@ -1975,19 +1975,19 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                        class="btn btn-lg btn-primary fw-semibold shadow-sm px-4"
                        style="font-size:16px;"
                        id="view-basket-btn">
-                        View basket<?= $basketCount > 0 ? ' (' . $basketCount . ')' : '' ?>
+                        <?= _('View basket') ?><?= $basketCount > 0 ? ' (' . $basketCount . ')' : '' ?>
                     </a>
                     <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
                 </div>
             <?php else: ?>
                 <div class="top-bar-user">
-                    Browsing as <strong>Guest</strong>. Add to basket and View basket will take you to login.
+                    <?= _('Browsing as <strong>Guest</strong> Add to basket and View basket will take you to login.') ?>
                 </div>
                 <div class="top-bar-actions d-flex gap-2">
                     <a href="login.php"
                        class="btn btn-lg btn-primary fw-semibold shadow-sm px-4"
                        style="font-size:16px;">
-                        View basket
+                        <?= _('View basket') ?>
                     </a>
                 </div>
             <?php endif; ?>
@@ -1996,7 +1996,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <?php if ($isStaff): ?>
             <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between booking-for-alert">
                 <div class="mb-2 mb-md-0">
-                    <strong>Booking for:</strong>
+                    <strong><?= _('Booking for:') ?></strong>
                     <?= h($activeUser['email'] ?? '') ?>
                     <?php if (!empty($activeUser['first_name'])): ?>
                         (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
@@ -2010,28 +2010,28 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         <input type="text"
                                id="booking_user_input"
                                class="form-control form-control-sm"
-                               placeholder="Start typing email or name"
+                               placeholder="<?= _('Start typing email or name') ?>"
                                autocomplete="off">
                         <div class="list-group position-absolute w-100"
                              id="booking_user_suggestions"
                              style="z-index: 9999; max-height: 260px; overflow-y: auto; display: none; box-shadow: 0 12px 24px rgba(0,0,0,0.18);"></div>
                     </div>
-                    <button class="btn btn-sm btn-primary" type="submit">Use</button>
-                    <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1">Revert to logged in user</button>
+                    <button class="btn btn-sm btn-primary" type="submit"><?= _('Use') ?></button>
+                    <button class="btn btn-sm btn-outline-secondary" type="submit" name="booking_user_revert" value="1"><?= _('Revert to logged in user') ?></button>
                 </form>
             </div>
         <?php endif; ?>
 
         <?php if ($isAuthenticated && $blockCatalogueOverdue): ?>
             <div id="overdue-alert" class="alert alert-danger<?= $catalogueBlocked ? '' : ' d-none' ?>">
-                <div class="fw-semibold mb-2">Catalogue unavailable</div>
+                <div class="fw-semibold mb-2"><?= _('Catalogue unavailable') ?></div>
                 <div class="mb-2">
-                    You have overdue items. Please return them before booking more equipment.
+                    <?= _('You have overdue items. Please return them before booking more equipment.') ?>
                 </div>
                 <ul class="mb-0" id="overdue-list">
                     <?php foreach ($overdueAssets as $asset): ?>
                         <?php
-                            $tag = $asset['tag'] ?? 'Unknown tag';
+                            $tag = $asset['tag'] ?? _('Unknown tag');
                             $modelName = $asset['model'] ?? '';
                             $due = $asset['due'] ?? '';
                         ?>
@@ -2084,30 +2084,30 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 ?>
                 <?php if ($showCatalogueModelsTab): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>">Equipment</a>
+                        <a class="nav-link <?= $catalogueTab === 'models' ? 'active' : '' ?>" href="<?= h($modelsTabUrl) ?>"><?= _('Equipment') ?></a>
                     </li>
                 <?php endif; ?>
                 <?php if ($showCatalogueAccessoriesTab): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?= $catalogueTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoriesTabUrl) ?>">Accessories</a>
+                        <a class="nav-link <?= $catalogueTab === 'accessories' ? 'active' : '' ?>" href="<?= h($accessoriesTabUrl) ?>"><?= _('Accessories') ?></a>
                     </li>
                 <?php endif; ?>
                 <?php if ($showCatalogueKitsTab): ?>
                     <li class="nav-item">
-                        <a class="nav-link <?= $catalogueTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitsTabUrl) ?>">Kits</a>
+                        <a class="nav-link <?= $catalogueTab === 'kits' ? 'active' : '' ?>" href="<?= h($kitsTabUrl) ?>"><?= _('Kits') ?></a>
                     </li>
                 <?php endif; ?>
             </ul>
 
             <?php if ($categoryErr): ?>
                 <div class="alert alert-warning">
-                    Could not load categories from Snipe-IT: <?= htmlspecialchars($categoryErr) ?>
+                    <?= _('Could not load categories from Snipe-IT:') ?> <?= htmlspecialchars($categoryErr) ?>
                 </div>
             <?php endif; ?>
 
             <?php if ($modelErr): ?>
                 <div class="alert alert-danger">
-                    Error talking to Snipe-IT (<?= h($catalogueTab) ?>): <?= htmlspecialchars($modelErr) ?>
+                    <?= _('Error talking to Snipe-IT') ?> (<?= h($catalogueTab) ?>): <?= htmlspecialchars($modelErr) ?>
                 </div>
             <?php endif; ?>
 
@@ -2116,7 +2116,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <form class="filter-panel mb-4" method="get" action="catalogue.php" id="catalogue-filter-form">
             <div class="filter-panel__header d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
-                <div class="filter-panel__title">SEARCH</div>
+                <div class="filter-panel__title"><?= _('SEARCH') ?></div>
             </div>
 
             <input type="hidden" name="tab" value="<?= h($catalogueTab) ?>">
@@ -2132,7 +2132,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
 
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5">
-                    <label class="form-label mb-1 fw-semibold">Search by name</label>
+                    <label class="form-label mb-1 fw-semibold"><?= _('Search by name') ?></label>
                     <div class="input-group filter-search">
                         <span class="input-group-text filter-search__icon" aria-hidden="true">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2143,16 +2143,16 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                         <input type="text"
                                name="q"
                                class="form-control form-control-lg filter-search__input"
-                               placeholder="<?= h($catalogueTab === 'accessories' ? 'Search by accessory name or manufacturer' : ($catalogueTab === 'kits' ? 'Search by kit name' : 'Search by model name or manufacturer')) ?>"
+                               placeholder="<?= h($catalogueTab === 'accessories' ? _('Search by accessory name or manufacturer') : ($catalogueTab === 'kits' ? _('Search by kit name') : _('Search by model name or manufacturer'))) ?>"
                                value="<?= htmlspecialchars($searchRaw) ?>">
                     </div>
                 </div>
 
                 <?php if ($catalogueTab === 'models' || $catalogueTab === 'accessories'): ?>
                     <div class="col-6 col-lg-3">
-                        <label class="form-label mb-1 fw-semibold">Category</label>
+                        <label class="form-label mb-1 fw-semibold"><?= _('Category') ?></label>
                         <select name="category" class="form-select">
-                            <option value="">All categories</option>
+                            <option value=""><?= _('All categories') ?></option>
                             <?php
                             foreach ($categories as $cat): ?>
                                 <?php
@@ -2180,26 +2180,26 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 <?php endif; ?>
 
                 <div class="col-6 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '3' ?>">
-                    <label class="form-label mb-1 fw-semibold">Sort</label>
+                    <label class="form-label mb-1 fw-semibold"><?= _('Sort') ?></label>
                     <select name="sort" class="form-select">
                         <?php if ($catalogueTab === 'kits'): ?>
-                            <option value="">Kit name (A–Z)</option>
-                            <option value="name_asc"  <?= $sort === 'name_asc'  ? 'selected' : '' ?>>Kit Name (Ascending)</option>
-                            <option value="name_desc" <?= $sort === 'name_desc' ? 'selected' : '' ?>>Kit Name (Descending)</option>
+                            <option value=""><?= _('Kit name (A–Z)') ?></option>
+                            <option value="name_asc"  <?= $sort === 'name_asc'  ? 'selected' : '' ?>><?= _('Kit Name (Ascending)') ?></option>
+                            <option value="name_desc" <?= $sort === 'name_desc' ? 'selected' : '' ?>><?= _('Kit Name (Descending)') ?></option>
                         <?php else: ?>
-                            <option value=""><?= $catalogueTab === 'accessories' ? 'Accessory name (A–Z)' : 'Model name (A–Z)' ?></option>
-                            <option value="name_asc"   <?= $sort === 'name_asc'   ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Accessory' : 'Model' ?> Name (Ascending)</option>
-                            <option value="name_desc"  <?= $sort === 'name_desc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Accessory' : 'Model' ?> Name (Descending)</option>
-                            <option value="manu_asc"   <?= $sort === 'manu_asc'   ? 'selected' : '' ?>>Manufacturer (Ascending)</option>
-                            <option value="manu_desc"  <?= $sort === 'manu_desc'  ? 'selected' : '' ?>>Manufacturer (Descending)</option>
-                            <option value="units_asc"  <?= $sort === 'units_asc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Available Units' : 'Units in Total' ?> (Ascending)</option>
-                            <option value="units_desc" <?= $sort === 'units_desc' ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? 'Available Units' : 'Units in Total' ?> (Descending)</option>
+                            <option value=""><?= $catalogueTab === 'accessories' ? _('Accessory name (A–Z)') : _('Model name (A–Z)') ?></option>
+                            <option value="name_asc"   <?= $sort === 'name_asc'   ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? _('Accessory') : _('Model') ?> <?= _('Name (Ascending)') ?></option>
+                            <option value="name_desc"  <?= $sort === 'name_desc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? _('Accessory') : _('Model') ?> <?= _('Name (Descending)') ?></option>
+                            <option value="manu_asc"   <?= $sort === 'manu_asc'   ? 'selected' : '' ?>><?= _('Manufacturer (Ascending)') ?></option>
+                            <option value="manu_desc"  <?= $sort === 'manu_desc'  ? 'selected' : '' ?>><?= _('Manufacturer (Descending)') ?></option>
+                            <option value="units_asc"  <?= $sort === 'units_asc'  ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? _('Available Units') : _('Units in Total') ?> <?= _('(Ascending)') ?></option>
+                            <option value="units_desc" <?= $sort === 'units_desc' ? 'selected' : '' ?>><?= $catalogueTab === 'accessories' ? _('Available Units') : _('Units in Total') ?> <?= _('(Descending)') ?></option>
                         <?php endif; ?>
                     </select>
                 </div>
 
                 <div class="col-12 col-lg-<?= $catalogueTab === 'models' || $catalogueTab === 'accessories' ? '2' : '4' ?> d-grid">
-                    <button class="btn btn-primary btn-lg" type="submit">Filter results</button>
+                    <button class="btn btn-primary btn-lg" type="submit"><?= _('Filter results') ?></button>
                 </div>
             </div>
 
@@ -2217,7 +2217,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                            name="favourites_only"
                                            <?= $favouritesOnly ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold small" for="show_favourites_only">
-                                        Show Favourites Only
+                                        <?= _('Show Favourites Only') ?>
                                     </label>
                                 </div>
                             <?php endif; ?>
@@ -2231,7 +2231,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                            name="show_non_requestable_items"
                                         <?= $showNonRequestableItems ? 'checked' : '' ?>>
                                     <label class="form-check-label fw-semibold small" for="show_non_requestable_items">
-                                        Show Non-Requestable Items
+                                        <?= _('Show Non-Requestable Items') ?>
                                     </label>
                                 </div>
                             <?php endif; ?>
@@ -2244,7 +2244,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <form class="filter-panel filter-panel--compact mb-4" method="get" action="catalogue.php" id="catalogue-window-form">
             <div class="filter-panel__header d-flex align-items-center gap-3">
                 <span class="filter-panel__dot"></span>
-                <div class="filter-panel__title">RESERVATION WINDOW</div>
+                <div class="filter-panel__title"><?= _('RESERVATION WINDOW') ?></div>
             </div>
             <input type="hidden" name="tab" value="<?= h($catalogueTab) ?>">
             <input type="hidden" name="q" value="<?= h($searchRaw) ?>">
@@ -2261,7 +2261,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold">Start date &amp; time</label>
+                    <label class="form-label fw-semibold"><?= _('Start date & time') ?></label>
                     <input type="datetime-local"
                            name="start_datetime"
                            id="catalogue_start_datetime"
@@ -2269,7 +2269,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                            value="<?= h($windowStartRaw) ?>">
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold">End date &amp; time</label>
+                    <label class="form-label fw-semibold"><?= _('End date & time') ?></label>
                     <input type="datetime-local"
                            name="end_datetime"
                            id="catalogue_end_datetime"
@@ -2278,7 +2278,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 </div>
                 <div class="col-12 col-md-2 d-grid mb-2 mb-md-0">
                     <button class="btn btn-primary btn-lg" type="button" id="catalogue-today-btn">
-                        Today
+                        <?= _('Today') ?>
                     </button>
                 </div>
             </div>
@@ -2295,11 +2295,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
         <?php if ($catalogueIsEmpty && !$modelErr): ?>
             <div class="alert alert-info">
                 <?php if ($catalogueTab === 'accessories'): ?>
-                    No accessories found. Try adjusting your filters.
+                    <?= _('No accessories found. Try adjusting your filters.') ?>
                 <?php elseif ($catalogueTab === 'kits'): ?>
-                    No kits found. Try adjusting your filters.
+                    <?= _('No kits found. Try adjusting your filters.') ?>
                 <?php else: ?>
-                    <?= $favouritesOnly ? 'No favourite models found for the selected filters.' : 'No models found. Try adjusting your filters.' ?>
+                    <?= $favouritesOnly ? _('No favourite models found for the selected filters.') : _('No models found. Try adjusting your filters.') ?>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -2309,7 +2309,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 <?php foreach ($accessories as $accessory): ?>
                     <?php
                         $accessoryId = (int)($accessory['id'] ?? 0);
-                        $name = (string)($accessory['name'] ?? 'Accessory');
+                        $name = (string)($accessory['name'] ?? _('Accessory'));
                         $manuName = is_array($accessory['manufacturer'] ?? null)
                             ? (string)($accessory['manufacturer']['name'] ?? '')
                             : (string)($accessory['manufacturer_name'] ?? '');
@@ -2361,14 +2361,14 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                         data-model-image-zoom="1"
                                         data-zoom-src="<?= h($proxiedImage) ?>"
                                         data-zoom-title="<?= h($name) ?>"
-                                        aria-label="Click to zoom image for <?= h($name) ?>">
+                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>">
                                     <img src="<?= htmlspecialchars($proxiedImage) ?>"
                                          alt=""
                                          class="model-image img-fluid">
                                 </button>
                             <?php else: ?>
                                 <div class="model-image-wrapper model-image-wrapper--placeholder">
-                                    <div class="model-image-placeholder">Accessory</div>
+                                    <div class="model-image-placeholder"><?= _('Accessory') ?></div>
                                 </div>
                             <?php endif; ?>
 
@@ -2376,13 +2376,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 <h5 class="card-title"><?= label_safe($name) ?></h5>
                                 <p class="card-text small text-muted mb-2">
                                     <?php if ($manuName !== ''): ?>
-                                        <span><strong>Manufacturer:</strong> <?= label_safe($manuName) ?></span><br>
+                                        <span><strong><?= _('Manufacturer:') ?></strong> <?= label_safe($manuName) ?></span><br>
                                     <?php endif; ?>
                                     <?php if ($catName !== ''): ?>
-                                        <span><strong>Category:</strong> <?= label_safe($catName) ?></span><br>
+                                        <span><strong><?= _('Category:') ?></strong> <?= label_safe($catName) ?></span><br>
                                     <?php endif; ?>
-                                    <span><strong>Requestable Units:</strong> <?= (int)$availableUnits ?></span><br>
-                                    <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= (int)$freeNow ?></span>
+                                    <span><strong><?= _('Requestable Units:') ?></strong> <?= (int)$availableUnits ?></span><br>
+                                    <span><strong><?= $windowActive ? _('Available for selected dates:') : _('Available now:') ?></strong> <?= (int)$freeNow ?></span>
                                     <?php if ($notes !== ''): ?>
                                         <div class="mt-2 text-muted clamp-3"><?= label_safe($notes) ?></div>
                                     <?php endif; ?>
@@ -2407,7 +2407,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                         <?php if ($freeNow > 0): ?>
                                             <div class="row g-2 align-items-center mb-3">
                                                 <div class="col-12 col-sm-6">
-                                                    <label class="form-label mb-0 small">Quantity</label>
+                                                    <label class="form-label mb-0 small"><?= _('Quantity') ?></label>
                                                     <input type="number"
                                                            name="quantity"
                                                            class="form-control form-control-sm"
@@ -2416,12 +2416,12 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                            max="<?= $maxQty ?>">
                                                 </div>
                                             </div>
-                                            <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                            <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
                                         <?php else: ?>
                                             <div class="alert alert-secondary small mb-0">
-                                                <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                                <?= $windowActive ? _('No units available for selected dates.') : _('No units available right now.') ?>
                                             </div>
-                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled><?= _('Add to basket') ?></button>
                                         <?php endif; ?>
                                     </form>
                                 <?php else: ?>
@@ -2435,13 +2435,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                     <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
                                                     <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
                                                 <?php endif; ?>
-                                                <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
                                             </form>
                                         <?php else: ?>
                                             <div class="alert alert-secondary small mb-0">
-                                                <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                                <?= $windowActive ? _('No units available for selected dates.') : _('No units available right now.') ?>
                                             </div>
-                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled>Add to basket</button>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100 mt-2" disabled><?= _('Add to basket') ?></button>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
@@ -2455,7 +2455,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 <?php foreach ($kits as $kit): ?>
                     <?php
                         $kitId = (int)($kit['id'] ?? 0);
-                        $kitName = (string)($kit['name'] ?? 'Kit');
+                        $kitName = (string)($kit['name'] ?? _('Kit'));
                         $kitContainsText = '';
                         $kitMoreItemCount = 0;
                         $kitUnsupportedLabels = [];
@@ -2491,15 +2491,15 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 $supportedItemId = (int)($supportedItem['id'] ?? 0);
                                 $itemName = trim((string)($supportedItem['name'] ?? ''));
                                 if ($itemName === '') {
-                                    $itemName = ($itemType === 'accessory' ? 'Accessory #' : 'Model #') . $supportedItemId;
+                                    $itemName = ($itemType === 'accessory' ? _('Accessory #') : _('Model #')) . $supportedItemId;
                                 }
                                 $kitIncludedNames[] = $itemName;
                             }
                             $kitContainsText = !empty($kitIncludedNames)
                                 ? implode(', ', $kitIncludedNames)
-                                : 'No supported bookable items detected.';
+                                : _('No supported bookable items detected.');
                             if ($kitMoreItemCount > 0) {
-                                $kitContainsText .= ' and ' . $kitMoreItemCount . ' more item' . ($kitMoreItemCount === 1 ? '' : 's');
+                                $kitContainsText .= ' ' . _('and') . ' ' . $kitMoreItemCount . ' ' . _('more item') . ($kitMoreItemCount === 1 ? '' : 's');
                             }
                             foreach (($kitBreakdown['unsupported_items'] ?? []) as $unsupported) {
                                 $typeLabel = trim((string)($unsupported['type'] ?? 'item'));
@@ -2515,7 +2515,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 $kitCanAdd = false;
                             }
                         } catch (Throwable $e) {
-                            $kitContainsText = 'Unable to load kit contents right now.';
+                            $kitContainsText = _('Unable to load kit contents right now.');
                             $kitCanAdd = false;
                         }
                         if ($kitRestricted && !$catalogueShowRestrictedItems) {
@@ -2547,13 +2547,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                         data-kit-details-open="<?= (int)$kitId ?>"
                                         data-kit-details-title="<?= h($kitName) ?>"
                                         aria-label="View kit contents for <?= h($kitName) ?>">
-                                    <div class="model-image-placeholder">Kit</div>
+                                    <div class="model-image-placeholder"><?= _('Kit') ?></div>
                                 </button>
                             <?php endif; ?>
 
                             <template id="kit-details-template-<?= (int)$kitId ?>">
                                 <?php if (empty($kitDetailItems)): ?>
-                                    <div class="text-muted small">No supported bookable items were found for this kit.</div>
+                                    <div class="text-muted small"><?= _('No supported bookable items were found for this kit') ?>.</div>
                                 <?php else: ?>
                                     <div class="kit-details-list">
                                         <?php foreach ($kitDetailItems as $detailItem): ?>
@@ -2578,7 +2578,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                     <?php if (trim((string)$detailItem['details']) !== ''): ?>
                                                         <p class="kit-details-item__details"><?= h((string)$detailItem['details']) ?></p>
                                                     <?php else: ?>
-                                                        <p class="kit-details-item__details text-muted">No additional details available.</p>
+                                                        <p class="kit-details-item__details text-muted"><?= _('No additional details available.') ?></p>
                                                     <?php endif; ?>
                                                 </div>
                                             </article>
@@ -2590,12 +2590,12 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title"><?= label_safe($kitName) ?></h5>
                                 <p class="card-text small text-muted mb-2">
-                                    <span><strong>Kit Contains:</strong> <?= h($kitContainsText) ?></span>
+                                    <span><strong><?= _('Kit Contains:') ?></strong> <?= h($kitContainsText) ?></span>
                                 </p>
 
                                 <?php if (!empty($kitUnsupportedLabels)): ?>
                                     <div class="alert alert-warning small">
-                                        Unsupported kit contents: <?= h(implode(', ', $kitUnsupportedLabels)) ?>
+                                        <?= _('Unsupported kit contents:') ?> <?= h(implode(', ', $kitUnsupportedLabels)) ?>
                                     </div>
                                 <?php endif; ?>
                                 <?php if ($kitRestricted): ?>
@@ -2616,7 +2616,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                         <?php if ($kitCanAdd): ?>
                                             <div class="row g-2 align-items-center mb-3">
                                                 <div class="col-12 col-sm-6">
-                                                    <label class="form-label mb-0 small">Quantity</label>
+                                                    <label class="form-label mb-0 small"><?= _('Quantity') ?></label>
                                                     <input type="number"
                                                            name="quantity"
                                                            class="form-control form-control-sm"
@@ -2625,9 +2625,9 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                            max="100">
                                                 </div>
                                             </div>
-                                            <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                            <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
                                         <?php else: ?>
-                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled>Add to basket</button>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled><?= _('Add to basket') ?></button>
                                         <?php endif; ?>
                                     </form>
                                 <?php else: ?>
@@ -2641,10 +2641,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                     <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
                                                     <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
                                                 <?php endif; ?>
-                                                <button type="submit" class="btn btn-sm btn-success w-100">Add to basket</button>
+                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
                                             </form>
                                         <?php else: ?>
-                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled>Add to basket</button>
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled><?= _('Add to basket') ?></button>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
@@ -2835,7 +2835,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                         data-model-image-zoom="1"
                                         data-zoom-src="<?= h($proxiedImage) ?>"
                                         data-zoom-title="<?= h($name) ?>"
-                                        aria-label="Click to zoom image for <?= h($name) ?>">
+                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>">
                                     <img src="<?= htmlspecialchars($proxiedImage) ?>"
                                          alt=""
                                          class="model-image img-fluid">
@@ -2843,7 +2843,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <?php else: ?>
                                 <div class="model-image-wrapper model-image-wrapper--placeholder">
                                     <div class="model-image-placeholder">
-                                        No image
+                                        <?= _('No image') ?>
                                     </div>
                                 </div>
                             <?php endif; ?>
@@ -2854,15 +2854,15 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                 </h5>
                                 <p class="card-text small text-muted mb-2">
                                     <?php if ($manuName): ?>
-                                        <span><strong>Manufacturer:</strong> <?= label_safe($manuName) ?></span><br>
+                                        <span><strong><?= _('Manufacturer:') ?></strong> <?= label_safe($manuName) ?></span><br>
                                     <?php endif; ?>
                                     <?php if ($catName): ?>
-                                        <span><strong>Category:</strong> <?= label_safe($catName) ?></span><br>
+                                        <span><strong><?= _('Category:') ?></strong> <?= label_safe($catName) ?></span><br>
                                     <?php endif; ?>
                                     <?php if ($assetCount !== null): ?>
-                                        <span><strong>Requestable units:</strong> <?= $assetCount ?></span><br>
+                                        <span><strong><?= _('Requestable units:') ?></strong> <?= $assetCount ?></span><br>
                                     <?php endif; ?>
-                                    <span><strong><?= $windowActive ? 'Available for selected dates:' : 'Available now:' ?></strong> <?= $freeNow ?></span>
+                                    <span><strong><?= $windowActive ? _('Available for selected dates:') : _('Available now:') ?></strong> <?= $freeNow ?></span>
                                     <?php if ($locationAvailabilitySummary !== ''): ?>
                                         <span class="model-location-summary d-block"><?= $locationAvailabilitySummary ?></span>
                                     <?php endif; ?>
@@ -2932,7 +2932,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                                    <?= $isFavourite ? 'checked' : '' ?>>
                                                             <label class="form-check-label small fw-semibold"
                                                                    for="model_favourite_<?= $modelId ?>">
-                                                                Add to Favourites
+                                                                <?= _('Add to Favourites') ?>
                                                             </label>
                                                         </div>
                                                     </div>
@@ -2941,7 +2941,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
 
                                             <button type="submit"
                                                     class="btn btn-sm btn-success w-100">
-                                                Add to basket
+                                                <?= _('Add to basket') ?>
                                             </button>
                                         <?php else: ?>
                                             <?php if ($canUseFavourites): ?>
@@ -2954,21 +2954,21 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                            <?= $isFavourite ? 'checked' : '' ?>>
                                                     <label class="form-check-label small fw-semibold"
                                                            for="model_favourite_<?= $modelId ?>">
-                                                        Add to Favourites
+                                                        <?= _('Add to Favourites') ?>
                                                     </label>
                                                 </div>
                                             <?php endif; ?>
                                             <div class="alert alert-secondary small mb-0">
                                                 <?php if (!$isRequestable): ?>
-                                                    No requestable units available.
+                                                <?= _('No requestable units available.') ?>
                                                 <?php else: ?>
-                                                    <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                                    <?= $windowActive ? _('No units available for selected dates.') : _('No units available right now.') ?>
                                                 <?php endif; ?>
                                             </div>
                                             <button type="button"
                                                     class="btn btn-sm btn-secondary w-100 mt-2"
                                                     disabled>
-                                                Add to basket
+                                                <?= _('Add to basket')?>
                                             </button>
                                         <?php endif; ?>
                                     </form>
@@ -2985,21 +2985,21 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                 <?php endif; ?>
                                                 <input type="hidden" name="quantity" value="1">
                                                 <button type="submit" class="btn btn-sm btn-success w-100">
-                                                    Add to basket
+                                                    <?= _('Add to basket') ?>
                                                 </button>
                                             </form>
                                         <?php else: ?>
                                             <div class="alert alert-secondary small mb-0">
                                                 <?php if (!$isRequestable): ?>
-                                                    No requestable units available.
+                                                <?= _('No requestable units available.') ?>
                                                 <?php else: ?>
-                                                    <?= $windowActive ? 'No units available for selected dates.' : 'No units available right now.' ?>
+                                                    <?= $windowActive ? _('No units available for selected dates.') : _('No units available right now.') ?>
                                                 <?php endif; ?>
                                             </div>
                                             <button type="button"
                                                     class="btn btn-sm btn-secondary w-100 mt-2"
                                                     disabled>
-                                                Add to basket
+                                                <?= _('Add to basket') ?>
                                             </button>
                                         <?php endif; ?>
                                     </div>
@@ -3067,12 +3067,12 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
             <h2 id="catalogue-announcement-title" class="catalogue-modal__title">
-                <?= count($catalogueAnnouncements) > 1 ? 'Announcements' : 'Announcement' ?>
+                <?= count($catalogueAnnouncements) > 1 ? _('Announcements') : _('Announcement') ?>
             </h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-announcement-close>
-                Dismiss
+                <?= _('Dismiss') ?>
             </button>
         </div>
         <div class="catalogue-modal__body">
@@ -3100,11 +3100,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     <div class="catalogue-modal__backdrop" data-model-modal-close></div>
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
-            <h2 id="model-details-title" class="catalogue-modal__title">Model details</h2>
+            <h2 id="model-details-title" class="catalogue-modal__title"><?= _('Model details') ?></h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-model-modal-close>
-                Close
+                <?= _('Close') ?>
             </button>
         </div>
         <div class="catalogue-modal__body">
@@ -3113,10 +3113,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <section class="model-details-section filter-panel filter-panel--compact model-details-info-panel">
                 <div class="filter-panel__header d-flex align-items-center gap-3">
                     <span class="filter-panel__dot"></span>
-                    <div class="filter-panel__title">MORE INFORMATION</div>
+                    <div class="filter-panel__title"><?= _('MORE INFORMATION') ?></div>
                 </div>
                 <div id="model-details-notes" class="model-details-notes">
-                    Select a model to load more information.
+                    <?= _('Select a model to load more information.') ?>
                 </div>
             </section>
 
@@ -3124,36 +3124,36 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 <div class="model-calendar-toolbar">
                     <div class="filter-panel__header d-flex align-items-center gap-3 mb-0">
                         <span class="filter-panel__dot"></span>
-                        <div class="filter-panel__title">BOOKINGS CALENDAR</div>
+                        <div class="filter-panel__title"><?= _('BOOKINGS CALENDAR') ?></div>
                     </div>
                     <div class="d-flex align-items-center gap-2 model-calendar-controls">
-                        <button type="button" class="btn btn-sm btn-light model-calendar-nav-btn" id="model-calendar-prev">Previous</button>
+                        <button type="button" class="btn btn-sm btn-light model-calendar-nav-btn" id="model-calendar-prev"><?= _('Previous') ?></button>
                         <div id="model-calendar-month" class="model-calendar-month"></div>
-                        <button type="button" class="btn btn-sm btn-light model-calendar-nav-btn" id="model-calendar-next">Next</button>
+                        <button type="button" class="btn btn-sm btn-light model-calendar-nav-btn" id="model-calendar-next"><?= _('Next') ?></button>
                     </div>
                 </div>
                 <div id="model-calendar-grid" class="model-calendar-grid" aria-live="polite"></div>
             </section>
 
             <section class="model-details-section">
-                <h3 class="model-details-section__title">Selected Month&apos;s Bookings</h3>
+                <h3 class="model-details-section__title"><?= _("Selected Month's Bookings") ?></h3>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle model-bookings-table mb-0">
                         <thead>
                             <tr>
-                                <th>Reservation</th>
-                                <th>Status</th>
-                                <th>Source</th>
-                                <th>Qty</th>
-                                <th>Start</th>
-                                <th>End</th>
+                                <th><?= _('Reservation') ?></th>
+                                <th><?= _('Status') ?></th>
+                                <th><?= _('Source') ?></th>
+                                <th><?= _('Qty') ?></th>
+                                <th><?= _('Start') ?></th>
+                                <th><?= _('End') ?></th>
                             </tr>
                         </thead>
                         <tbody id="model-bookings-body"></tbody>
                     </table>
                 </div>
                 <div id="model-bookings-empty" class="small text-muted mt-2 d-none">
-                    No bookings found for the selected month.
+                    <?= _('No bookings found for the selected month.') ?>
                 </div>
             </section>
         </div>
@@ -3170,15 +3170,15 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     <div class="catalogue-modal__backdrop" data-kit-modal-close></div>
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
-            <h2 id="kit-details-title" class="catalogue-modal__title">Kit contents</h2>
+            <h2 id="kit-details-title" class="catalogue-modal__title"><?= _('Kit contents') ?></h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-kit-modal-close>
-                Close
+                <?= _('Close') ?>
             </button>
         </div>
         <div id="kit-details-body" class="catalogue-modal__body">
-            <div class="text-muted small">Select a kit to view its contents.</div>
+            <div class="text-muted small"><?= _('Select a kit to view its contents.') ?></div>
         </div>
     </div>
 </div>
@@ -3193,18 +3193,18 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     <div class="catalogue-modal__backdrop" data-image-zoom-close></div>
     <div class="catalogue-modal__dialog" role="document">
         <div class="catalogue-modal__header">
-            <h2 id="model-image-zoom-title" class="catalogue-modal__title">Model image</h2>
+            <h2 id="model-image-zoom-title" class="catalogue-modal__title"><?= _('Model image') ?></h2>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"
                     data-image-zoom-close>
-                Close
+                <?= _('Close') ?>
             </button>
         </div>
         <div class="catalogue-modal__body">
             <img id="model-image-zoomed"
                  class="model-image-zoomed"
                  src=""
-                 alt="Model image zoomed view">
+                 alt="<?= _('Model image zoomed view') ?>">
         </div>
     </div>
 </div>
@@ -3444,7 +3444,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (overdueList) {
             overdueList.innerHTML = '';
             items.forEach(function (item) {
-                const tag = item.tag || 'Unknown tag';
+                const tag = item.tag || '<?= _('Unknown tag') ?>';
                 const model = item.model || '';
                 const due = item.due || '';
                 let label = tag;
@@ -3517,17 +3517,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const normalized = String(status || '').toLowerCase();
         switch (normalized) {
             case 'pending':
-                return 'Pending';
+                return '<?= _('Pending') ?>';
             case 'confirmed':
-                return 'Confirmed';
+                return '<?= _('Confirmed') ?>';
             case 'completed':
-                return 'Completed';
+                return '<?= _('Completed') ?>';
             case 'missed':
-                return 'Missed';
+                return '<?= _('Missed') ?>';
             case 'cancelled':
-                return 'Cancelled';
+                return '<?= _('Cancelled') ?>';
             default:
-                return normalized === '' ? 'Unknown' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+                return normalized === '' ? '<?= _('Unknown') ?>' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
         }
     }
 
@@ -3543,9 +3543,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function bookingSourceLabel(source) {
         const normalized = String(source || '').toLowerCase();
-        if (normalized === 'asset') return 'Asset';
-        if (normalized === 'model_and_asset') return 'Model + Asset';
-        return 'Model';
+        if (normalized === 'asset') return '<?= _('Asset') ?>';
+        if (normalized === 'model_and_asset') return '<?= _('Model + Asset') ?>';
+        return '<?= _('Model') ?>';
     }
 
     function normalizeModelBooking(raw) {
@@ -3593,7 +3593,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
         if (!monthBookings.length) {
-            modelBookingsEmpty.textContent = 'No bookings found for ' + monthLabel + '.';
+            modelBookingsEmpty.textContent = '<?= _('No bookings found for') ?> ' + monthLabel + '.';
             modelBookingsEmpty.classList.remove('d-none');
             return;
         }
@@ -3604,7 +3604,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const tr = document.createElement('tr');
 
             const idCell = document.createElement('td');
-            idCell.textContent = booking.id > 0 ? '#' + booking.id : 'N/A';
+            idCell.textContent = booking.id > 0 ? '#' + booking.id : '<?= _('N/A') ?>';
 
             const statusCell = document.createElement('td');
             const statusBadge = document.createElement('span');
@@ -3660,8 +3660,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const daysInMonth = lastDay.getDate();
         const compact = isCompactCalendarView();
         const weekdayLabels = compact
-            ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            ? ['<?= _('S') ?>', '<?= _('M') ?>', '<?= _('T') ?>', '<?= _('W') ?>', '<?= _('T') ?>', '<?= _('F') ?>', '<?= _('S') ?>']
+            : ['<?= _('Sun') ?>', '<?= _('Mon') ?>', '<?= _('Tue') ?>', '<?= _('Wed') ?>', '<?= _('Thu') ?>', '<?= _('Fri') ?>', '<?= _('Sat') ?>'];
 
         modelCalendarMonth.textContent = cursor.toLocaleString(undefined, { month: 'long', year: 'numeric' });
         modelCalendarGrid.innerHTML = '';
@@ -3708,7 +3708,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (dayBookings.length > 0) {
                 dayCell.classList.add('has-bookings');
                 dayCell.dataset.bookingCount = String(dayBookings.length);
-                dayCell.title = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
+                dayCell.title = dayBookings.length + (dayBookings.length === 1 ? ' <?= _('booking') ?>' : ' <?= _('bookings') ?>');
 
                 if (compact) {
                     const countDot = document.createElement('span');
@@ -3718,7 +3718,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     const countLabel = document.createElement('div');
                     countLabel.className = 'model-calendar-count';
-                    countLabel.textContent = dayBookings.length + (dayBookings.length === 1 ? ' booking' : ' bookings');
+                    countLabel.textContent = dayBookings.length + (dayBookings.length === 1 ? ' <?= _('booking') ?>' : ' <?= _('bookings') ?>');
                     dayCell.appendChild(countLabel);
 
                     const eventsList = document.createElement('div');
@@ -3733,7 +3733,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (dayBookings.length > 3) {
                         const more = document.createElement('span');
                         more.className = 'model-calendar-event status-default';
-                        more.textContent = '+' + (dayBookings.length - 3) + ' more';
+                        more.textContent = '+' + (dayBookings.length - 3) + ' <?= _('more') ?>';
                         eventsList.appendChild(more);
                     }
 
@@ -3863,7 +3863,7 @@ document.addEventListener('DOMContentLoaded', function () {
         syncModalBodyState();
 
         if (kitDetailsBody) {
-            kitDetailsBody.innerHTML = '<div class="text-muted small">Select a kit to view its contents.</div>';
+            kitDetailsBody.innerHTML = '<div class="text-muted small"><?= _('Select a kit to view its contents.') ?></div>';
         }
 
         if (kitDetailsLastFocused && typeof kitDetailsLastFocused.focus === 'function') {
@@ -3885,7 +3885,7 @@ document.addEventListener('DOMContentLoaded', function () {
         kitDetailsModal.setAttribute('aria-hidden', 'false');
 
         if (kitDetailsTitle) {
-            kitDetailsTitle.textContent = (kitTitle || 'Kit') + ' contents';
+            kitDetailsTitle.textContent = (kitTitle || '<?= _('Kit') ?>') + ' contents';
         }
 
         kitDetailsBody.innerHTML = '';
@@ -3908,10 +3908,10 @@ document.addEventListener('DOMContentLoaded', function () {
         modelImageZoomModal.hidden = false;
         modelImageZoomModal.setAttribute('aria-hidden', 'false');
         if (modelImageZoomTitle) {
-            modelImageZoomTitle.textContent = imageTitle ? (imageTitle + ' image') : 'Model image';
+            modelImageZoomTitle.textContent = imageTitle ? (imageTitle + ' image') : '<?= _('Model image') ?>';
         }
         modelImageZoomed.setAttribute('src', src);
-        modelImageZoomed.setAttribute('alt', imageTitle ? (imageTitle + ' zoomed image') : 'Model image zoomed view');
+        modelImageZoomed.setAttribute('alt', imageTitle ? (imageTitle + ' zoomed image') : '<?= _('Model image zoomed view') ?>');
         syncModalBodyState();
         window.requestAnimationFrame(function () {
             if (!modelImageZoomModal || !modelImageZoomOpen) return;
@@ -3937,10 +3937,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         if (modelDetailsTitle) {
-            modelDetailsTitle.textContent = (modelName || 'Model') + ' details';
+            modelDetailsTitle.textContent = (modelName || '<?= _('Model') ?>') + ' details';
         }
         if (modelDetailsNotes) {
-            modelDetailsNotes.textContent = 'Loading more information...';
+            modelDetailsNotes.textContent = '<?= _('Loading more information...') ?>';
         }
 
         modelBookings = [];
@@ -3948,7 +3948,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modelCalendarMonthCursor.setDate(1);
         renderModelBookingsTable();
         renderModelCalendar();
-        setModelFeedback('Loading bookings...', 'info');
+        setModelFeedback('<?= _('Loading bookings...') ?>', 'info');
 
         const requestId = ++modelDetailsRequestId;
         fetch('catalogue.php?ajax=model_details&model_id=' + encodeURIComponent(String(modelId)), {
@@ -3967,7 +3967,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then(function (payload) {
                         const message = payload && payload.error
                             ? payload.error
-                            : 'Unable to load model details.';
+                            : '<?= _('Unable to load model details.') ?>';
                         throw new Error(message);
                     });
             })
@@ -3980,7 +3980,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     ? data.notes.trim()
                     : '';
                 if (modelDetailsNotes) {
-                    modelDetailsNotes.textContent = notes !== '' ? notes : 'No additional information available for this model.';
+                    modelDetailsNotes.textContent = notes !== '' ? notes : '<?= _('No additional information available for this model.') ?>';
                 }
 
                 const warnings = data && Array.isArray(data.warnings)
@@ -4000,7 +4000,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (warnings.length > 0) {
                     setModelFeedback(warnings.join(' '), 'warning');
                 } else if (modelBookings.length === 0) {
-                    setModelFeedback('No bookings found for this model.', 'info');
+                    setModelFeedback('<?= _('No bookings found for this model.') ?>', 'info');
                 } else {
                     setModelFeedback('', 'info');
                 }
@@ -4016,7 +4016,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 modelBookings = [];
                 renderModelBookingsTable();
                 renderModelCalendar();
-                setModelFeedback(error && error.message ? error.message : 'Unable to load model details.', 'danger');
+                setModelFeedback(error && error.message ? error.message : '<?= _('Unable to load model details.') ?>', 'danger');
             });
     }
 
@@ -4178,18 +4178,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!viewBasketBtn) return;
 
                     if (data && data.ok === false) {
-                        showBasketToast(data.message || 'Could not add to basket');
+                        showBasketToast(data.message || '<?= _('Could not add to basket') ?>');
                         return;
                     }
 
                     if (data && typeof data.basket_count !== 'undefined') {
                         const count = parseInt(data.basket_count, 10) || 0;
                         if (count > 0) {
-                            viewBasketBtn.textContent = 'View basket (' + count + ')';
+                            viewBasketBtn.textContent = '<?= _('View basket') ?> (' + count + ')';
                         } else {
-                            viewBasketBtn.textContent = 'View basket';
+                            viewBasketBtn.textContent = '<?= _('View basket') ?>';
                         }
-                        showBasketToast(data.message || 'Added to basket');
+                        showBasketToast(data.message || '<?= _('Added to basket') ?>');
                     }
                 })
                 .catch(function () {
@@ -4430,7 +4430,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             const modelId = parseInt(card.dataset.modelId || '0', 10);
-            const modelName = card.dataset.modelName || 'Model';
+            const modelName = card.dataset.modelName || '<?= _('Model') ?>';
             openModelDetailsModal(modelId, modelName, card);
         });
 
@@ -4443,7 +4443,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             event.preventDefault();
             const modelId = parseInt(card.dataset.modelId || '0', 10);
-            const modelName = card.dataset.modelName || 'Model';
+            const modelName = card.dataset.modelName || '<?= _('Model') ?>';
             openModelDetailsModal(modelId, modelName, card);
         });
     });
