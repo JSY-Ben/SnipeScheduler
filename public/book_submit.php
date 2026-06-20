@@ -194,6 +194,19 @@ if ($notifyEnabled) {
     if ($staffPortalLinkLine !== null) {
         $adminBody[] = $staffPortalLinkLine;
     }
+    $templateVariables = [
+        'person_name' => $userName,
+        'person_email' => $userEmail,
+        'equipment_list' => $assetName,
+        'start_date' => $startDisplay,
+        'return_date' => $endDisplay,
+        'reservation_id' => (string)$reservationId,
+        'reservation_link' => layout_reservation_detail_url($reservationId, $config),
+        'my_reservations_link' => layout_my_reservations_url($config),
+        'staff_reservations_link' => layout_staff_reservations_url($config),
+        'staff_name' => $submittedByName !== '' ? $submittedByName : $submittedByEmail,
+        'staff_email' => $submittedByEmail,
+    ];
 
     $notifiedEmails = [];
     if ($sendUserDefault && $userEmail !== '') {
@@ -202,7 +215,10 @@ if ($notifyEnabled) {
             $userName !== '' ? $userName : $userEmail,
             'Reservation submitted',
             $userBody,
-            $config
+            $config,
+            true,
+            'reservation_submitted',
+            $templateVariables
         );
         $notifiedEmails[] = $userEmail;
     }
@@ -220,7 +236,10 @@ if ($notifyEnabled) {
                 $recipient['name'],
                 'New reservation submitted',
                 $adminBody,
-                $config
+                $config,
+                true,
+                'reservation_submitted',
+                $templateVariables
             );
             $notifiedEmails[] = $recipient['email'];
         }
@@ -236,7 +255,10 @@ if ($notifyEnabled) {
             $recipient['name'],
             'New reservation submitted',
             $adminBody,
-            $config
+            $config,
+            true,
+            'reservation_submitted',
+            $templateVariables
         );
     }
 }

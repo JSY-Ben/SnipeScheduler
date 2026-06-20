@@ -1036,6 +1036,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($staffPortalLinkLine !== null) {
                             $staffBodyLines[] = $staffPortalLinkLine;
                         }
+                        $templateVariables = [
+                            'person_name' => $userName,
+                            'person_email' => $userEmail,
+                            'equipment_list' => $assetLines,
+                            'start_date' => display_datetime($selectedStart),
+                            'return_date' => $dueDisplay,
+                            'reservation_id' => (string)$selectedReservationId,
+                            'reservation_link' => layout_reservation_detail_url((int)$selectedReservationId, $config),
+                            'my_reservations_link' => layout_my_reservations_url($config),
+                            'staff_reservations_link' => layout_staff_reservations_url($config),
+                            'staff_name' => $staffName,
+                            'staff_email' => $staffEmail,
+                            'note' => $note,
+                        ];
                         $appCfg = $config['app'] ?? [];
                         $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_staff_checkout_enabled'])
@@ -1049,7 +1063,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($notifyEnabled) {
                             $defaultEmails = [];
                             if ($sendUserDefault && $userEmail !== '') {
-                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $userBodyLines, $config);
+                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $userBodyLines, $config, true, 'staff_checkout', $templateVariables);
                                 $defaultEmails[] = $userEmail;
                             }
                             if ($sendStaffDefault && $staffEmail !== '') {
@@ -1058,7 +1072,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $staffName !== '' ? $staffName : $staffEmail,
                                     'You checked out a reservation',
                                     $staffBodyLines,
-                                    $config
+                                    $config,
+                                    true,
+                                    'staff_checkout',
+                                    $templateVariables
                                 );
                                 $defaultEmails[] = $staffEmail;
                             }
@@ -1073,7 +1090,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $recipient['name'],
                                     'Reservation has been checked out',
                                     $staffBodyLines,
-                                    $config
+                                    $config,
+                                    true,
+                                    'staff_checkout',
+                                    $templateVariables
                                 );
                             }
                         }

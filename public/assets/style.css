@@ -2469,3 +2469,14 @@ form .form-select {
     position: absolute;
     z-index: 99999;
 }
+.notification-template-editor {
+    min-height: 150px;
+    overflow-y: auto;
+    background: #fff;
+}
+
+.notification-template-editor:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 .25rem rgba(var(--bs-primary-rgb), .25);
+    outline: 0;
+}
