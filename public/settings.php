@@ -486,7 +486,7 @@ function layout_notification_template_editor(string $templateKey, array $config)
     ?>
     <section class="notification-template-panel mt-3" data-template-editor aria-labelledby="<?= h($editorId) ?>-heading">
         <div class="notification-template-heading">
-            <span class="badge text-bg-primary">Email content</span>
+            <span class="badge notification-template-badge">Email content</span>
             <div>
                 <h6 class="mb-1" id="<?= h($editorId) ?>-heading">Editing: <?= h($editorContext['title']) ?></h6>
                 <p class="small text-muted mb-0"><?= h($editorContext['trigger']) ?></p>
