@@ -1,0 +1,770 @@
+msgid ""
+msgstr "Project-Id-Version: equipment-booking\nPOT-Creation-Date: \nPO-Revision-Date: \nLast-Translator: \nLanguage-Team: \nLanguage: en_US\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nX-Generator: Codex\n"
+
+msgid "Equipment Booking – Login"
+msgstr "Equipment Booking – Login"
+
+msgid "Sign in"
+msgstr "Sign in"
+
+msgid "Choose an available sign-in option below."
+msgstr "Choose an available sign-in option below."
+
+msgid "Email address"
+msgstr "Email address"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Sign in with Google"
+msgstr "Sign in with Google"
+
+msgid "Sign in with Microsoft"
+msgstr "Sign in with Microsoft"
+
+msgid "No authentication methods are enabled. Please contact an administrator."
+msgstr "No authentication methods are enabled. Please contact an administrator."
+
+msgid "Equipment Booking – Dashboard"
+msgstr "Equipment Booking – Dashboard"
+
+msgid "Equipment Booking"
+msgstr "Equipment Booking"
+
+msgid "Browse bookable equipment, manage your basket, and review your bookings."
+msgstr "Browse bookable equipment, manage your basket, and review your bookings."
+
+msgid "Sign in to add items to your basket and place reservations."
+msgstr "Sign in to add items to your basket and place reservations."
+
+msgid "Log in"
+msgstr "Log in"
+
+msgid "Browse equipment"
+msgstr "Browse equipment"
+
+msgid "View the catalogue of equipment models available for users to book."
+msgstr "View the catalog of equipment models available for users to book."
+
+msgid "Add items to your basket and request them for specific dates."
+msgstr "Add items to your basket and request them for specific dates."
+
+msgid "You can browse publicly; sign in when ready to add items to your basket."
+msgstr "You can browse publicly; sign in when ready to add items to your basket."
+
+msgid "Go to catalogue"
+msgstr "Go to catalog"
+
+msgid "My Reservations"
+msgstr "My Reservations"
+
+msgid "See all of your upcoming and past reservations, including which models you requested, and cancel future bookings where allowed."
+msgstr "See all of your upcoming and past reservations, including which models you requested, and cancel future bookings where allowed."
+
+msgid "View my reservations"
+msgstr "View my reservations"
+
+msgid "Sign in to book"
+msgstr "Sign in to book"
+
+msgid "Adding items to basket, viewing basket, and creating reservations require a logged-in account."
+msgstr "Adding items to basket, viewing basket, and creating reservations require a logged-in account."
+
+msgid "Go to login"
+msgstr "Go to login"
+
+msgid "Reservations"
+msgstr "Reservations"
+
+msgid "Review reservation history, process today’s checkouts, and view checked-out assets."
+msgstr "Review reservation history, process today’s checkouts, and view checked-out assets."
+
+msgid "Go to reservations"
+msgstr "Go to reservations"
+
+msgid "Quick Checkout"
+msgstr "Quick Checkout"
+
+msgid "Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation."
+msgstr "Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation."
+
+msgid "Go to quick checkout"
+msgstr "Go to quick checkout"
+
+msgid "Quick Checkin"
+msgstr "Quick Checkin"
+
+msgid "Scan asset tags to check items back in via Snipe-IT (quick scan style)."
+msgstr "Scan asset tags to check items back in via Snipe-IT (quick scan style)."
+
+msgid "Go to quick checkin"
+msgstr "Go to quick checkin"
+
+msgid "Need help or something is missing from the catalogue? Please contact staff."
+msgstr "Need help or something is missing from the catalog? Please contact staff."
+
+msgid "Catalogue – Book Equipment"
+msgstr "Catalog – Book Equipment"
+
+msgid "Fetching assets..."
+msgstr "Fetching assets..."
+
+msgid "Equipment catalogue"
+msgstr "Equipment catalog"
+
+msgid "Browse bookable models, accessories, and kits and add them to your basket."
+msgstr "Browse bookable models, accessories, and kits and add them to your basket."
+
+msgid "Add to basket and View basket will take you to login."
+msgstr "Add to basket and View basket will take you to login."
+
+msgid "Booking for:"
+msgstr "Booking for:"
+
+msgid "Start typing email or name"
+msgstr "Start typing email or name"
+
+msgid "Use"
+msgstr "Use"
+
+msgid "Revert to logged in user"
+msgstr "Revert to logged in user"
+
+msgid "Catalogue unavailable"
+msgstr "Catalog unavailable"
+
+msgid "All catalogue sections are currently hidden in Frontend settings."
+msgstr "All catalog sections are currently hidden in Frontend settings."
+
+msgid "Equipment"
+msgstr "Equipment"
+
+msgid "Accessories"
+msgstr "Accessories"
+
+msgid "Kits"
+msgstr "Kits"
+
+msgid "Could not load categories from Snipe-IT:"
+msgstr "Could not load categories from Snipe-IT:"
+
+msgid "Error talking to Snipe-IT"
+msgstr "Error talking to Snipe-IT"
+
+msgid "SEARCH"
+msgstr "SEARCH"
+
+msgid "Search by name"
+msgstr "Search by name"
+
+msgid "Search by accessory name or manufacturer"
+msgstr "Search by accessory name or manufacturer"
+
+msgid "Search by kit name"
+msgstr "Search by kit name"
+
+msgid "Search by model name or manufacturer"
+msgstr "Search by model name or manufacturer"
+
+msgid "Category"
+msgstr "Category"
+
+msgid "All categories"
+msgstr "All categories"
+
+msgid "Sort"
+msgstr "Sort"
+
+msgid "Kit name (A–Z)"
+msgstr "Kit name (A–Z)"
+
+msgid "Kit Name (Ascending)"
+msgstr "Kit Name (Ascending)"
+
+msgid "Kit Name (Descending)"
+msgstr "Kit Name (Descending)"
+
+msgid "Accessory name (A–Z)"
+msgstr "Accessory name (A–Z)"
+
+msgid "Model name (A–Z)"
+msgstr "Model name (A–Z)"
+
+msgid "Name (Ascending)"
+msgstr "Name (Ascending)"
+
+msgid "Name (Descending)"
+msgstr "Name (Descending)"
+
+msgid "Manufacturer (Ascending)"
+msgstr "Manufacturer (Ascending)"
+
+msgid "Manufacturer (Descending)"
+msgstr "Manufacturer (Descending)"
+
+msgid "Available Units (Ascending)"
+msgstr "Available Units (Ascending)"
+
+msgid "Available Units (Descending)"
+msgstr "Available Units (Descending)"
+
+msgid "Units in Total"
+msgstr "Units in Total"
+
+msgid "Filter results"
+msgstr "Filter results"
+
+msgid "Show Favourites Only"
+msgstr "Show Favorites Only"
+
+msgid "RESERVATION WINDOW"
+msgstr "RESERVATION WINDOW"
+
+msgid "Start date & time"
+msgstr "Start date & time"
+
+msgid "End date & time"
+msgstr "End date & time"
+
+msgid "Today"
+msgstr "Today"
+
+msgid "No accessories found. Try adjusting your filters."
+msgstr "No accessories found. Try adjusting your filters."
+
+msgid "No kits found. Try adjusting your filters."
+msgstr "No kits found. Try adjusting your filters."
+
+msgid "No favourite models found for the selected filters."
+msgstr "No favorite models found for the selected filters."
+
+msgid "No models found. Try adjusting your filters."
+msgstr "No models found. Try adjusting your filters."
+
+msgid "Accessory"
+msgstr "Accessory"
+
+msgid "Manufacturer:"
+msgstr "Manufacturer:"
+
+msgid "Category:"
+msgstr "Category:"
+
+msgid "Requestable Units:"
+msgstr "Requestable Units:"
+
+msgid "Requestable units:"
+msgstr "Requestable units:"
+
+msgid "Available for selected dates:"
+msgstr "Available for selected dates:"
+
+msgid "Available now:"
+msgstr "Available now:"
+
+msgid "Quantity"
+msgstr "Quantity"
+
+msgid "Add to basket"
+msgstr "Add to basket"
+
+msgid "No units available for selected dates."
+msgstr "No units available for selected dates."
+
+msgid "No units available right now."
+msgstr "No units available right now."
+
+msgid "Kit"
+msgstr "Kit"
+
+msgid "Model"
+msgstr "Model"
+
+msgid "Model #"
+msgstr "Model #"
+
+msgid "Accessory #"
+msgstr "Accessory #"
+
+msgid "No supported bookable items detected."
+msgstr "No supported bookable items detected."
+
+msgid "more item"
+msgstr "more item"
+
+msgid "more items"
+msgstr "more items"
+
+msgid "Unable to load kit contents right now."
+msgstr "Unable to load kit contents right now."
+
+msgid "View kit contents for"
+msgstr "View kit contents for"
+
+msgid "No supported bookable items were found for this kit."
+msgstr "No supported bookable items were found for this kit."
+
+msgid "No additional details available."
+msgstr "No additional details available."
+
+msgid "Kit Contains:"
+msgstr "Kit Contains:"
+
+msgid "Unsupported kit contents:"
+msgstr "Unsupported kit contents:"
+
+msgid "No requestable units available."
+msgstr "No requestable units available."
+
+msgid "Add to Favourites"
+msgstr "Add to Favorites"
+
+msgid "No image"
+msgstr "No image"
+
+msgid "Announcements"
+msgstr "Announcements"
+
+msgid "Announcement"
+msgstr "Announcement"
+
+msgid "Dismiss"
+msgstr "Dismiss"
+
+msgid "Model details"
+msgstr "Model details"
+
+msgid "Close"
+msgstr "Close"
+
+msgid "MORE INFORMATION"
+msgstr "MORE INFORMATION"
+
+msgid "Select a model to load more information."
+msgstr "Select a model to load more information."
+
+msgid "BOOKINGS CALENDAR"
+msgstr "BOOKINGS CALENDAR"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Selected Month's Bookings"
+msgstr "Selected Month's Bookings"
+
+msgid "Reservation"
+msgstr "Reservation"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Source"
+msgstr "Source"
+
+msgid "Qty"
+msgstr "Qty"
+
+msgid "Start"
+msgstr "Start"
+
+msgid "End"
+msgstr "End"
+
+msgid "No bookings found for the selected month."
+msgstr "No bookings found for the selected month."
+
+msgid "Kit contents"
+msgstr "Kit contents"
+
+msgid "Select a kit to view its contents."
+msgstr "Select a kit to view its contents."
+
+msgid "Model image"
+msgstr "Model image"
+
+msgid "Model image zoomed view"
+msgstr "Model image zoomed view"
+
+msgid "View all your past, current and future reservations."
+msgstr "View all your past, current and future reservations."
+
+msgid "Reservation #%d has been deleted."
+msgstr "Reservation #%d has been deleted."
+
+msgid "Error loading your reservations:"
+msgstr "Error loading your reservations:"
+
+msgid "My Checked Out Items"
+msgstr "My Checked Out Items"
+
+msgid "Error loading checked-out items:"
+msgstr "Error loading checked-out items:"
+
+msgid "You don’t have any checked-out items right now."
+msgstr "You don’t have any checked-out items right now."
+
+msgid "Asset Tag"
+msgstr "Asset Tag"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Assigned Since"
+msgstr "Assigned Since"
+
+msgid "Expected Check-in"
+msgstr "Expected Check-in"
+
+msgid "You don’t have any reservations yet."
+msgstr "You don’t have any reservations yet."
+
+msgid "Reservation #%d"
+msgstr "Reservation #%d"
+
+msgid "User Name:"
+msgstr "User Name:"
+
+msgid "Start:"
+msgstr "Start:"
+
+msgid "End:"
+msgstr "End:"
+
+msgid "Status:"
+msgstr "Status:"
+
+msgid "Items:"
+msgstr "Items:"
+
+msgid "Checked-out assets:"
+msgstr "Checked-out assets:"
+
+msgid "Items in this reservation"
+msgstr "Items in this reservation"
+
+msgid "Item"
+msgstr "Item"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Delete reservation"
+msgstr "Delete reservation"
+
+msgid "Delete this reservation and all its items? This cannot be undone."
+msgstr "Delete this reservation and all its items? This cannot be undone."
+
+msgid "Catalogue"
+msgstr "Catalog"
+
+msgid "Basket – Book Equipment"
+msgstr "Basket – Book Equipment"
+
+msgid "Your basket"
+msgstr "Your basket"
+
+msgid "Review reserved items and quantities, check date-specific availability, and confirm your booking."
+msgstr "Review reserved items and quantities, check date-specific availability, and confirm your booking."
+
+msgid "Back to catalogue"
+msgstr "Back to catalog"
+
+msgid "Error talking to Snipe-IT:"
+msgstr "Error talking to Snipe-IT:"
+
+msgid "Your basket is empty. Add items from the <a href=\"catalogue.php\">catalogue</a>."
+msgstr "Your basket is empty. Add items from the <a href=\"catalogue.php\">catalog</a>."
+
+msgid "line item(s),"
+msgstr "line item(s),"
+
+msgid "item(s) total"
+msgstr "item(s) total"
+
+msgid "Invalid date/time for availability preview."
+msgstr "Invalid date/time for availability preview."
+
+msgid "End time must be after start time for availability preview."
+msgstr "End time must be after start time for availability preview."
+
+msgid "Showing availability for:"
+msgstr "Showing availability for:"
+
+msgid "Choose a start and end date below to automatically refresh availability."
+msgstr "Choose a start and end date below to automatically refresh availability."
+
+msgid "Reservation window not allowed:"
+msgstr "Reservation window not allowed:"
+
+msgid "Manufacturer"
+msgstr "Manufacturer"
+
+msgid "Requested qty"
+msgstr "Requested qty"
+
+msgid "Availability (for chosen dates)"
+msgstr "Availability (for chosen dates)"
+
+msgid "Not calculated yet"
+msgstr "Not calculated yet"
+
+msgid "units free"
+msgstr "units free"
+
+msgid "not enough for requested quantity"
+msgstr "not enough for requested quantity"
+
+msgid "units total (unable to compute free units)"
+msgstr "units total (unable to compute free units)"
+
+msgid "Availability unknown (no total count from Snipe-IT)"
+msgstr "Availability unknown (no total count from Snipe-IT)"
+
+msgid "Remove"
+msgstr "Remove"
+
+msgid "Decrease requested quantity"
+msgstr "Decrease requested quantity"
+
+msgid "Increase requested quantity"
+msgstr "Increase requested quantity"
+
+msgid "Select reservation window"
+msgstr "Select reservation window"
+
+msgid "Start defaults to now, end to tomorrow at 09:00"
+msgstr "Start defaults to now, end to tomorrow at 09:00"
+
+msgid "When you click <strong>Confirm booking</strong>, the system will re-check availability and reject the booking if another user has taken items in the meantime."
+msgstr "When you click <strong>Confirm booking</strong>, the system will re-check availability and reject the booking if another user has taken items in the meantime."
+
+msgid "Confirm booking"
+msgstr "Confirm booking"
+
+msgid "Confirm booking for all items"
+msgstr "Confirm booking for all items"
+
+msgid "Please choose a valid reservation window."
+msgstr "Please choose a valid reservation window."
+
+msgid "Please resolve the reservation rule violations above."
+msgstr "Please resolve the reservation rule violations above."
+
+msgid "of"
+msgstr "of"
+
+msgid "Your basket is empty."
+msgstr "Your basket is empty."
+
+msgid "Start and end date/time are required."
+msgstr "Start and end date/time are required."
+
+msgid "Invalid date/time."
+msgstr "Invalid date/time."
+
+msgid "End time must be after start time."
+msgstr "End time must be after start time."
+
+msgid "Could not create booking:"
+msgstr "Could not create booking:"
+
+msgid "This installation must run the latest database upgrade before accessories or kits can be booked."
+msgstr "This installation must run the latest database upgrade before accessories or kits can be booked."
+
+msgid "Invalid item/quantity in basket."
+msgstr "Invalid item/quantity in basket."
+
+msgid "not found in Snipe-IT: ID"
+msgstr "not found in Snipe-IT: ID"
+
+msgid "Booking submitted"
+msgstr "Booking submitted"
+
+msgid "Thank you"
+msgstr "Thank you"
+
+msgid "Your booking has been submitted."
+msgstr "Your booking has been submitted."
+
+msgid "Book more equipment"
+msgstr "Book more equipment"
+
+msgid "View my bookings"
+msgstr "View my bookings"
+
+msgid "Reservation #"
+msgstr "Reservation #"
+
+msgid "has been deleted."
+msgstr "has been deleted."
+
+msgid "HTTP request failed: "
+msgstr "HTTP request failed: "
+
+msgid "HTTP request failed with status "
+msgstr "HTTP request failed with status "
+
+msgid "Unexpected response format."
+msgstr "Unexpected response format."
+
+msgid "Google directory service account JSON is invalid."
+msgstr "Google directory service account JSON is invalid."
+
+msgid "Google directory service account credentials are missing."
+msgstr "Google directory service account credentials are missing."
+
+msgid "Failed to sign Google service account JWT."
+msgstr "Failed to sign Google service account JWT."
+
+msgid "Google directory token response missing access token."
+msgstr "Google directory token response missing access token."
+
+msgid "Cannot connect to LDAP host"
+msgstr "Cannot connect to LDAP host"
+
+msgid "LDAP service bind failed: "
+msgstr "LDAP service bind failed: "
+
+msgid "Unable to check overdue items at the moment."
+msgstr "Unable to check overdue items at the moment."
+
+msgid "Directory search is disabled."
+msgstr "Directory search is disabled."
+
+msgid "Microsoft directory search requires signing in with Microsoft."
+msgstr "Microsoft directory search requires signing in with Microsoft."
+
+msgid "Directory search error"
+msgstr "Directory search error"
+
+msgid "Unknown tag"
+msgstr "Unknown tag"
+
+msgid "No default location"
+msgstr "No default location"
+
+msgid "Invalid model ID."
+msgstr "Invalid model ID."
+
+msgid "Model not found."
+msgstr "Model not found."
+
+msgid "Could not load model assets: "
+msgstr "Could not load model assets: "
+
+msgid "Could not load all model assets."
+msgstr "Could not load all model assets."
+
+msgid "Unable to load model details right now."
+msgstr "Unable to load model details right now."
+
+msgid "Please enter a valid start and end date/time."
+msgstr "Please enter a valid start and end date/time."
+
+msgid "End date/time must be after start date/time."
+msgstr "End date/time must be after start date/time."
+
+msgid "Logged in as:"
+msgstr "Logged in as:"
+
+msgid "View basket"
+msgstr "View basket"
+
+msgid "Log out"
+msgstr "Log out"
+
+msgid "Browsing as"
+msgstr "Browsing as"
+
+msgid "Guest"
+msgstr "Guest"
+
+msgid "Click to zoom image for"
+msgstr "Click to zoom image for"
+
+msgid "and"
+msgstr "and"
+
+msgid "due"
+msgstr "due"
+
+msgid "Could not add to basket"
+msgstr "Could not add to basket"
+
+msgid "Added to basket"
+msgstr "Added to basket"
+
+msgid "Pending"
+msgstr "Pending"
+
+msgid "Confirmed"
+msgstr "Confirmed"
+
+msgid "Completed"
+msgstr "Completed"
+
+msgid "Missed"
+msgstr "Missed"
+
+msgid "Cancelled"
+msgstr "Canceled"
+
+msgid "Unknown"
+msgstr "Unknown"
+
+msgid "Asset"
+msgstr "Asset"
+
+msgid "Model + Asset"
+msgstr "Model + Asset"
+
+msgid "No bookings found for"
+msgstr "No bookings found for"
+
+msgid "N/A"
+msgstr "N/A"
+
+msgid "booking"
+msgstr "booking"
+
+msgid "bookings"
+msgstr "bookings"
+
+msgid "more"
+msgstr "more"
+
+msgid "contents"
+msgstr "contents"
+
+msgid "image"
+msgstr "image"
+
+msgid "zoomed image"
+msgstr "zoomed image"
+
+msgid "Loading more information..."
+msgstr "Loading more information..."
+
+msgid "Loading bookings..."
+msgstr "Loading bookings..."
+
+msgid "Unable to load model details."
+msgstr "Unable to load model details."
+
+msgid "No additional information available for this model."
+msgstr "No additional information available for this model."
+
+msgid "No bookings found for this model."
+msgstr "No bookings found for this model."
+
+msgid "Unable to load more information for this model."
+msgstr "Unable to load more information for this model."
+
+msgid "(Ascending)"
+msgstr "(Ascending)"
+
+msgid "(Descending)"
+msgstr "(Descending)"

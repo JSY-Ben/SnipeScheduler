@@ -42,6 +42,7 @@ $settingsTab = in_array($settingsTabRaw, $settingsTabAllowed, true) ? $settingsT
 $dateFormatOptions = app_date_format_options();
 $timeFormatOptions = app_time_format_options();
 $timezoneOptions = timezone_identifiers_list();
+$languageOptions = layout_available_language_options(SRC_PATH . '/locales');
 
 $categoryOptions    = [];
 $categoryFetchNotice = '';
@@ -300,6 +301,37 @@ function layout_test_microsoft_oauth(array $ms, array $auth): string
     }
 
     return 'Microsoft OAuth settings look OK and endpoints are reachable.';
+}
+
+function layout_available_language_options(string $localesPath): array
+{
+    if (!is_dir($localesPath)) {
+        return [];
+    }
+
+    $languages = [];
+    $localeDirs = glob(rtrim($localesPath, '/\\') . '/*', GLOB_ONLYDIR) ?: [];
+    foreach ($localeDirs as $localeDir) {
+        $language = basename($localeDir);
+        if ($language === '' || $language[0] === '.') {
+            continue;
+        }
+
+        $messagesDir = $localeDir . '/LC_MESSAGES';
+        $poFile = $messagesDir . '/messages.po';
+        $moFile = $messagesDir . '/messages.mo';
+        if (
+            is_file($poFile)
+            && is_file($moFile)
+            && filesize($poFile) > 0
+            && filesize($moFile) > 0
+        ) {
+            $languages[$language] = $language;
+        }
+    }
+
+    natcasesort($languages);
+    return array_values($languages);
 }
 
 function layout_test_ldap(array $ldap): string
@@ -623,7 +655,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $app = $config['app'] ?? [];
     $appNameRaw = trim((string)$post('app_name', (string)($app['name'] ?? 'SnipeScheduler')));
     $app['name'] = $appNameRaw !== '' ? $appNameRaw : 'SnipeScheduler';
-    $app['language'] = $post('language', $app['language'] ?? 'C');
+    $languageRaw = $post('language', $app['language'] ?? 'C');
+    $currentLanguage = (string)($app['language'] ?? 'C');
+    if (!in_array($currentLanguage, $languageOptions, true)) {
+        $currentLanguage = $languageOptions[0] ?? 'C';
+    }
+    $app['language'] = in_array($languageRaw, $languageOptions, true) ? $languageRaw : $currentLanguage;
     $timezoneRaw = $post('app_timezone', $app['timezone'] ?? 'Europe/Jersey');
     $currentTimezone = (string)($app['timezone'] ?? 'Europe/Jersey');
     if (!in_array($currentTimezone, $timezoneOptions, true)) {
@@ -1167,6 +1204,9 @@ if ($selectedAppName === '') {
 $configuredLogoUrl = trim((string)$cfg(['app', 'logo_url'], ''));
 $effectiveLogoUrl = $configuredLogoUrl !== '' ? $configuredLogoUrl : layout_default_logo_url();
 $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
+if (!in_array($selectedLanguage, $languageOptions, true)) {
+    $selectedLanguage = $languageOptions[0] ?? $selectedLanguage;
+}
 
 ?>
 <!DOCTYPE html>
@@ -1611,12 +1651,14 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                             <div class="col-md-6">
                                 <label class="form-label">Language</label>
                                 <select name="language" class="form-select">
-                                    <?php foreach (explode('.utf8' . "\n", shell_exec('locale -a|grep .utf8')) as $language): ?>
-                                        <?php if (empty($language)) continue; ?>
-                                        <option value="<?= $language ?>" <?= $selectedLanguage === $language ? 'selected' : '' ?>>
-                                            <?= $language ?>
+                                    <?php foreach ($languageOptions as $language): ?>
+                                        <option value="<?= h($language) ?>" <?= $selectedLanguage === $language ? 'selected' : '' ?>>
+                                            <?= h($language) ?>
                                         </option>
                                     <?php endforeach; ?>
+                                    <?php if (empty($languageOptions)): ?>
+                                        <option value="<?= h($selectedLanguage) ?>" selected>No languages available</option>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                         </div>
