@@ -12,6 +12,7 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/snipeit_client.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/email.php';
 require_once SRC_PATH . '/layout.php';
 
@@ -28,6 +29,7 @@ $selfUrl    = $pageBase . (!empty($baseQuery) ? '?' . http_build_query($baseQuer
 $active     = basename($_SERVER['PHP_SELF']);
 $isAdmin    = !empty($currentUser['is_admin']);
 $isStaff    = !empty($currentUser['is_staff']) || $isAdmin;
+$restrictCheckoutReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 $tz       = new DateTimeZone($timezone);
 $now      = new DateTime('now', $tz);
 $todayStr = $now->format('Y-m-d');
@@ -255,7 +257,16 @@ try {
         $stmt->execute([':today' => $todayStr]);
     }
 
-    $todayBookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $todayBookings = array_values(array_filter(
+        $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        static function (array $reservation) use ($currentUser, $restrictCheckoutReservationsToSameGroup): bool {
+            return staff_group_visibility_reservation_visible(
+                $reservation,
+                $currentUser,
+                $restrictCheckoutReservationsToSameGroup
+            );
+        }
+    ));
 } catch (Throwable $e) {
     $todayBookings = [];
     $todayError    = $e->getMessage();
@@ -361,6 +372,20 @@ if ($selectedReservationId) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $selectedReservation = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (
+        $selectedReservation
+        && !staff_group_visibility_reservation_visible(
+            $selectedReservation,
+            $currentUser,
+            $restrictCheckoutReservationsToSameGroup
+        )
+    ) {
+        $selectedReservation = null;
+        unset($_SESSION['selected_reservation_id']);
+        $_SESSION['reservation_selected_assets'] = [];
+        $checkoutAssets = [];
+        $checkoutWarnings[] = 'You do not have access to that reservation because its user is not in one of your Snipe-IT groups.';
+    }
 
     if ($selectedReservation) {
         $selectedStart = $selectedReservation['start_datetime'] ?? '';
@@ -1011,6 +1036,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($staffPortalLinkLine !== null) {
                             $staffBodyLines[] = $staffPortalLinkLine;
                         }
+                        $templateVariables = [
+                            'person_name' => $userName,
+                            'person_email' => $userEmail,
+                            'equipment_list' => $assetLines,
+                            'start_date' => display_datetime($selectedStart),
+                            'return_date' => $dueDisplay,
+                            'reservation_id' => (string)$selectedReservationId,
+                            'reservation_link' => layout_reservation_detail_url((int)$selectedReservationId, $config),
+                            'my_reservations_link' => layout_my_reservations_url($config),
+                            'staff_reservations_link' => layout_staff_reservations_url($config),
+                            'staff_name' => $staffName,
+                            'staff_email' => $staffEmail,
+                            'note' => $note,
+                        ];
                         $appCfg = $config['app'] ?? [];
                         $notifyEnabled = array_key_exists('notification_staff_checkout_enabled', $appCfg)
                             ? !empty($appCfg['notification_staff_checkout_enabled'])
@@ -1024,7 +1063,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($notifyEnabled) {
                             $defaultEmails = [];
                             if ($sendUserDefault && $userEmail !== '') {
-                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $userBodyLines, $config);
+                                layout_send_notification($userEmail, $userName, 'Your reservation has been checked out', $userBodyLines, $config, true, 'staff_checkout', $templateVariables);
                                 $defaultEmails[] = $userEmail;
                             }
                             if ($sendStaffDefault && $staffEmail !== '') {
@@ -1033,7 +1072,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $staffName !== '' ? $staffName : $staffEmail,
                                     'You checked out a reservation',
                                     $staffBodyLines,
-                                    $config
+                                    $config,
+                                    true,
+                                    'staff_checkout',
+                                    $templateVariables
                                 );
                                 $defaultEmails[] = $staffEmail;
                             }
@@ -1048,7 +1090,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $recipient['name'],
                                     'Reservation has been checked out',
                                     $staffBodyLines,
-                                    $config
+                                    $config,
+                                    true,
+                                    'staff_checkout',
+                                    $templateVariables
                                 );
                             }
                         }
@@ -1264,6 +1309,9 @@ $active  = basename($_SERVER['PHP_SELF']);
                         </select>
                         <div class="form-text">
                             <?= $showAllUpcoming ? 'Showing reservations that start today or later.' : 'Showing only reservations that start today.' ?>
+                            <?php if ($restrictCheckoutReservationsToSameGroup): ?>
+                                Only reservations for users in one of your Snipe-IT groups are shown.
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="col-md-4">

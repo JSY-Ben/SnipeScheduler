@@ -164,14 +164,28 @@ try {
         if ($name === '' && count($staffNames) === 1) {
             $name = $staffNames[0];
         }
-        $ok = layout_send_mail(
-            $email,
-            $name !== '' ? $name : $email,
-            $subject,
-            $textBody,
-            $config,
-            $htmlBody
-        );
+        $recipientName = $name !== '' ? $name : $email;
+        $templateConfigured = array_key_exists('notification_overdue_staff_template_html', $config['app'] ?? []);
+        if ($templateConfigured) {
+            $equipmentLines = array_map(static function (array $row): string {
+                return $row['tag'] . ' (' . $row['model'] . ') – due ' . $row['due'] . ' (' . $row['days'] . ' day' . ($row['days'] === 1 ? '' : 's') . ' overdue) – ' . $row['user'];
+            }, $lines);
+            $ok = layout_send_notification(
+                $email,
+                $recipientName,
+                'Overdue assets report',
+                explode("\n", $textBody),
+                $config,
+                true,
+                'overdue_staff',
+                [
+                    'equipment_list' => implode("\n", $equipmentLines),
+                    'staff_reservations_link' => layout_staff_reservations_url($config),
+                ]
+            );
+        } else {
+            $ok = layout_send_mail($email, $recipientName, $subject, $textBody, $config, $htmlBody);
+        }
         if ($ok) {
             $sentCount++;
             $logOut('sent', "Overdue report sent to {$email}");

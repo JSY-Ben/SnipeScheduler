@@ -6,10 +6,13 @@ require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 
 $isAdmin       = !empty($currentUser['is_admin']);
 $isStaff       = !empty($currentUser['is_staff']) || $isAdmin;
 $currentUserId = (string)($currentUser['id'] ?? '');
+$config        = load_config();
+$restrictReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -26,7 +29,7 @@ if ($resId <= 0) {
 
 // Load reservation to check ownership
 $stmt = $pdo->prepare("
-    SELECT id, user_id
+    SELECT id, user_id, user_email
     FROM reservations
     WHERE id = :id
     LIMIT 1
@@ -45,6 +48,12 @@ $ownsReservation = $currentUserId !== ''
     && (string)$reservation['user_id'] === $currentUserId;
 
 if (!$isStaff && !$ownsReservation) {
+    http_response_code(403);
+    echo 'Access denied.';
+    exit;
+}
+
+if ($isStaff && !$ownsReservation && !staff_group_visibility_reservation_visible($reservation, $currentUser, $restrictReservationsToSameGroup)) {
     http_response_code(403);
     echo 'Access denied.';
     exit;

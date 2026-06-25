@@ -123,18 +123,9 @@ try {
 }
 try {
     catalogue_permissions_table_exists();
-    $permissionGroups = catalogue_permissions_fetch_snipeit_groups(false);
+    $permissionGroups = catalogue_permissions_configured_snipeit_groups($config);
 } catch (Throwable $e) {
-    try {
-        $permissionGroups = catalogue_permissions_fetch_snipeit_groups(true);
-        if (!empty($permissionGroups)) {
-            $permissionGroupsFetchNotice = 'Could not refresh live groups from Snipe-IT; showing cached API results.';
-        } else {
-            $permissionGroupsFetchError = $e->getMessage();
-        }
-    } catch (Throwable $cachedError) {
-        $permissionGroupsFetchError = $e->getMessage();
-    }
+    $permissionGroupsFetchError = $e->getMessage();
 }
 try {
     $permissionCatalogueItems = catalogue_permissions_bookable_items();
@@ -430,6 +421,106 @@ if (isset($_GET['code'])) {
     $messages[] = 'Got code, please save form again';
 }
 
+function layout_notification_template_editor(string $templateKey, array $config): void
+{
+    $definitions = layout_notification_template_definitions();
+    if (!isset($definitions[$templateKey])) {
+        return;
+    }
+    $definition = $definitions[$templateKey];
+    $value = layout_sanitize_notification_template_html((string)($config['app'][$definition['config_key']] ?? $definition['default']));
+    $editorId = 'notification-template-' . str_replace('_', '-', $templateKey);
+    $editorContext = [
+        'overdue_user' => [
+            'title' => 'Overdue reminder sent to equipment holders',
+            'trigger' => 'The overdue-user cron task finds equipment that has not been returned.',
+            'audience' => 'Each person with overdue equipment receives their own email.',
+        ],
+        'overdue_staff' => [
+            'title' => 'Overdue summary sent to staff',
+            'trigger' => 'The overdue-staff cron task builds the consolidated overdue report.',
+            'audience' => 'The staff report recipients configured above.',
+        ],
+        'reservation_submitted' => [
+            'title' => 'New reservation submitted',
+            'trigger' => 'A user or member of staff submits a reservation.',
+            'audience' => 'The reservation user and any enabled staff, administrator, or additional recipients.',
+        ],
+        'quick_checkout' => [
+            'title' => 'Quick checkout completed',
+            'trigger' => 'Equipment is issued from the Quick Checkout page.',
+            'audience' => 'The equipment holder, checkout staff member, and additional recipients as enabled above.',
+        ],
+        'staff_checkout' => [
+            'title' => 'Reserved equipment checked out',
+            'trigger' => 'Staff check out an existing reservation.',
+            'audience' => 'The reservation user, checkout staff member, and additional recipients as enabled above.',
+        ],
+        'quick_checkin' => [
+            'title' => 'Equipment checked in',
+            'trigger' => 'Equipment is returned from the Quick Check-in page.',
+            'audience' => 'Affected users, check-in staff, and additional recipients as enabled above.',
+        ],
+        'mark_missed' => [
+            'title' => 'Reservation marked as missed',
+            'trigger' => 'The missed-reservation cron task marks an uncollected reservation as missed.',
+            'audience' => 'The reservation user and any enabled staff, administrator, or additional recipients.',
+        ],
+    ][$templateKey];
+    $wildcards = [
+        'Person name' => '{{person_name}}',
+        'Person email' => '{{person_email}}',
+        'Equipment' => '{{equipment_list}}',
+        'Start date' => '{{start_date}}',
+        'Return date' => '{{return_date}}',
+        'App name' => '{{app_name}}',
+        'Reservation #' => '{{reservation_id}}',
+        'Reservation link' => '{{reservation_link}}',
+        'My reservations' => '{{my_reservations_link}}',
+        'Staff reservations' => '{{staff_reservations_link}}',
+        'Staff name' => '{{staff_name}}',
+        'Staff email' => '{{staff_email}}',
+        'Note' => '{{note}}',
+        'Recipient name' => '{{recipient_name}}',
+    ];
+    ?>
+    <section class="notification-template-panel mt-3" data-template-editor aria-labelledby="<?= h($editorId) ?>-heading">
+        <div class="notification-template-heading">
+            <span class="badge notification-template-badge">Email content</span>
+            <div>
+                <h6 class="mb-1" id="<?= h($editorId) ?>-heading">Editing: <?= h($editorContext['title']) ?></h6>
+                <p class="small text-muted mb-0"><?= h($editorContext['trigger']) ?></p>
+                <p class="small mb-0"><strong>Recipients:</strong> <?= h($editorContext['audience']) ?></p>
+            </div>
+        </div>
+        <label class="form-label visually-hidden" for="<?= h($editorId) ?>"><?= h($definition['label']) ?></label>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="small fw-semibold text-muted">Format</span>
+            <div class="btn-toolbar gap-1" role="toolbar" aria-label="Email formatting">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-secondary" data-editor-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                    <button type="button" class="btn btn-outline-secondary" data-editor-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+                    <button type="button" class="btn btn-outline-secondary" data-editor-command="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+                    <button type="button" class="btn btn-outline-secondary" data-editor-command="insertUnorderedList">Bulleted list</button>
+                    <button type="button" class="btn btn-outline-secondary" data-editor-link>Link</button>
+                </div>
+            </div>
+        </div>
+        <div id="<?= h($editorId) ?>" class="form-control notification-template-editor" contenteditable="true" role="textbox" aria-multiline="true"><?= $value ?></div>
+        <textarea class="d-none" name="app_notify_template_<?= h($templateKey) ?>" data-template-value><?= h($value) ?></textarea>
+        <details class="notification-wildcards mt-2">
+            <summary>Insert a wildcard</summary>
+            <p class="small text-muted mt-2 mb-2">Place the cursor in the email, then select a value. Unavailable values are replaced with blank text.</p>
+            <div class="d-flex flex-wrap gap-1" aria-label="Template wildcards">
+                <?php foreach ($wildcards as $label => $token): ?>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-template-token="<?= h($token) ?>" title="Insert <?= h($token) ?>"><?= h($label) ?></button>
+                <?php endforeach; ?>
+            </div>
+        </details>
+    </section>
+    <?php
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
@@ -597,6 +688,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'app_notify_mark_missed_extra_emails',
         $app['notification_mark_missed_extra_emails'] ?? ''
     );
+    foreach (layout_notification_template_definitions() as $templateKey => $templateDefinition) {
+        $postKey = 'app_notify_template_' . $templateKey;
+        $submittedTemplate = (string)($_POST[$postKey] ?? ($app[$templateDefinition['config_key']] ?? ''));
+        $app[$templateDefinition['config_key']] = layout_sanitize_notification_template_html($submittedTemplate);
+    }
 
     $existingPolicy = reservation_policy_get(['app' => $app]);
     $existingNoticeParts = reservation_policy_minutes_to_parts($existingPolicy['notice_minutes'] ?? 0);
@@ -689,9 +785,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $catalogue['show_non_requestable_equipment'] = isset($_POST['catalogue_show_non_requestable_equipment']);
     $catalogue['show_restricted_items'] = isset($_POST['catalogue_show_restricted_items']);
     $catalogue['apply_permissions_to_quick_checkout'] = isset($_POST['catalogue_apply_permissions_to_quick_checkout']);
+    $catalogue['restrict_checkout_reservations_to_same_group'] = isset($_POST['catalogue_restrict_checkout_reservations_to_same_group']);
     $catalogue['show_available_default_locations'] = isset($_POST['catalogue_show_available_default_locations']);
     $catalogue['checked_out_affects_future_availability'] = isset($_POST['catalogue_checked_out_affects_future_availability']);
     $catalogue['allow_public_view'] = isset($_POST['catalogue_allow_public_view']);
+    $catalogue['snipeit_group_ids'] = catalogue_permissions_normalize_group_ids($post('catalogue_snipeit_group_ids', ''));
     $allowedRaw = $_POST['catalogue_allowed_categories'] ?? [];
     $allowedCategories = [];
     if (is_array($allowedRaw)) {
@@ -1026,6 +1124,10 @@ foreach (($reservationPolicy['blackout_slots'] ?? []) as $slot) {
 if (empty($reservationBlackoutRows)) {
     $reservationBlackoutRows[] = ['start' => '', 'end' => '', 'reason' => ''];
 }
+
+$configuredPermissionGroupIds = catalogue_permissions_configured_snipeit_group_ids($config);
+$configuredPermissionGroupIdsText = implode("\n", $configuredPermissionGroupIds);
+$permissionGroups = catalogue_permissions_configured_snipeit_groups($config);
 
 $selectedPermissionGroupId = (int)($_POST['permissions_group_id'] ?? $_GET['permissions_group_id'] ?? 0);
 $selectedPermissionGroupName = '';
@@ -2360,6 +2462,51 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
             </div>
 
             <div class="col-12<?= $settingsTab === 'permissions' ? '' : ' d-none' ?>" data-settings-group="permissions">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Snipe-IT Group IDs</h5>
+                        <p class="text-muted small mb-3">Configure the Snipe-IT groups available to permission filters and group membership caching.</p>
+
+                        <div class="border rounded p-3">
+                            <label class="form-label fw-semibold" for="catalogue_snipeit_group_ids">Snipe-IT Group IDs</label>
+                            <textarea name="catalogue_snipeit_group_ids"
+                                      id="catalogue_snipeit_group_ids"
+                                      rows="3"
+                                      class="form-control"
+                                      placeholder="1-4&#10;12&#10;34"><?= layout_textarea_value($configuredPermissionGroupIdsText) ?></textarea>
+                            <div class="form-text">
+                                Enter Snipe-IT group IDs separated by commas, spaces, or new lines. Ranges like 1-4 are also supported. Group IDs can be found in the 'Account Permission Groups' section on Snipe-IT. Click on a group in Snipe-IT, and find the Group ID number in the URL (e.g. https://snipeit.web/admin/groups/3).
+                            </div>
+                            <div class="form-text mt-2">
+                                These IDs populate the group dropdown below and are used for the user group membership caching cron script (scripts/snipeit_user_group_cache_update.php) in order to avoid requiring a Super-Admin API user for Snipe-IT. Please press 'Save Settings' in order to populate the list below after entering group IDs.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Checkout User Permissions</h5>
+                        <p class="text-muted small mb-3">Control which reservations checkout users can access in the staff reservation tabs.</p>
+
+                        <div class="border rounded p-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       name="catalogue_restrict_checkout_reservations_to_same_group"
+                                       id="catalogue_restrict_checkout_reservations_to_same_group"
+                                    <?= $cfg(['catalogue', 'restrict_checkout_reservations_to_same_group'], false) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="catalogue_restrict_checkout_reservations_to_same_group">
+                                    Restrict checkout users to viewing and checking out reservations only for members of their own Snipe-IT groups.
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                When enabled, checkout staff can only view and check out reservations for users who share at least one Snipe-IT group with them. Admin users can still view all reservations.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Catalogue Permissions</h5>
@@ -2415,7 +2562,7 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                         </div>
 
                         <?php if (empty($permissionGroups)): ?>
-                            <div class="text-muted small">No Snipe-IT groups are available.</div>
+                            <div class="text-muted small">Enter one or more Snipe-IT Group IDs above and save settings to populate the group dropdown.</div>
                         <?php else: ?>
                             <?php if (empty($permissionCatalogueItems)): ?>
                                 <div class="text-muted small">No requestable equipment or accessories are available.</div>
@@ -2592,11 +2739,12 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title mb-1">Notifications</h5>
-                        <p class="text-muted small mb-3">Control outbound emails for operational events and add extra recipients.</p>
+                        <p class="text-muted small mb-4">Choose who receives each notification and edit the exact email content sent for that event.</p>
 
-                        <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">Overdue Equipment Report Recipients</h6>
-                            <p class="text-muted small mb-3">Used by `scripts/email_overdue_staff.php` cron script to email a report of who is currently overdue on returning resources.</p>
+                        <h6 class="notification-group-heading">Scheduled overdue emails</h6>
+                        <div class="notification-event-card p-3 mb-4">
+                            <h6 class="mb-2">Overdue equipment emails</h6>
+                            <p class="text-muted small mb-3">Templates used by the overdue-user and overdue-staff cron tasks. Staff report recipients are configured here.</p>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Overdue Asset Staff Reminder Email Address</label>
@@ -2609,10 +2757,13 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional. Provide one name per email in the same order as the email list.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('overdue_user', $config); ?>
+                            <?php layout_notification_template_editor('overdue_staff', $config); ?>
                         </div>
 
-                        <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">New reservation submitted notifications</h6>
+                        <h6 class="notification-group-heading">Reservation workflow emails</h6>
+                        <div class="notification-event-card p-3 mb-3">
+                            <h6 class="mb-2">New reservation submitted</h6>
                             <?php
                             $legacyReservationSubmittedSendStaff = $cfg(['app', 'notification_reservation_submitted_send_staff'], true);
                             $reservationSubmittedSendCheckoutUsers = $cfg(
@@ -2677,10 +2828,11 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional comma/newline list. These recipients are added on top of enabled defaults.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('reservation_submitted', $config); ?>
                         </div>
 
-                        <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">Quick checkout notifications</h6>
+                        <div class="notification-event-card p-3 mb-3">
+                            <h6 class="mb-2">Quick checkout completed</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -2721,10 +2873,11 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('quick_checkout', $config); ?>
                         </div>
 
-                        <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">Reservation checkout notifications (Staff Checkout page)</h6>
+                        <div class="notification-event-card p-3 mb-3">
+                            <h6 class="mb-2">Reserved equipment checked out</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -2765,10 +2918,11 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('staff_checkout', $config); ?>
                         </div>
 
-                        <div class="border rounded p-3 mb-3">
-                            <h6 class="mb-2">Quick check-in notifications</h6>
+                        <div class="notification-event-card p-3 mb-3">
+                            <h6 class="mb-2">Equipment checked in</h6>
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <div class="form-check mt-1">
@@ -2809,10 +2963,11 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional comma/newline list. These recipients are added on top of the defaults.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('quick_checkin', $config); ?>
                         </div>
 
-                        <div class="border rounded p-3">
-                            <h6 class="mb-2">Missed Reservation Notifications</h6>
+                        <div class="notification-event-card p-3">
+                            <h6 class="mb-2">Reservation marked as missed</h6>
                             <p class="text-muted small mb-3">Used by `scripts/cron_mark_missed.php` cron script when a reservation is marked as missed.</p>
                             <div class="row g-3">
                                 <div class="col-md-4">
@@ -2868,6 +3023,7 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
                                     <div class="form-text">Optional comma/newline list. Emails are sent per missed reservation.</div>
                                 </div>
                             </div>
+                            <?php layout_notification_template_editor('mark_missed', $config); ?>
                         </div>
                     </div>
                 </div>
@@ -2888,6 +3044,77 @@ $selectedLanguage = (string)$cfg(['app', 'language'], 'C');
     const settingsTabs = Array.from(document.querySelectorAll('#settings-group-tabs [data-settings-tab]'));
     const settingsSections = Array.from(form.querySelectorAll('[data-settings-group]'));
     const settingsTabAllowed = new Set(['frontend', 'backend', 'permissions', 'notifications']);
+
+    form.querySelectorAll('[data-template-editor]').forEach((wrapper) => {
+        const editor = wrapper.querySelector('[contenteditable="true"]');
+        const valueField = wrapper.querySelector('[data-template-value]');
+        if (!editor || !valueField) return;
+
+        let savedRange = null;
+        const saveSelection = () => {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0) return;
+            const range = selection.getRangeAt(0);
+            if (editor.contains(range.commonAncestorContainer)) {
+                savedRange = range.cloneRange();
+            }
+        };
+        const restoreSelection = () => {
+            editor.focus();
+            if (!savedRange) return;
+            const selection = window.getSelection();
+            if (!selection) return;
+            selection.removeAllRanges();
+            selection.addRange(savedRange);
+        };
+        const syncTemplate = () => { valueField.value = editor.innerHTML; };
+        editor.addEventListener('input', () => {
+            syncTemplate();
+            saveSelection();
+        });
+        editor.addEventListener('blur', syncTemplate);
+        editor.addEventListener('keyup', saveSelection);
+        editor.addEventListener('mouseup', saveSelection);
+
+        wrapper.querySelectorAll('[data-editor-command]').forEach((button) => {
+            button.addEventListener('mousedown', (event) => event.preventDefault());
+            button.addEventListener('click', () => {
+                restoreSelection();
+                document.execCommand(button.dataset.editorCommand || '', false, null);
+                syncTemplate();
+                saveSelection();
+            });
+        });
+        const linkButton = wrapper.querySelector('[data-editor-link]');
+        if (linkButton) {
+            linkButton.addEventListener('mousedown', (event) => event.preventDefault());
+            linkButton.addEventListener('click', () => {
+                const url = window.prompt('Enter an https:// or mailto: link');
+                if (!url || !/^(https?:\/\/|mailto:)/i.test(url.trim())) return;
+                restoreSelection();
+                document.execCommand('createLink', false, url.trim());
+                syncTemplate();
+                saveSelection();
+            });
+        }
+        wrapper.querySelectorAll('[data-template-token]').forEach((button) => {
+            button.addEventListener('mousedown', (event) => event.preventDefault());
+            button.addEventListener('click', () => {
+                restoreSelection();
+                document.execCommand('insertText', false, button.dataset.templateToken || '');
+                syncTemplate();
+                saveSelection();
+            });
+        });
+    });
+
+    form.addEventListener('submit', () => {
+        form.querySelectorAll('[data-template-editor]').forEach((wrapper) => {
+            const editor = wrapper.querySelector('[contenteditable="true"]');
+            const valueField = wrapper.querySelector('[data-template-value]');
+            if (editor && valueField) valueField.value = editor.innerHTML;
+        });
+    });
 
     const applySettingsTab = (tabName) => {
         const nextTab = settingsTabAllowed.has(tabName) ? tabName : 'frontend';

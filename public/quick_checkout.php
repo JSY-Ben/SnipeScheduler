@@ -1404,6 +1404,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     if ($staffPortalLinkLine !== null) {
                                         $staffBodyLines[] = $staffPortalLinkLine;
                                     }
+                                    $templateVariables = [
+                                        'person_name' => $userName,
+                                        'person_email' => $userEmail,
+                                        'equipment_list' => $itemsText,
+                                        'start_date' => app_format_datetime($startTs),
+                                        'return_date' => $dueDisplay,
+                                        'my_reservations_link' => layout_my_reservations_url($notificationConfig),
+                                        'staff_reservations_link' => layout_staff_reservations_url($notificationConfig),
+                                        'staff_name' => $staffDisplayName,
+                                        'staff_email' => $staffEmail,
+                                        'note' => $note,
+                                    ];
 
                                     $appCfg = $notificationConfig['app'] ?? [];
                                     $notifyEnabled = array_key_exists('notification_quick_checkout_enabled', $appCfg)
@@ -1420,7 +1432,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         $defaultEmails = [];
 
                                         if ($sendUserDefault && $userEmail !== '') {
-                                            layout_send_notification($userEmail, $userName, 'Items checked out', $userBodyLines, $notificationConfig);
+                                            layout_send_notification($userEmail, $userName, 'Items checked out', $userBodyLines, $notificationConfig, true, 'quick_checkout', $templateVariables);
                                             $defaultEmails[] = $userEmail;
                                         }
 
@@ -1431,7 +1443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 ],
                                                 $staffBodyLines
                                             );
-                                            layout_send_notification($staffEmail, $staffDisplayName, 'You checked out items', $staffBody, $notificationConfig);
+                                            layout_send_notification($staffEmail, $staffDisplayName, 'You checked out items', $staffBody, $notificationConfig, true, 'quick_checkout', $templateVariables);
                                             $defaultEmails[] = $staffEmail;
                                         }
 
@@ -1445,7 +1457,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 $recipient['name'],
                                                 'Items checked out',
                                                 $staffBodyLines,
-                                                $notificationConfig
+                                                $notificationConfig,
+                                                true,
+                                                'quick_checkout',
+                                                $templateVariables
                                             );
                                         }
                                     }

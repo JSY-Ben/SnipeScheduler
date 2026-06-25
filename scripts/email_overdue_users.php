@@ -141,7 +141,29 @@ foreach ($buckets as $email => $info) {
     $subject = $appName . ' - Overdue assets reminder';
     [$textBody, $htmlBody] = build_overdue_email($info['assets'], $subject, $config);
     try {
-        $ok = layout_send_mail($email, $info['name'], $subject, $textBody, $config, $htmlBody);
+        $templateConfigured = array_key_exists('notification_overdue_user_template_html', $config['app'] ?? []);
+        if ($templateConfigured) {
+            $equipmentLines = array_map(static function (array $asset): string {
+                return $asset['tag'] . ' (' . $asset['model'] . ') – due ' . $asset['due'] . ' (' . $asset['days'] . ' day' . ($asset['days'] === 1 ? '' : 's') . ' overdue)';
+            }, $info['assets']);
+            $ok = layout_send_notification(
+                $email,
+                $info['name'],
+                'Overdue assets reminder',
+                explode("\n", $textBody),
+                $config,
+                true,
+                'overdue_user',
+                [
+                    'person_name' => $info['name'],
+                    'person_email' => $email,
+                    'equipment_list' => implode("\n", $equipmentLines),
+                    'my_reservations_link' => layout_my_reservations_url($config),
+                ]
+            );
+        } else {
+            $ok = layout_send_mail($email, $info['name'], $subject, $textBody, $config, $htmlBody);
+        }
         if ($ok) {
             $sent++;
             $logOut('sent', $email);

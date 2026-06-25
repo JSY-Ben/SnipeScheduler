@@ -4,11 +4,14 @@ require_once SRC_PATH . '/auth.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/booking_helpers.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/layout.php';
 
 $active    = basename($_SERVER['PHP_SELF']);
 $isAdmin   = !empty($currentUser['is_admin']);
 $isStaff   = !empty($currentUser['is_staff']) || $isAdmin;
+$config    = load_config();
+$restrictReservationsToSameGroup = staff_group_visibility_restriction_enabled($config, $currentUser);
 $embedded  = defined('RESERVATIONS_EMBED');
 $pageBase  = $embedded ? 'reservations.php' : 'staff_reservations.php';
 $baseQuery = $embedded ? ['tab' => 'history'] : [];
@@ -82,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'resto
 
             if (!$reservation || ($reservation['status'] ?? '') !== 'missed') {
                 throw new Exception('Reservation is not in a missed state.');
+            }
+            if (!staff_group_visibility_reservation_visible($reservation, $currentUser, $restrictReservationsToSameGroup)) {
+                throw new Exception('You do not have access to that reservation.');
             }
 
             $start = $reservation['start_datetime'] ?? '';
@@ -204,6 +210,60 @@ try {
         $params[':to'] = $dateTo . ' 23:59:59';
     }
 
+    if ($restrictReservationsToSameGroup) {
+        $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user(
+            $currentUser,
+            $restrictReservationsToSameGroup
+        );
+        $fastVisibleEmails = is_array($cachedVisibleEmails)
+            ? $cachedVisibleEmails
+            : staff_group_visibility_visible_user_emails_for_current_user($currentUser, true);
+        $visibleEmails = [];
+
+        if (is_array($fastVisibleEmails)) {
+            foreach ($fastVisibleEmails as $email) {
+                $email = strtolower(trim((string)$email));
+                if ($email !== '') {
+                    $visibleEmails[$email] = $email;
+                }
+            }
+        }
+
+        if (!is_array($cachedVisibleEmails)) {
+            $distinctEmailSql = "SELECT DISTINCT LOWER(user_email) FROM reservations";
+            if (!empty($where)) {
+                $distinctEmailSql .= ' WHERE ' . implode(' AND ', $where);
+            }
+            $emailStmt = $pdo->prepare($distinctEmailSql);
+            foreach ($params as $key => $value) {
+                $emailStmt->bindValue($key, $value);
+            }
+            $emailStmt->execute();
+
+            foreach ($emailStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $email) {
+                $email = strtolower(trim((string)$email));
+                if ($email === '' || isset($visibleEmails[$email])) {
+                    continue;
+                }
+                if (staff_group_visibility_user_can_see_email($currentUser, $email, $restrictReservationsToSameGroup)) {
+                    $visibleEmails[$email] = $email;
+                }
+            }
+        }
+
+        if (empty($visibleEmails)) {
+            $where[] = '1 = 0';
+        } else {
+            $emailPlaceholders = [];
+            foreach (array_values($visibleEmails) as $idx => $email) {
+                $paramName = ':visible_email_' . $idx;
+                $emailPlaceholders[] = $paramName;
+                $params[$paramName] = $email;
+            }
+            $where[] = 'LOWER(user_email) IN (' . implode(',', $emailPlaceholders) . ')';
+        }
+    }
+
     $sql = "SELECT * FROM reservations";
 
     $countSql = "SELECT COUNT(*) FROM reservations";
@@ -260,6 +320,9 @@ try {
         <h1>All Reservations</h1>
             <div class="page-subtitle">
                 View, filter, and delete any past, present or future reservation.
+                <?php if ($restrictReservationsToSameGroup): ?>
+                    Only reservations for users in one of your Snipe-IT groups are shown.
+                <?php endif; ?>
             </div>
         </div>
 

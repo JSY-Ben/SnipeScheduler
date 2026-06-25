@@ -152,6 +152,128 @@ function catalogue_permissions_fetch_snipeit_groups(bool $allowResponseCache = t
     return $groups;
 }
 
+function catalogue_permissions_normalize_group_ids($value): array
+{
+    $ids = [];
+    if (is_string($value)) {
+        preg_match_all('/\d+\s*-\s*\d+|\d+/', $value, $matches);
+        $value = $matches[0] ?? [];
+    }
+    if (!is_array($value)) {
+        return [];
+    }
+
+    foreach ($value as $rawId) {
+        if (is_array($rawId)) {
+            foreach (catalogue_permissions_normalize_group_ids($rawId) as $nestedId) {
+                $ids[$nestedId] = $nestedId;
+            }
+            continue;
+        }
+
+        $rawId = trim((string)$rawId);
+        if ($rawId === '') {
+            continue;
+        }
+
+        if (preg_match('/^(\d+)\s*-\s*(\d+)$/', $rawId, $rangeMatch)) {
+            $start = (int)$rangeMatch[1];
+            $end = (int)$rangeMatch[2];
+            if ($start <= 0 || $end <= 0) {
+                continue;
+            }
+            $min = min($start, $end);
+            $max = max($start, $end);
+            for ($id = $min; $id <= $max; $id++) {
+                $ids[$id] = $id;
+            }
+            continue;
+        }
+
+        if (!ctype_digit($rawId)) {
+            continue;
+        }
+
+        $id = (int)$rawId;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+
+    ksort($ids, SORT_NUMERIC);
+    return array_values($ids);
+}
+
+function catalogue_permissions_configured_snipeit_group_ids(?array $config = null): array
+{
+    if ($config === null) {
+        try {
+            $config = load_config();
+        } catch (Throwable $e) {
+            $config = [];
+        }
+    }
+
+    $catalogue = is_array($config['catalogue'] ?? null) ? $config['catalogue'] : [];
+    return catalogue_permissions_normalize_group_ids($catalogue['snipeit_group_ids'] ?? []);
+}
+
+function catalogue_permissions_cached_snipeit_group_names(array $groupIds): array
+{
+    $groupIds = catalogue_permissions_normalize_group_ids($groupIds);
+    if (empty($groupIds)) {
+        return [];
+    }
+
+    try {
+        $pdo = catalogue_permissions_pdo();
+        $pdo->query('SELECT 1 FROM snipeit_user_group_cache LIMIT 1');
+
+        $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT group_id, group_name
+              FROM snipeit_user_group_cache
+             WHERE group_id IN ({$placeholders})
+               AND group_name <> ''
+             ORDER BY synced_at DESC
+        ");
+        $stmt->execute($groupIds);
+
+        $names = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $groupId = (int)($row['group_id'] ?? 0);
+            $groupName = trim((string)($row['group_name'] ?? ''));
+            if ($groupId <= 0 || $groupName === '' || isset($names[$groupId])) {
+                continue;
+            }
+            if ($groupName === 'Group #' . $groupId) {
+                continue;
+            }
+            $names[$groupId] = $groupName;
+        }
+
+        return $names;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function catalogue_permissions_configured_snipeit_groups(?array $config = null): array
+{
+    $groupIds = catalogue_permissions_configured_snipeit_group_ids($config);
+    $cachedNames = catalogue_permissions_cached_snipeit_group_names($groupIds);
+    $groups = [];
+    foreach ($groupIds as $groupId) {
+        $groupName = $cachedNames[$groupId] ?? 'No Group Name Found';
+        $groups[] = [
+            'id' => $groupId,
+            'name' => 'Group ID #' . $groupId . ' (' . $groupName . ')',
+        ];
+    }
+
+    return $groups;
+}
+
 function catalogue_permissions_extract_group_ids_from_value($value): array
 {
     $ids = [];

@@ -260,6 +260,128 @@ function layout_notification_line_to_html(string $line): string
 }
 
 /**
+ * Notification templates exposed in Settings. Values are deliberately HTML so
+ * existing installations keep their current messages until an administrator
+ * chooses to customise them.
+ *
+ * @return array<string, array{label:string,config_key:string,default:string}>
+ */
+function layout_notification_template_definitions(): array
+{
+    return [
+        'overdue_user' => [
+            'label' => 'Overdue user reminder email text',
+            'config_key' => 'notification_overdue_user_template_html',
+            'default' => '<p>Hello {{person_name}},</p><p>The following equipment is overdue:</p><p>{{equipment_list}}</p><p>Please return it as soon as possible.</p>',
+        ],
+        'overdue_staff' => [
+            'label' => 'Overdue staff report email text',
+            'config_key' => 'notification_overdue_staff_template_html',
+            'default' => '<p>The following equipment is overdue:</p><p>{{equipment_list}}</p><p>{{staff_reservations_link}}</p>',
+        ],
+        'reservation_submitted' => [
+            'label' => 'Reservation submitted email text',
+            'config_key' => 'notification_reservation_submitted_template_html',
+            'default' => '<p>Reservation <strong>#{{reservation_id}}</strong> has been submitted.</p><p><strong>Reserved for:</strong> {{person_name}}<br><strong>Equipment:</strong> {{equipment_list}}<br><strong>Start:</strong> {{start_date}}<br><strong>Return:</strong> {{return_date}}<br><strong>Submitted by:</strong> {{staff_name}}</p><p>{{reservation_link}}</p>',
+        ],
+        'quick_checkout' => [
+            'label' => 'Quick checkout email text',
+            'config_key' => 'notification_quick_checkout_template_html',
+            'default' => '<p>The following items have been checked out to <strong>{{person_name}}</strong>:</p><p>{{equipment_list}}</p><p><strong>Return by:</strong> {{return_date}}<br><strong>Checked out by:</strong> {{staff_name}}<br><strong>Note:</strong> {{note}}</p>',
+        ],
+        'staff_checkout' => [
+            'label' => 'Reservation checkout email text',
+            'config_key' => 'notification_staff_checkout_template_html',
+            'default' => '<p>Reservation <strong>#{{reservation_id}}</strong> for {{person_name}} has been checked out.</p><p><strong>Equipment:</strong> {{equipment_list}}<br><strong>Return by:</strong> {{return_date}}<br><strong>Checked out by:</strong> {{staff_name}}<br><strong>Note:</strong> {{note}}</p><p>{{reservation_link}}</p>',
+        ],
+        'quick_checkin' => [
+            'label' => 'Quick check-in email text',
+            'config_key' => 'notification_quick_checkin_template_html',
+            'default' => '<p>The following items have been checked in for <strong>{{person_name}}</strong>:</p><p>{{equipment_list}}</p><p><strong>Checked in by:</strong> {{staff_name}}<br><strong>Note:</strong> {{note}}</p>',
+        ],
+        'mark_missed' => [
+            'label' => 'Missed reservation email text',
+            'config_key' => 'notification_mark_missed_template_html',
+            'default' => '<p>Reservation <strong>#{{reservation_id}}</strong> for {{person_name}} has been marked as missed.</p><p><strong>Equipment:</strong> {{equipment_list}}<br><strong>Scheduled start:</strong> {{start_date}}<br><strong>Scheduled return:</strong> {{return_date}}</p><p>{{reservation_link}}</p>',
+        ],
+    ];
+}
+
+/** Keep administrator-authored email HTML to a small, email-safe subset. */
+function layout_sanitize_notification_template_html(string $html): string
+{
+    $html = trim($html);
+    if ($html === '') {
+        return '';
+    }
+
+    $html = preg_replace('~<(script|style|iframe|object|embed|form|input|button)[^>]*>.*?</\\1\s*>~is', '', $html) ?? '';
+    $html = strip_tags($html, '<div><p><br><strong><b><em><i><u><ul><ol><li><a><h1><h2><h3><blockquote>');
+    // The editor does not need arbitrary styling or event attributes. Preserve
+    // only safe http(s)/mailto links and basic formatting tags.
+    $html = preg_replace_callback('~<a\b([^>]*)>~i', static function (array $match): string {
+        $attrs = (string)($match[1] ?? '');
+        if (!preg_match('~href\s*=\s*(["\'])(.*?)\\1~i', $attrs, $hrefMatch)) {
+            return '<a>';
+        }
+        $href = html_entity_decode(trim((string)$hrefMatch[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if (!preg_match('~^(https?://|mailto:)~i', $href)) {
+            return '<a>';
+        }
+        return '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '">';
+    }, $html) ?? '';
+    $html = preg_replace('~<(?!a\b)([a-z0-9]+)\b[^>]*>~i', '<$1>', $html) ?? '';
+
+    return trim($html);
+}
+
+/** @return array{html:string,text:string}|null */
+function layout_render_notification_template(string $templateKey, array $variables, array $config): ?array
+{
+    $definitions = layout_notification_template_definitions();
+    if (!isset($definitions[$templateKey])) {
+        return null;
+    }
+    $configKey = $definitions[$templateKey]['config_key'];
+    if (!array_key_exists($configKey, $config['app'] ?? [])) {
+        return null; // Preserve legacy hard-coded content until explicitly saved.
+    }
+    $template = layout_sanitize_notification_template_html((string)($config['app'][$configKey] ?? ''));
+    if ($template === '') {
+        return null;
+    }
+
+    $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler')) ?: 'SnipeScheduler';
+    $variables['app_name'] = $variables['app_name'] ?? $appName;
+    $htmlReplacements = [];
+    $textReplacements = [];
+    foreach ($variables as $name => $value) {
+        $token = '{{' . $name . '}}';
+        $plain = trim((string)$value);
+        $textReplacements[$token] = $plain;
+        if (substr($name, -5) === '_link' && preg_match('~^https?://~i', $plain)) {
+            $escaped = htmlspecialchars($plain, ENT_QUOTES, 'UTF-8');
+            $htmlReplacements[$token] = '<a href="' . $escaped . '">' . $escaped . '</a>';
+        } else {
+            $htmlReplacements[$token] = nl2br(htmlspecialchars($plain, ENT_QUOTES, 'UTF-8'));
+        }
+    }
+    // Known but unavailable values become empty rather than leaking a token.
+    foreach (['recipient_name','person_name','person_email','equipment_list','start_date','return_date','app_name','reservation_id','reservation_link','my_reservations_link','staff_reservations_link','staff_name','staff_email','note'] as $name) {
+        $token = '{{' . $name . '}}';
+        $htmlReplacements[$token] = $htmlReplacements[$token] ?? '';
+        $textReplacements[$token] = $textReplacements[$token] ?? '';
+    }
+    $renderedHtml = strtr($template, $htmlReplacements);
+    $textSource = preg_replace('~<\s*br\s*/?\s*>~i', "\n", $template) ?? $template;
+    $textSource = preg_replace('~</(div|p|li|h[1-3]|blockquote)>~i', "\n", $textSource) ?? $textSource;
+    $plainTemplate = html_entity_decode(strip_tags($textSource), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $renderedText = trim(strtr($plainTemplate, $textReplacements));
+
+    return ['html' => $renderedHtml, 'text' => $renderedText];
+}
+
+/**
  * Resolve the public base URL for app links in emails.
  *
  * Uses app.base_url when configured, otherwise falls back to the current web request.
@@ -403,16 +525,33 @@ function layout_reservation_link_line(int $reservationId, ?array $cfg = null): ?
  * @param array|null $cfg
  * @return bool
  */
-function layout_send_notification(string $toEmail, string $toName, string $subject, array $lines, ?array $cfg = null, bool $includeHtml = true): bool
+function layout_send_notification(
+    string $toEmail,
+    string $toName,
+    string $subject,
+    array $lines,
+    ?array $cfg = null,
+    bool $includeHtml = true,
+    ?string $templateKey = null,
+    array $templateVariables = []
+): bool
 {
     $bodyLines = array_filter($lines, static function ($line) {
         return $line !== null && $line !== '';
     });
     $body = implode("\n", $bodyLines);
 
+    $config = $cfg ?? load_config();
+    $templateVariables['recipient_name'] = $templateVariables['recipient_name'] ?? $toName;
+    $renderedTemplate = $templateKey !== null
+        ? layout_render_notification_template($templateKey, $templateVariables, $config)
+        : null;
+    if ($renderedTemplate !== null) {
+        $body = $renderedTemplate['text'];
+    }
+
     $htmlBody = null;
     if ($includeHtml) {
-        $config = $cfg ?? load_config();
         $logoUrl = trim($config['app']['logo_url'] ?? '');
         $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
         if ($appName === '') {
@@ -427,8 +566,12 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
         }
         $htmlParts[] = '<div class="card">';
         $htmlParts[] = '<h2 style="margin:0 0 10px 0; font-size:18px;">' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</h2>';
-        foreach ($bodyLines as $line) {
-            $htmlParts[] = '<p style="margin:6px 0;">' . layout_notification_line_to_html((string)$line) . '</p>';
+        if ($renderedTemplate !== null) {
+            $htmlParts[] = '<div class="notification-template">' . $renderedTemplate['html'] . '</div>';
+        } else {
+            foreach ($bodyLines as $line) {
+                $htmlParts[] = '<p style="margin:6px 0;">' . layout_notification_line_to_html((string)$line) . '</p>';
+            }
         }
         $htmlParts[] = '</div>';
         $htmlParts[] = '<div class="muted" style="margin-top:12px;">This message was sent by ' . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . '.</div>';
@@ -437,7 +580,6 @@ function layout_send_notification(string $toEmail, string $toName, string $subje
     }
 
     // Prefix subject with app name
-    $config = $cfg ?? load_config();
     $appName = trim((string)($config['app']['name'] ?? 'SnipeScheduler'));
     if ($appName === '') {
         $appName = 'SnipeScheduler';
