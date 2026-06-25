@@ -2488,14 +2488,14 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                             </div>
                             <div class="col-md-4 d-flex align-items-end">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
-                                    <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
-                                </div>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="hide_footer" id="hide_footer" <?= $cfg(['app', 'hide_footer'], false) ? 'checked' : '' ?>>
                                     <label class="form-check-label" for="hide_footer">Hide footer for non-admins</label>
+                                </div>
+                            </div>
+                            <div class="col-12 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="app_debug" id="app_debug" <?= $cfg(['app', 'debug'], false) ? 'checked' : '' ?>>
+                                    <label class="form-check-label" for="app_debug">Enable debug mode (more verbose errors)</label>
                                 </div>
                             </div>
                         </div>
