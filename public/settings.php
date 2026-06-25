@@ -1648,19 +1648,6 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                                 <label class="form-label">App Name</label>
                                 <input type="text" name="app_name" class="form-control" value="<?= h($selectedAppName) ?>" maxlength="120">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Language</label>
-                                <select name="language" class="form-select">
-                                    <?php foreach ($languageOptions as $language): ?>
-                                        <option value="<?= h($language) ?>" <?= $selectedLanguage === $language ? 'selected' : '' ?>>
-                                            <?= h($language) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                    <?php if (empty($languageOptions)): ?>
-                                        <option value="<?= h($selectedLanguage) ?>" selected>No languages available</option>
-                                    <?php endif; ?>
-                                </select>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -2406,6 +2393,19 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                                             <?= h($timezone) ?>
                                         </option>
                                     <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Language</label>
+                                <select name="language" class="form-select">
+                                    <?php foreach ($languageOptions as $language): ?>
+                                        <option value="<?= h($language) ?>" <?= $selectedLanguage === $language ? 'selected' : '' ?>>
+                                            <?= h($language) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <?php if (empty($languageOptions)): ?>
+                                        <option value="<?= h($selectedLanguage) ?>" selected>No languages available</option>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                             <div class="col-md-4">
