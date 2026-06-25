@@ -450,18 +450,18 @@ if (!function_exists('layout_render_nav')) {
     {
         if (!$isAuthenticated) {
             $links = [
-                ['href' => 'index.php',     'label' => 'Dashboard', 'staff' => false],
-                ['href' => 'catalogue.php', 'label' => 'Catalogue', 'staff' => false],
+                ['href' => 'index.php',     'label' => _('Dashboard'), 'staff' => false],
+                ['href' => 'catalogue.php', 'label' => _('Catalogue'), 'staff' => false],
             ];
         } else {
             $links = [
-                ['href' => 'index.php',          'label' => 'Dashboard',           'staff' => false],
-                ['href' => 'catalogue.php',      'label' => 'Catalogue',           'staff' => false],
-                ['href' => 'my_bookings.php',    'label' => 'My Reservations',     'staff' => false],
-                ['href' => 'reservations.php',   'label' => 'Reservations',        'staff' => true],
-                ['href' => 'quick_checkout.php', 'label' => 'Quick Checkout',      'staff' => true],
-                ['href' => 'quick_checkin.php',  'label' => 'Quick Checkin',       'staff' => true],
-                ['href' => 'activity_log.php',   'label' => 'Admin',               'staff' => false, 'admin_only' => true],
+                ['href' => 'index.php',          'label' => _('Dashboard'),           'staff' => false],
+                ['href' => 'catalogue.php',      'label' => _('Catalogue'),           'staff' => false],
+                ['href' => 'my_bookings.php',    'label' => _('My Reservations'),     'staff' => false],
+                ['href' => 'reservations.php',   'label' => _('Reservations'),        'staff' => true],
+                ['href' => 'quick_checkout.php', 'label' => _('Quick Checkout'),      'staff' => true],
+                ['href' => 'quick_checkin.php',  'label' => _('Quick Checkin'),       'staff' => true],
+                ['href' => 'activity_log.php',   'label' => _('Admin'),               'staff' => false, 'admin_only' => true],
             ];
         }
 

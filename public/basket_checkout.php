@@ -14,28 +14,28 @@ $user = $userOverride ?: $currentUser;
 $basket = booking_session_basket_items($_SESSION['basket'] ?? []);
 
 if (empty($basket)) {
-    die('Your basket is empty.');
+    die(_('Your basket is empty.'));
 }
 
 $startRaw = $_POST['start_datetime'] ?? '';
 $endRaw = $_POST['end_datetime'] ?? '';
 
 if (!$startRaw || !$endRaw) {
-    die('Start and end date/time are required.');
+    die(_('Start and end date/time are required.'));
 }
 
 $startTs = strtotime($startRaw);
 $endTs = strtotime($endRaw);
 
 if ($startTs === false || $endTs === false) {
-    die('Invalid date/time.');
+    die(_('Invalid date/time.'));
 }
 
 $start = date('Y-m-d H:i:s', $startTs);
 $end = date('Y-m-d H:i:s', $endTs);
 
 if ($end <= $start) {
-    die('End time must be after start time.');
+    die(_('End time must be after start time.'));
 }
 
 $isAdmin = !empty($currentUser['is_admin']);
@@ -62,7 +62,7 @@ $policyViolations = reservation_policy_validate_booking($pdo, $reservationPolicy
     'is_on_behalf' => $isOnBehalfBooking,
 ]);
 if (!empty($policyViolations)) {
-    die('Could not create booking: ' . htmlspecialchars($policyViolations[0]));
+    die(_('Could not create booking:') . ' ' . htmlspecialchars($policyViolations[0]));
 }
 
 $reservationItemsTyped = booking_reservation_items_have_typed_columns($pdo);
@@ -74,7 +74,7 @@ foreach ($basket as $basketItem) {
     }
 }
 if ($hasNonModelItems && !$reservationItemsTyped) {
-    die('This installation must run the latest database upgrade before accessories or kits can be booked.');
+    die(_('This installation must run the latest database upgrade before accessories or kits can be booked.'));
 }
 
 $pdo->beginTransaction();
@@ -89,12 +89,12 @@ try {
         $qty = (int)($basketItem['qty'] ?? 0);
 
         if ($itemId <= 0 || $qty < 1) {
-            throw new Exception('Invalid item/quantity in basket.');
+            throw new Exception(_('Invalid item/quantity in basket.'));
         }
 
         $record = booking_fetch_catalogue_item_record($itemType, $itemId);
         if (empty($record['id'])) {
-            throw new Exception(ucfirst($itemType) . ' not found in Snipe-IT: ID ' . $itemId);
+            throw new Exception(ucfirst($itemType) . ' ' . _('not found in Snipe-IT: ID') . ' ' . $itemId);
         }
 
         $existingBooked = booking_count_reserved_item_quantity(
@@ -368,7 +368,7 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    die('Could not create booking: ' . htmlspecialchars($e->getMessage()));
+    die(_('Could not create booking:') . ' ' . htmlspecialchars($e->getMessage()));
 }
 ?>
 <!DOCTYPE html>
@@ -376,18 +376,18 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Booking submitted</title>
+    <title><?= _('Booking submitted') ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body class="p-4">
 <div class="container">
     <?= layout_logo_tag() ?>
-    <h1>Thank you</h1>
-    <p>Your booking has been submitted.</p>
+    <h1><?= _('Thank you') ?></h1>
+    <p><?= _('Your booking has been submitted.') ?></p>
     <p>
-        <a href="catalogue.php" class="btn btn-primary">Book more equipment</a>
-        <a href="my_bookings.php" class="btn btn-secondary">View my bookings</a>
+        <a href="catalogue.php" class="btn btn-primary"><?= _('Book more equipment') ?></a>
+        <a href="my_bookings.php" class="btn btn-secondary"><?= _('View my bookings') ?></a>
     </p>
 </div>
 <?php layout_footer(); ?>

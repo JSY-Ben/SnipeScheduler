@@ -125,6 +125,7 @@ return [
 
     'app' => [
         'name' => 'SnipeScheduler',
+        'language' => 'C',
         'timezone'    => 'Europe/Jersey',
         'debug'       => true,
         'hide_footer' => false,

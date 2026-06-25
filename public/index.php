@@ -14,7 +14,7 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Equipment Booking – Dashboard</title>
+    <title><?= _('Equipment Booking – Dashboard') ?></title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
@@ -25,9 +25,9 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
     <div class="page-shell">
         <?= layout_logo_tag() ?>
         <div class="page-header">
-            <h1>Equipment Booking</h1>
+            <h1><?= _('Equipment Booking') ?></h1>
             <div class="page-subtitle">
-                Browse bookable equipment, manage your basket, and review your bookings.
+                <?= _('Browse bookable equipment, manage your basket, and review your bookings.') ?>
             </div>
         </div>
 
@@ -36,19 +36,20 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
         <div class="top-bar mb-3">
             <?php if ($isAuthenticated): ?>
                 <div class="top-bar-user">
-                    Logged in as:
+                    <?= _('Logged in as:') ?>
                     <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
                     (<?= h($currentUser['email'] ?? '') ?>)
                 </div>
                 <div class="top-bar-actions">
-                    <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
+                    <a href="logout.php" class="btn btn-link btn-sm"><?= _('Log out') ?></a>
                 </div>
             <?php else: ?>
                 <div class="top-bar-user">
-                    Browsing as <strong>Guest</strong>. Sign in to add items to your basket and place reservations.
+                    <?= _('Browsing as') ?> <strong><?= _('Guest') ?></strong>.
+                    <?= _('Sign in to add items to your basket and place reservations.') ?>
                 </div>
                 <div class="top-bar-actions">
-                    <a href="login.php" class="btn btn-primary btn-sm">Log in</a>
+                    <a href="login.php" class="btn btn-primary btn-sm"><?= _('Log in') ?></a>
                 </div>
             <?php endif; ?>
         </div>
@@ -57,15 +58,15 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
             <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title">Browse equipment</h5>
+                        <h5 class="card-title"><?= _('Browse equipment') ?></h5>
                         <p class="card-text">
-                            View the catalogue of equipment models available for users to book.
+                            <?= _('View the catalogue of equipment models available for users to book.') ?>
                             <?= $isAuthenticated
-                                ? 'Add items to your basket and request them for specific dates.'
-                                : 'You can browse publicly; sign in when ready to add items to your basket.' ?>
+                                    ? _('Add items to your basket and request them for specific dates.')
+                                    : _('You can browse publicly; sign in when ready to add items to your basket.') ?>
                         </p>
                         <a href="catalogue.php" class="btn btn-primary mt-auto">
-                            Go to catalogue
+                            <?= _('Go to catalogue') ?>
                         </a>
                     </div>
                 </div>
@@ -75,13 +76,12 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">My Reservations</h5>
+                            <h5 class="card-title"><?= _('My Reservations') ?></h5>
                             <p class="card-text">
-                                See all of your upcoming and past reservations, including which models you
-                                requested, and cancel future bookings where allowed.
+                                <?= _('See all of your upcoming and past reservations, including which models you requested, and cancel future bookings where allowed.') ?>
                             </p>
                             <a href="my_bookings.php" class="btn btn-outline-primary mt-auto">
-                                View my reservations
+                                <?= _('View my reservations') ?>
                             </a>
                         </div>
                     </div>
@@ -90,12 +90,12 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">Sign in to book</h5>
+                            <h5 class="card-title"><?= _('Sign in to book') ?></h5>
                             <p class="card-text">
-                                Adding items to basket, viewing basket, and creating reservations require a logged-in account.
+                                <?= _('Adding items to basket, viewing basket, and creating reservations require a logged-in account.') ?>
                             </p>
                             <a href="login.php" class="btn btn-outline-primary mt-auto">
-                                Go to login
+                                <?= _('Go to login') ?>
                             </a>
                         </div>
                     </div>
@@ -106,12 +106,12 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">Reservations</h5>
+                            <h5 class="card-title"><?= _('Reservations') ?></h5>
                             <p class="card-text">
-                                Review reservation history, process today’s checkouts, and view checked-out assets.
+                                <?= _('Review reservation history, process today’s checkouts, and view checked-out assets.') ?>
                             </p>
                             <a href="reservations.php" class="btn btn-outline-primary mt-auto">
-                                Go to reservations
+                                <?= _('Go to reservations') ?>
                             </a>
                         </div>
                     </div>
@@ -120,12 +120,12 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">Quick Checkout</h5>
+                            <h5 class="card-title"><?= _('Quick Checkout') ?></h5>
                             <p class="card-text">
-                                Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation.
+                                <?= _('Perform ad-hoc bulk checkouts via Snipe-IT without selecting a reservation.') ?>
                             </p>
                             <a href="quick_checkout.php" class="btn btn-outline-primary mt-auto">
-                                Go to quick checkout
+                                <?= _('Go to quick checkout') ?>
                             </a>
                         </div>
                     </div>
@@ -134,12 +134,12 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
                 <div class="col-md-6">
                     <div class="card h-100">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">Quick Checkin</h5>
+                            <h5 class="card-title"><?= _('Quick Checkin') ?></h5>
                             <p class="card-text">
-                                Scan asset tags to check items back in via Snipe-IT (quick scan style).
+                                <?= _('Scan asset tags to check items back in via Snipe-IT (quick scan style).') ?>
                             </p>
                             <a href="quick_checkin.php" class="btn btn-outline-primary mt-auto">
-                                Go to quick checkin
+                                <?= _('Go to quick checkin') ?>
                             </a>
                         </div>
                     </div>
@@ -149,7 +149,7 @@ $isAuthenticated = isset($isAuthenticated) ? (bool)$isAuthenticated : !empty($cu
 
         <div class="mt-4">
             <div class="alert alert-secondary mb-0">
-                Need help or something is missing from the catalogue? Please contact staff.
+                <?= _('Need help or something is missing from the catalogue? Please contact staff.') ?>
             </div>
         </div>
     </div>
