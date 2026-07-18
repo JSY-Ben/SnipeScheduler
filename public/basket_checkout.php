@@ -396,16 +396,53 @@ try {
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/style.css">
+    <?= layout_theme_styles() ?>
 </head>
 <body class="p-4">
 <div class="container">
-    <?= layout_logo_tag() ?>
-    <h1><?= _('Thank you') ?></h1>
-    <p><?= _('Your booking has been submitted.') ?></p>
-    <p>
-        <a href="catalogue.php" class="btn btn-primary"><?= _('Book more equipment') ?></a>
-        <a href="my_bookings.php" class="btn btn-secondary"><?= _('View my bookings') ?></a>
-    </p>
+    <div class="page-shell">
+        <?= layout_logo_tag() ?>
+
+        <div class="page-header">
+            <h1><?= _('Reservation submitted') ?></h1>
+            <div class="page-subtitle"><?= _('Your reservation request has been recorded successfully.') ?></div>
+        </div>
+
+        <?= layout_render_nav(
+            'my_bookings.php',
+            !empty($currentUser['is_staff']) || !empty($currentUser['is_admin']),
+            !empty($currentUser['is_admin']),
+            true
+        ) ?>
+
+        <div class="card mx-auto" style="max-width: 720px;">
+            <div class="card-body p-4 p-md-5 text-center">
+                <div class="alert alert-success mb-4" role="status">
+                    <div class="fs-1 lh-1 mb-2" aria-hidden="true">&#10003;</div>
+                    <h2 class="h4 mb-1"><?= _('Thank you') ?></h2>
+                    <p class="mb-0"><?= _('Your booking has been submitted.') ?></p>
+                </div>
+
+                <dl class="row text-start mb-4">
+                    <dt class="col-sm-4"><?= _('Reservation') ?></dt>
+                    <dd class="col-sm-8">#<?= (int)$reservationId ?></dd>
+                    <dt class="col-sm-4"><?= _('Starts') ?></dt>
+                    <dd class="col-sm-8"><?= h(app_format_datetime($start)) ?></dd>
+                    <dt class="col-sm-4"><?= _('Returns') ?></dt>
+                    <dd class="col-sm-8 mb-0"><?= h(app_format_datetime($end)) ?></dd>
+                </dl>
+
+                <p class="text-muted mb-4">
+                    <?= _('You can review the reservation and its current status from My Reservations.') ?>
+                </p>
+
+                <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+                    <a href="my_bookings.php" class="btn btn-primary"><?= _('View my reservations') ?></a>
+                    <a href="catalogue.php" class="btn btn-outline-primary"><?= _('Book more equipment') ?></a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <?php layout_footer(); ?>
 </body>
