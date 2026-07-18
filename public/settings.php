@@ -1924,7 +1924,7 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                     <details class="settings-collapsible">
                         <summary class="settings-collapsible-summary">
                             <span class="settings-collapsible-title">Checked Out Reservations categories</span>
-                            <span class="settings-collapsible-description">Choose which categories appear in All Checked Out and Overdue.</span>
+                            <span class="settings-collapsible-description">Choose which categories appear in the 'All Checked Out' and 'Overdue' sections of the 'All Reservations' tab for checkout users and admins.</span>
                         </summary>
                     <div class="card-body pt-0">
                         <p class="text-muted small mb-3">Category types such as assets and accessories are shown beside each category. Leave everything unticked to show all categories.</p>
@@ -1982,7 +1982,7 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                 <div class="card">
                     <details class="settings-collapsible">
                         <summary class="settings-collapsible-summary">
-                            <span class="settings-collapsible-title">Quick Checkout categories</span>
+                            <span class="settings-collapsible-title">Quick Checkout Accessory Categories</span>
                             <span class="settings-collapsible-description">Choose which categories appear on the Quick Checkout Accessories tab.</span>
                         </summary>
                     <div class="card-body pt-0">
