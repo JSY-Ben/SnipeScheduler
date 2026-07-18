@@ -1860,9 +1860,13 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
 
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Catalogue categories</h5>
-                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the catalogue filter. Unchecked categories are hidden entirely from the catalogue and skipped by the catalogue cache sync. Leave everything unticked to show all categories.</p>
+                    <details class="settings-collapsible">
+                        <summary class="settings-collapsible-summary">
+                            <span class="settings-collapsible-title">Catalogue categories</span>
+                            <span class="settings-collapsible-description">Choose which Snipe-IT categories appear in the catalogue.</span>
+                        </summary>
+                    <div class="card-body pt-0">
+                        <p class="text-muted small mb-3">Unchecked categories are hidden entirely from the catalogue and skipped by the catalogue cache sync. Leave everything unticked to show all categories.</p>
                         <?php if ($categoryFetchNotice): ?>
                             <div class="alert alert-warning small mb-3">
                                 <?= h($categoryFetchNotice) ?>
@@ -1911,14 +1915,19 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                         <?php endif; ?>
 
                     </div>
+                    </details>
                 </div>
             </div>
 
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Checked Out Reservations categories</h5>
-                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the All Checked Out and Overdue sections. Category types such as assets and accessories are shown beside each category. Leave everything unticked to show all categories.</p>
+                    <details class="settings-collapsible">
+                        <summary class="settings-collapsible-summary">
+                            <span class="settings-collapsible-title">Checked Out Reservations categories</span>
+                            <span class="settings-collapsible-description">Choose which categories appear in All Checked Out and Overdue.</span>
+                        </summary>
+                    <div class="card-body pt-0">
+                        <p class="text-muted small mb-3">Category types such as assets and accessories are shown beside each category. Leave everything unticked to show all categories.</p>
                         <?php if ($checkedOutCategoryFetchNotice): ?>
                             <div class="alert alert-warning small mb-3">
                                 <?= h($checkedOutCategoryFetchNotice) ?>
@@ -1965,14 +1974,19 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                             <div class="form-text mt-2">Tip: leave all unchecked to show checked-out items from every category.</div>
                         <?php endif; ?>
                     </div>
+                    </details>
                 </div>
             </div>
 
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Quick Checkout categories</h5>
-                        <p class="text-muted small mb-3">Choose which categories appear on the Quick Checkout Accessories tab. Leave everything unticked to show all accessory categories.</p>
+                    <details class="settings-collapsible">
+                        <summary class="settings-collapsible-summary">
+                            <span class="settings-collapsible-title">Quick Checkout categories</span>
+                            <span class="settings-collapsible-description">Choose which categories appear on the Quick Checkout Accessories tab.</span>
+                        </summary>
+                    <div class="card-body pt-0">
+                        <p class="text-muted small mb-3">Leave everything unticked to show all accessory categories.</p>
 
                         <h6 class="fw-semibold mb-2">Accessory categories</h6>
                         <?php if ($quickCheckoutAccessoryCategoryFetchNotice): ?>
@@ -2015,6 +2029,7 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                             <div class="form-text mt-2">Tip: leave all unchecked to allow every accessory category to show.</div>
                         <?php endif; ?>
                     </div>
+                    </details>
                 </div>
             </div>
 

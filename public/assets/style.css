@@ -49,6 +49,54 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     display: none !important;
 }
 
+.settings-collapsible-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    position: relative;
+    padding: 1rem 3.25rem 1rem 1rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.settings-collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-collapsible-summary::after {
+    content: "+";
+    position: absolute;
+    top: 50%;
+    right: 1.15rem;
+    transform: translateY(-50%);
+    color: var(--primary);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.settings-collapsible[open] > .settings-collapsible-summary::after {
+    content: "−";
+}
+
+.settings-collapsible-summary:hover,
+.settings-collapsible-summary:focus-visible {
+    background: rgba(var(--primary-rgb), 0.05);
+    outline: none;
+}
+
+.settings-collapsible-title {
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.settings-collapsible-description {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
 a {
     color: var(--primary-strong);
 }
