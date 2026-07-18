@@ -452,6 +452,7 @@ if (!function_exists('layout_render_nav')) {
             $links = [
                 ['href' => 'index.php',     'label' => _('Dashboard'), 'staff' => false],
                 ['href' => 'catalogue.php', 'label' => _('Catalogue'), 'staff' => false],
+                ['href' => 'my_bookings.php', 'label' => _('My Reservations'), 'staff' => false],
             ];
         } else {
             $links = [
