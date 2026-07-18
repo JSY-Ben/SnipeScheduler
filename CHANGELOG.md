@@ -1,5 +1,57 @@
 # Changelog
 
+## [v1.7.6](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.6) - 18/07/2026
+
+### Reservation notes and checkout notes
+
+- Users can add a note when creating a reservation. Reservation notes are shown in My Reservations, Reservation Details, All Reservations and prominently on Today's Reservations (Checkout) for admins/checkout users to check as they are signing out equipment. This note is purely for SnipeScheduler, it does not get used in Snipe-IT. Only the checkout/checkin notes from Staff are added to Snipe-IT. 
+- Reservation notes are included in new-reservation notifications sent to users, checkout users, administrators and configured additional recipients.
+- Added a `{{reservation_note}}` notification wildcard. The existing `{{note}}` wildcard is now labelled more clearly as the Snipe-IT checkout/check-in note.
+- Checkout notes entered while issuing equipment are now saved against that reservation in SnipeScheduler as well as being sent to Snipe-IT.
+- Staff can view reservation and checkout notes from dedicated buttons in All Reservations. Buttons remain visible but disabled when no note is available.
+- Checkout notes remain staff-only and are not displayed to ordinary users in My Reservations.
+
+### Safer reservation cancellation
+
+- The user-facing Delete Reservation action has been replaced with Cancel Reservation. Cancelled reservations remain in administrative history but no longer reduce availability.
+- Pending reservations in All Reservations are cancelled by default instead of being permanently deleted. Administrators can explicitly choose permanent deletion from the confirmation dialog.
+- Removing every item from a pending reservation during checkout now cancels the reservation instead of deleting it.
+- Permanently deleting a completed reservation requires acknowledging a warning that deletion may cause inconsistencies if equipment remains checked out in Snipe-IT.
+
+### Reservation pages and item information
+
+- Redesigned 'My Reservations' page to match the clearer table-based 'All Reservations' layout while keeping the content focused on the signed-in user.
+- Added searching, filtering, pagination and sorting to 'My Reservations' page.
+- Added item thumbnails from Snipe-IT to 'All Reservations', 'All Checked Out', 'Overdue' and 'My Checked Out Items' pages.
+- Added compact ascending and descending controls beneath sortable column headings in 'My Reservations', 'All Reservations', 'All Checked Out', 'Overdue' and 'Activity Log' pages.
+- Sort settings are now cached for each user, so you don't have to set them every time you login or refresh a page.
+- Replaced the per-asset Remove button on Reservation Checkout with an accessible, correctly proportioned trash icon.
+
+### Catalogue
+
+- Fixed reservation date validation so the configured application timezone is respected consistently, including checkout validation and other pages using the shared date/time helper.
+- Redesigned the shared date/time picker with clear DATE and TIME sections, more prominent time controls, a Today action, improved month navigation and a stronger floating border and shadow.
+- The Today action is now available inside every date-bearing picker rather than as a separate Catalogue button.
+- Administrators and checkout users can click reservation numbers in Catalogue item calendars and booking lists to open Reservation Details directly. The booker's name is shown in brackets for those roles only.
+- Guests now see 'Login to add to basket' and 'Login to view basket' buttons to avoid confusion.
+- 'My Reservations' link on navbar is now visible in guest navigation; selecting it asks the user to login then goes to their 'My Reservations' page after login
+- All button presses that require login now complete after login, as opposed to before where after the login the user would be sent to the Dashboard, no matter what they pressed.
+- Added a Loading bar which blurs the background while the app is completing a page load or task which temporarily freezes the page, to avoid user confusion.
+
+### User search
+
+- Catalogue 'Booking For', Quick Checkout and other user search textboxes now share one method to search for users using the Snipe-IT API. Originally, in some cases it would try to search the user directory of LDAP/Entra/Google, which was temperemental at best. 
+
+### Checked-out equipment and Frontend Settings
+
+- Added a 'Checked Out Reservations' category section to Frontend Settings for independently choosing the asset/accessory categories shown in the 'All Checked Out' and 'Overdue' listing pages. 
+- Converted the larger category and availability-status settings groups into collapsible sections to keep Frontend Settings manageable.
+
+### Scheduled jobs
+
+- Added built-in file locks to cron scripts, so if they are accidentally run twice, the second task will cleanly exit to avoid issues.
+
+
 ## [v1.6.5](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.6.5) - 01/06/2026
 
 ### Checkout User Permissions
