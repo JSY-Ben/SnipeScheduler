@@ -1230,7 +1230,6 @@ button.model-image-wrapper {
 a.model-calendar-event {
     max-width: 100%;
     overflow: hidden;
-    color: inherit;
     font-weight: 700;
     text-decoration: none;
     text-overflow: ellipsis;
@@ -1295,6 +1294,27 @@ a.model-calendar-event:focus-visible,
     background: rgba(100, 116, 139, 0.14);
     border-color: rgba(100, 116, 139, 0.35);
     color: #334155;
+}
+
+a.model-calendar-event.status-pending {
+    color: #7c3200;
+}
+
+a.model-calendar-event.status-confirmed {
+    color: var(--primary-strong);
+}
+
+a.model-calendar-event.status-completed {
+    color: #05603e;
+}
+
+a.model-calendar-event.status-missed {
+    color: #881337;
+}
+
+a.model-calendar-event.status-cancelled,
+a.model-calendar-event.status-default {
+    color: #1e293b;
 }
 
 body.catalogue-modal-open {
