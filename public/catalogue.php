@@ -3090,7 +3090,6 @@ document.addEventListener('DOMContentLoaded', function () {
         tomorrow.setHours(9, 0, 0, 0);
         setDatetimeInputValue(windowStartInput, toLocalDatetimeValue(now));
         setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(tomorrow));
-        maybeSubmitWindow();
     }
 
     [windowStartInput, windowEndInput].forEach(function (input) {
