@@ -3392,6 +3392,9 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
 
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 8000);
+            if (window.SnipeSchedulerBusy) {
+                window.SnipeSchedulerBusy.show('Checking connection…');
+            }
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -3434,6 +3437,9 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                 })
                 .finally(() => {
                     btn.disabled = false;
+                    if (window.SnipeSchedulerBusy) {
+                        window.SnipeSchedulerBusy.hide();
+                    }
                 });
         });
     });

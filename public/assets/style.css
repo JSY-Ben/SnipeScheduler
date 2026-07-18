@@ -1500,7 +1500,8 @@ form .form-select {
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.35);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1537,6 +1538,43 @@ form .form-select {
 .loading-text {
     font-size: 0.95rem;
     font-weight: 600;
+}
+
+.app-busy-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 140ms ease, visibility 140ms ease;
+}
+
+.app-busy-overlay.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: all;
+}
+
+body.app-is-busy {
+    overflow: hidden;
+    cursor: wait;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-busy-overlay {
+        transition: none;
+    }
+    .app-busy-overlay .loading-spinner {
+        animation-duration: 1.8s;
+    }
 }
 
 @keyframes spin {

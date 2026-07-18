@@ -1124,6 +1124,9 @@ $installerAppName = installer_app_name($prefillConfig);
             const actionUrl = (form.getAttribute('action') || window.location.href).split('#')[0];
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 8000);
+            if (window.SnipeSchedulerBusy) {
+                window.SnipeSchedulerBusy.show('Checking connection…');
+            }
 
             fetch(actionUrl, {
                 method: 'POST',
@@ -1166,6 +1169,9 @@ $installerAppName = installer_app_name($prefillConfig);
                 })
                 .finally(() => {
                     btn.disabled = false;
+                    if (window.SnipeSchedulerBusy) {
+                        window.SnipeSchedulerBusy.hide();
+                    }
                 });
         });
     });

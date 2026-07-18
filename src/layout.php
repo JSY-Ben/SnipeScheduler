@@ -501,12 +501,75 @@ if (!function_exists('layout_footer')) {
 
         layout_render_pending_upgrade_modal();
 
+        echo '<div id="app-busy-overlay" class="app-busy-overlay" aria-hidden="true" aria-live="polite">'
+            . '<div class="loading-card" role="status">'
+            . '<div class="loading-spinner" aria-hidden="true"></div>'
+            . '<div class="loading-text" id="app-busy-text">Please wait…</div>'
+            . '</div></div>';
+
         echo '<script src="assets/nav.js"></script>';
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>';
         echo '<script>window.SnipeSchedulerFlatpickr=' . ($flatpickrCfgJson ?: '{}') . ';</script>';
         echo <<<SCRIPT
 <script>
+(function () {
+    const overlay = document.getElementById('app-busy-overlay');
+    const textNode = document.getElementById('app-busy-text');
+    let busyDepth = 0;
+
+    const show = (message) => {
+        if (!overlay) return;
+        busyDepth += 1;
+        if (textNode) textNode.textContent = String(message || 'Please wait…');
+        overlay.classList.add('is-active');
+        overlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('app-is-busy');
+    };
+
+    const hide = (force) => {
+        if (!overlay) return;
+        busyDepth = force ? 0 : Math.max(0, busyDepth - 1);
+        if (busyDepth > 0) return;
+        overlay.classList.remove('is-active');
+        overlay.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('app-is-busy');
+    };
+
+    window.SnipeSchedulerBusy = { show, hide };
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        window.setTimeout(() => {
+            if (event.defaultPrevented || !(form instanceof HTMLFormElement)) return;
+            if (form.hasAttribute('data-no-busy') || form.target === '_blank') return;
+            if (typeof form.checkValidity === 'function' && !form.checkValidity()) return;
+            show(form.getAttribute('data-busy-message') || 'Processing…');
+        }, 0);
+    });
+
+    document.addEventListener('click', (event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const link = event.target.closest('a[href]');
+        if (!link || link.hasAttribute('data-no-busy') || link.hasAttribute('download')) return;
+        if (link.target && link.target !== '_self') return;
+        const rawHref = String(link.getAttribute('href') || '').trim();
+        if (rawHref === '' || rawHref[0] === '#' || /^(javascript:|mailto:|tel:)/i.test(rawHref)) return;
+        let url;
+        try {
+            url = new URL(link.href, window.location.href);
+        } catch (_) {
+            return;
+        }
+        if (url.origin !== window.location.origin) return;
+        window.setTimeout(() => {
+            if (!event.defaultPrevented) show(link.getAttribute('data-busy-message') || 'Loading…');
+        }, 0);
+    });
+
+    window.addEventListener('pageshow', () => hide(true));
+}());
+
 (function () {
     const boot = () => {
         if (typeof window.flatpickr !== 'function') return;
