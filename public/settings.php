@@ -2035,11 +2035,13 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
 
             <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
                 <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title mb-1">Catalogue availability statuses</h5>
-                        <p class="text-muted small mb-3">
-                            Choose which Snipe-IT asset statuses count toward catalogue and basket availability. Leave everything unticked to include all statuses.
-                        </p>
+                    <details class="settings-collapsible">
+                        <summary class="settings-collapsible-summary">
+                            <span class="settings-collapsible-title">Catalogue availability statuses</span>
+                            <span class="settings-collapsible-description">Choose which Snipe-IT asset statuses count toward catalogue and basket availability.</span>
+                        </summary>
+                    <div class="card-body pt-0">
+                        <p class="text-muted small mb-3">Leave everything unticked to include all statuses.</p>
                         <?php if ($statusFetchNotice): ?>
                             <div class="alert alert-warning small mb-3">
                                 <?= h($statusFetchNotice) ?>
@@ -2084,6 +2086,7 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                             <div class="form-text mt-2">Tip: leave all unchecked to include every status in availability counts.</div>
                         <?php endif; ?>
                     </div>
+                    </details>
                 </div>
             </div>
 
