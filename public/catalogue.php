@@ -1987,7 +1987,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     <?= _('Browsing as <strong>Guest</strong> Add to basket and View basket will take you to login.') ?>
                 </div>
                 <div class="top-bar-actions d-flex gap-2">
-                    <a href="login.php"
+                    <a href="basket.php"
                        class="btn btn-lg btn-primary fw-semibold shadow-sm px-4"
                        style="font-size:16px;">
                         <?= _('Login to view basket') ?>

@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 session_start();
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/pending_action.php';
 
 $config = [];
 try {
@@ -27,7 +28,7 @@ unset($_SESSION['login_error']);
 
 // Already logged in? Go to dashboard
 if (!empty($_SESSION['user']['email'])) {
-    header('Location: index.php');
+    header('Location: ' . app_pending_login_redirect());
     exit;
 }
 ?>

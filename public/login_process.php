@@ -4,6 +4,7 @@
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
+require_once SRC_PATH . '/pending_action.php';
 
 session_start();
 
@@ -291,7 +292,7 @@ if ($provider === 'google') {
         ],
     ]);
 
-    header('Location: index.php');
+    header('Location: ' . app_pending_login_redirect());
     exit;
 }
 
@@ -495,7 +496,7 @@ if ($provider === 'microsoft') {
         ],
     ]);
 
-    header('Location: index.php');
+    header('Location: ' . app_pending_login_redirect());
     exit;
 }
 
@@ -707,5 +708,5 @@ activity_log_event('user_login', 'User logged in', [
 
 ldap_unbind($ldap);
 
-header('Location: index.php');
+header('Location: ' . app_pending_login_redirect());
 exit;

@@ -5,6 +5,7 @@ require_once __DIR__ . '/bootstrap.php';
 // Simple authentication guard used by all protected pages.
 
 session_start();
+require_once __DIR__ . '/pending_action.php';
 
 $script = basename($_SERVER['PHP_SELF']);
 $scriptPath = trim(str_replace('\\', '/', (string)($_SERVER['PHP_SELF'] ?? '')), '/');
@@ -36,6 +37,7 @@ if (!$isAuthenticated) {
         !$isGuestAllowedPage
         && !in_array($script, [basename($loginPath), basename($loginProcessPath)], true)
     ) {
+        app_capture_pending_login_action();
         header('Location: ' . $loginPath);
         exit;
     }
