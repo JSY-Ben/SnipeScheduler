@@ -2728,6 +2728,10 @@ body.app-is-busy {
 .flatpickr-calendar.open {
     position: absolute;
     z-index: 99999;
+    border: 1px solid rgba(var(--primary-rgb), 0.38);
+    box-shadow:
+        0 20px 48px rgba(15, 23, 42, 0.28),
+        0 4px 12px rgba(var(--primary-rgb), 0.18);
 }
 .notification-group-heading {
     margin: 0 0 .65rem;
