@@ -118,6 +118,27 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     white-space: pre-wrap;
 }
 
+.checked-out-item-thumb {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 0.35rem;
+    background: #ffffff;
+    object-fit: contain;
+}
+
+.checked-out-item-thumb--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem;
+    color: var(--muted);
+    font-size: 0.56rem;
+    line-height: 1.1;
+    text-align: center;
+}
+
 #reservation-note-dialog::backdrop,
 #my-reservation-note-dialog::backdrop {
     background: rgba(15, 23, 42, 0.45);

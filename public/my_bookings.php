@@ -113,15 +113,18 @@ if ($tab === 'checked_out') {
         $name = strtolower(trim($userName));
 
         $stmt = $pdo->prepare("
-            SELECT *
+            SELECT checked_out_asset_cache.*,
+                   catalogue_model_cache.image_path AS model_image_path
               FROM checked_out_asset_cache
-             WHERE (assigned_to_email IS NOT NULL AND LOWER(assigned_to_email) = :email)
-                OR (assigned_to_username IS NOT NULL AND LOWER(assigned_to_username) = :username)
-                OR (assigned_to_name IS NOT NULL AND LOWER(assigned_to_name) = :name)
+              LEFT JOIN catalogue_model_cache
+                ON catalogue_model_cache.model_id = checked_out_asset_cache.model_id
+             WHERE (checked_out_asset_cache.assigned_to_email IS NOT NULL AND LOWER(checked_out_asset_cache.assigned_to_email) = :email)
+                OR (checked_out_asset_cache.assigned_to_username IS NOT NULL AND LOWER(checked_out_asset_cache.assigned_to_username) = :username)
+                OR (checked_out_asset_cache.assigned_to_name IS NOT NULL AND LOWER(checked_out_asset_cache.assigned_to_name) = :name)
              ORDER BY
-                CASE WHEN expected_checkin IS NULL OR expected_checkin = '' THEN 1 ELSE 0 END,
-                expected_checkin ASC,
-                last_checkout DESC
+                CASE WHEN checked_out_asset_cache.expected_checkin IS NULL OR checked_out_asset_cache.expected_checkin = '' THEN 1 ELSE 0 END,
+                checked_out_asset_cache.expected_checkin ASC,
+                checked_out_asset_cache.last_checkout DESC
         ");
         $stmt->execute([
             ':email' => $email,
@@ -228,9 +231,30 @@ if (!empty($_GET['cancelled'])) {
                         </thead>
                         <tbody>
                             <?php foreach ($checkedOutItems as $row): ?>
+                                <?php
+                                    $checkedOutName = trim((string)($row['asset_name'] ?? ''));
+                                    $checkedOutImagePath = trim((string)($row['model_image_path'] ?? ''));
+                                    $checkedOutImageUrl = $checkedOutImagePath !== ''
+                                        ? 'image_proxy.php?src=' . urlencode($checkedOutImagePath)
+                                        : '';
+                                ?>
                                 <tr>
                                     <td><?= h($row['asset_tag'] ?? '') ?></td>
-                                    <td><?= h($row['asset_name'] ?? '') ?></td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <?php if ($checkedOutImageUrl !== ''): ?>
+                                                <img src="<?= h($checkedOutImageUrl) ?>"
+                                                     alt="<?= h(($checkedOutName !== '' ? $checkedOutName : (string)($row['model_name'] ?? 'Asset')) . ' thumbnail') ?>"
+                                                     loading="lazy"
+                                                     class="checked-out-item-thumb">
+                                            <?php else: ?>
+                                                <div class="checked-out-item-thumb checked-out-item-thumb--placeholder" aria-label="<?= _('No image available') ?>">
+                                                    <?= _('No image') ?>
+                                                </div>
+                                            <?php endif; ?>
+                                            <span><?= h($checkedOutName) ?></span>
+                                        </div>
+                                    </td>
                                     <td><?= h($row['model_name'] ?? '') ?></td>
                                     <td><?= h(display_datetime($row['last_checkout'] ?? '')) ?></td>
                                     <td><?= h(display_date($row['expected_checkin'] ?? '')) ?></td>
