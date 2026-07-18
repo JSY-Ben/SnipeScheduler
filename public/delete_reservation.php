@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $resId = isset($_POST['reservation_id']) ? (int)$_POST['reservation_id'] : 0;
+$action = trim((string)($_POST['action'] ?? 'delete'));
+$returnToHistory = !empty($_POST['return_to_history']);
 if ($resId <= 0) {
     http_response_code(400);
     echo 'Invalid reservation ID.';
@@ -29,7 +31,7 @@ if ($resId <= 0) {
 
 // Load reservation to check ownership
 $stmt = $pdo->prepare("
-    SELECT id, user_id, user_email
+    SELECT id, user_id, user_email, status
     FROM reservations
     WHERE id = :id
     LIMIT 1
@@ -57,6 +59,44 @@ if ($isStaff && !$ownsReservation && !staff_group_visibility_reservation_visible
     http_response_code(403);
     echo 'Access denied.';
     exit;
+}
+
+if ($action === 'cancel_pending') {
+    if (strtolower((string)($reservation['status'] ?? '')) !== 'pending') {
+        http_response_code(409);
+        echo 'Only pending reservations can be cancelled from this action.';
+        exit;
+    }
+
+    $deletePermanently = $isAdmin && !empty($_POST['delete_permanently']);
+    if (!$deletePermanently) {
+        $stmt = $pdo->prepare("
+            UPDATE reservations
+               SET status = 'cancelled'
+             WHERE id = :id
+               AND status = 'pending'
+        ");
+        $stmt->execute([':id' => $resId]);
+        if ($stmt->rowCount() !== 1) {
+            http_response_code(409);
+            echo 'Reservation could not be cancelled because its status has changed.';
+            exit;
+        }
+
+        activity_log_event('reservation_cancelled', 'Reservation cancelled by staff', [
+            'subject_type' => 'reservation',
+            'subject_id' => $resId,
+            'metadata' => [
+                'cancelled_by' => (string)($currentUser['email'] ?? ''),
+            ],
+        ]);
+
+        $redirect = $returnToHistory
+            ? 'reservations.php?tab=history&cancelled=' . $resId
+            : 'staff_reservations.php?cancelled=' . $resId;
+        header('Location: ' . $redirect);
+        exit;
+    }
 }
 
 try {
@@ -88,7 +128,9 @@ try {
 
 // Redirect back with a “deleted” flag
 $redirect = $isStaff
-    ? 'staff_reservations.php?deleted=' . $resId
+    ? ($returnToHistory
+        ? 'reservations.php?tab=history&deleted=' . $resId
+        : 'staff_reservations.php?deleted=' . $resId)
     : 'my_bookings.php?deleted=' . $resId;
 
 header('Location: ' . $redirect);

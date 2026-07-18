@@ -42,6 +42,10 @@ $updatedMsg = '';
 if (!empty($_GET['updated'])) {
     $updatedMsg = 'Reservation #' . (int)$_GET['updated'] . ' has been updated.';
 }
+$cancelledMsg = '';
+if (!empty($_GET['cancelled'])) {
+    $cancelledMsg = 'Reservation #' . (int)$_GET['cancelled'] . ' has been cancelled.';
+}
 $restoredMsg = '';
 $restoreError = '';
 
@@ -355,6 +359,11 @@ try {
                 <?= htmlspecialchars($updatedMsg) ?>
             </div>
         <?php endif; ?>
+        <?php if (!empty($cancelledMsg)): ?>
+            <div class="alert alert-success">
+                <?= htmlspecialchars($cancelledMsg) ?>
+            </div>
+        <?php endif; ?>
         <?php if (!empty($restoredMsg)): ?>
             <div class="alert alert-success">
                 <?= htmlspecialchars($restoredMsg) ?>
@@ -564,16 +573,25 @@ try {
                                                 </button>
                                             </form>
                                         <?php endif; ?>
-                                        <form method="post"
-                                              action="delete_reservation.php"
-                                              onsubmit="return confirm('Delete this reservation and all its items? This cannot be undone.');">
-                                            <input type="hidden"
-                                                   name="reservation_id"
-                                                   value="<?= (int)$r['id'] ?>">
-                                            <button class="btn btn-sm btn-outline-danger btn-action" type="submit">
-                                                Delete
+                                        <?php if ($status === 'pending'): ?>
+                                            <button class="btn btn-sm btn-outline-danger btn-action js-cancel-pending-reservation"
+                                                    type="button"
+                                                    data-reservation-id="<?= (int)$r['id'] ?>">
+                                                Cancel
                                             </button>
-                                        </form>
+                                        <?php else: ?>
+                                            <form method="post"
+                                                  action="delete_reservation.php"
+                                                  onsubmit="return confirm('Delete this reservation and all its items? This cannot be undone.');">
+                                                <input type="hidden" name="reservation_id" value="<?= (int)$r['id'] ?>">
+                                                <?php if ($embedded): ?>
+                                                    <input type="hidden" name="return_to_history" value="1">
+                                                <?php endif; ?>
+                                                <button class="btn btn-sm btn-outline-danger btn-action" type="submit">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -621,6 +639,54 @@ try {
                 </nav>
             <?php endif; ?>
         <?php endif; ?>
+
+        <dialog id="cancel-pending-reservation-dialog" class="border-0 rounded-3 shadow p-0" style="max-width: 520px; width: calc(100% - 2rem);">
+            <form method="post" action="delete_reservation.php" class="p-4">
+                <input type="hidden" name="action" value="cancel_pending">
+                <input type="hidden" name="reservation_id" id="cancel-pending-reservation-id" value="">
+                <?php if ($embedded): ?>
+                    <input type="hidden" name="return_to_history" value="1">
+                <?php endif; ?>
+                <h5>Cancel pending reservation?</h5>
+                <p class="text-muted">The reservation will remain in the history with a cancelled status and will no longer affect availability.</p>
+                <?php if ($isAdmin): ?>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="delete_permanently" value="1" id="delete-pending-reservation-permanently">
+                        <label class="form-check-label" for="delete-pending-reservation-permanently">
+                            Permanently delete this reservation and all its items instead
+                        </label>
+                    </div>
+                <?php endif; ?>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="close-cancel-pending-reservation-dialog">Keep reservation</button>
+                    <button type="submit" class="btn btn-danger">Confirm</button>
+                </div>
+            </form>
+        </dialog>
+
+        <script>
+        (function () {
+            const dialog = document.getElementById('cancel-pending-reservation-dialog');
+            const idInput = document.getElementById('cancel-pending-reservation-id');
+            const deleteCheckbox = document.getElementById('delete-pending-reservation-permanently');
+            if (!dialog || !idInput) return;
+
+            document.querySelectorAll('.js-cancel-pending-reservation').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    idInput.value = button.dataset.reservationId || '';
+                    if (deleteCheckbox) deleteCheckbox.checked = false;
+                    dialog.showModal();
+                });
+            });
+
+            const closeButton = document.getElementById('close-cancel-pending-reservation-dialog');
+            if (closeButton) {
+                closeButton.addEventListener('click', function () {
+                    dialog.close();
+                });
+            }
+        }());
+        </script>
 
 <?php if (!$embedded): ?>
     </div>
