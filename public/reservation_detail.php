@@ -128,12 +128,12 @@ if (!$showStaffView) {
                     <?php endif; ?>
                 </p>
                 <?php if (trim((string)($reservation['reservation_note'] ?? '')) !== ''): ?>
-                    <div class="alert alert-info<?= trim((string)($reservation['checkout_note'] ?? '')) !== '' ? ' mb-3' : ' mb-0' ?>">
+                    <div class="alert alert-info<?= $isStaff && trim((string)($reservation['checkout_note'] ?? '')) !== '' ? ' mb-3' : ' mb-0' ?>">
                         <div class="fw-semibold mb-1">Reservation notes</div>
                         <div style="white-space: pre-wrap;"><?= h($reservation['reservation_note']) ?></div>
                     </div>
                 <?php endif; ?>
-                <?php if (trim((string)($reservation['checkout_note'] ?? '')) !== ''): ?>
+                <?php if ($isStaff && trim((string)($reservation['checkout_note'] ?? '')) !== ''): ?>
                     <div class="alert alert-secondary mb-0">
                         <div class="fw-semibold mb-1">Checkout note</div>
                         <div style="white-space: pre-wrap;"><?= h($reservation['checkout_note']) ?></div>

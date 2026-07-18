@@ -55,7 +55,6 @@ try {
             CAST(id AS CHAR) LIKE :q_id
             OR asset_name_cache LIKE :q_assets
             OR reservation_note LIKE :q_reservation_note
-            OR checkout_note LIKE :q_checkout_note
             OR EXISTS (
                 SELECT 1
                   FROM reservation_items ri
@@ -67,7 +66,6 @@ try {
         $params[':q_id'] = $likeQuery;
         $params[':q_assets'] = $likeQuery;
         $params[':q_reservation_note'] = $likeQuery;
-        $params[':q_checkout_note'] = $likeQuery;
         $params[':q_item'] = $likeQuery;
         $params[':q_model'] = $likeQuery;
     }
@@ -252,7 +250,7 @@ if (!empty($_GET['cancelled'])) {
                                id="my_reservations_search"
                                name="q"
                                class="form-control form-control-lg"
-                               placeholder="<?= _('Search by reservation ID, items, assets, or notes...') ?>"
+                               placeholder="<?= _('Search by reservation ID, items, assets, or reservation notes...') ?>"
                                value="<?= h($qRaw) ?>">
                     </div>
                     <div class="col-auto">
@@ -318,7 +316,6 @@ if (!empty($_GET['cancelled'])) {
                                     $items = get_reservation_items_with_names($pdo, $resId);
                                     $status = strtolower((string)($res['status'] ?? ''));
                                     $reservationNote = trim((string)($res['reservation_note'] ?? ''));
-                                    $checkoutNote = trim((string)($res['checkout_note'] ?? ''));
                                     $assignedAssets = array_values(array_filter(array_map('trim', preg_split('/,(?![^()]*\))/', (string)($res['asset_name_cache'] ?? '')) ?: []), 'strlen'));
                                 ?>
                                 <tr>
@@ -371,12 +368,6 @@ if (!empty($_GET['cancelled'])) {
                                                     data-note="<?= h((string)json_encode($reservationNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                                                 <?= $reservationNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
                                                 <?= _('View Reservation Notes') ?>
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary js-view-my-reservation-note"
-                                                    data-note-title="<?= h(_('Reservation') . ' #' . $resId . ' — ' . _('Checkout Notes')) ?>"
-                                                    data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-                                                <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
-                                                <?= _('View Checkout Notes') ?>
                                             </button>
                                         </div>
                                     </td>
