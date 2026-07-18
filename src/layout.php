@@ -751,11 +751,14 @@ if (!function_exists('layout_footer')) {
             const calendarDays = calendar.querySelector('.flatpickr-days');
             if (!calendarDays || !calendarDays.parentNode || calendar.querySelector('.flatpickr-date-heading')) return;
             const weekdays = calendar.querySelector('.flatpickr-weekdays');
+            const months = calendar.querySelector('.flatpickr-months');
 
             const heading = document.createElement('div');
             heading.className = 'flatpickr-date-heading';
             heading.textContent = {$dateLabelJson};
-            if (weekdays && weekdays.parentNode) {
+            if (months && months.parentNode) {
+                months.parentNode.insertBefore(heading, months);
+            } else if (weekdays && weekdays.parentNode) {
                 weekdays.parentNode.insertBefore(heading, weekdays);
             } else {
                 calendarDays.parentNode.insertBefore(heading, calendarDays);
