@@ -598,15 +598,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $currentQty = (int)$stmt->fetchColumn();
 
-                $willDeleteReservation = false;
+                $willCancelReservation = false;
                 if ($removeAll) {
-                    $willDeleteReservation = $currentQty > 0 && ($totalQtyBefore - $currentQty) <= 0;
+                    $willCancelReservation = $currentQty > 0 && ($totalQtyBefore - $currentQty) <= 0;
                 } else {
-                    $willDeleteReservation = $totalQtyBefore <= 1;
+                    $willCancelReservation = $totalQtyBefore <= 1;
                 }
 
-                if ($willDeleteReservation && ($_POST['confirm_delete'] ?? '') !== '1') {
-                    throw new RuntimeException('Confirmation required to delete the reservation.');
+                if ($willCancelReservation && ($_POST['confirm_cancel'] ?? '') !== '1') {
+                    throw new RuntimeException('Confirmation required to cancel the reservation.');
                 }
 
                 if ($currentQty <= 1 || $removeAll) {
@@ -635,15 +635,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                 }
 
-                if ($willDeleteReservation) {
-                    $deletedReservationId = $selectedReservationId;
-                    $delRes = $pdo->prepare("DELETE FROM reservations WHERE id = :id");
-                    $delRes->execute([':id' => $selectedReservationId]);
-                    activity_log_event('reservation_deleted', 'Reservation deleted', [
+                if ($willCancelReservation) {
+                    $cancelledReservationId = $selectedReservationId;
+                    $cancelReservation = $pdo->prepare("
+                        UPDATE reservations
+                           SET status = 'cancelled'
+                         WHERE id = :id
+                    ");
+                    $cancelReservation->execute([':id' => $selectedReservationId]);
+                    activity_log_event('reservation_cancelled', 'Reservation cancelled after all items were removed', [
                         'subject_type' => 'reservation',
-                        'subject_id'   => $deletedReservationId,
+                        'subject_id'   => $cancelledReservationId,
                         'metadata'     => [
                             'via' => 'staff_checkout',
+                            'reason' => 'all_items_removed',
                         ],
                     ]);
                     unset($_SESSION['reservation_selected_assets'][$selectedReservationId]);
@@ -1505,23 +1510,23 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                         </div>
                                                         <?php if ($itemType === 'model'): ?>
                                                             <div class="mt-2">
-                                                                <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
+                                                                <?php $removeAllCancels = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
                                                                 <button type="submit"
                                                                         name="remove_model_id_all"
                                                                         value="<?= $mid ?>"
                                                                         class="btn btn-sm btn-outline-danger"
-                                                                        <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                        <?= $removeAllCancels ? 'data-confirm-cancel="1"' : '' ?>>
                                                                     Remove all
                                                                 </button>
                                                             </div>
                                                         <?php elseif ($itemType === 'accessory'): ?>
                                                             <div class="mt-2">
-                                                                <?php $removeAllDeletes = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
+                                                                <?php $removeAllCancels = $selectedTotalQty > 0 && $selectedTotalQty <= $qty; ?>
                                                                 <button type="submit"
                                                                         name="remove_accessory_id_all"
                                                                         value="<?= $mid ?>"
                                                                         class="btn btn-sm btn-outline-danger"
-                                                                        <?= $removeAllDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                        <?= $removeAllCancels ? 'data-confirm-cancel="1"' : '' ?>>
                                                                     Remove all
                                                                 </button>
                                                             </div>
@@ -1589,12 +1594,12 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                         <option value="<?= $aid ?>" <?= $selectedAttr ?>><?= h($label) ?></option>
                                                                     <?php endforeach; ?>
                                                                 </select>
-                                                                <?php $removeOneDeletes = $selectedTotalQty <= 1; ?>
+                                                                <?php $removeOneCancels = $selectedTotalQty <= 1; ?>
                                                                 <button type="submit"
                                                                         name="remove_slot"
                                                                         value="<?= $mid ?>:<?= $i ?>"
                                                                         class="btn btn-sm btn-outline-danger"
-                                                                        <?= $removeOneDeletes ? 'data-confirm-delete="1"' : '' ?>>
+                                                                        <?= $removeOneCancels ? 'data-confirm-cancel="1"' : '' ?>>
                                                                     Remove
                                                                 </button>
                                                             </div>
@@ -1638,20 +1643,20 @@ $active  = basename($_SERVER['PHP_SELF']);
     }
 
     document.addEventListener('click', (event) => {
-        const btn = event.target.closest('button[data-confirm-delete]');
+        const btn = event.target.closest('button[data-confirm-cancel]');
         if (!btn) {
             return;
         }
-        const ok = window.confirm('This will delete the entire reservation. Continue?');
+        const ok = window.confirm('Removing the final item will cancel this reservation. It will remain in reservation history. Continue?');
         if (!ok) {
             event.preventDefault();
             return;
         }
         const form = btn.form;
-        if (form && !form.querySelector('input[name=\"confirm_delete\"]')) {
+        if (form && !form.querySelector('input[name=\"confirm_cancel\"]')) {
             const input = document.createElement('input');
             input.type = 'hidden';
-            input.name = 'confirm_delete';
+            input.name = 'confirm_cancel';
             input.value = '1';
             form.appendChild(input);
         }
