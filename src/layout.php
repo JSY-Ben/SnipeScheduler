@@ -756,6 +756,7 @@ if (!function_exists('layout_footer')) {
             const heading = document.createElement('div');
             heading.className = 'flatpickr-date-heading';
             heading.textContent = {$dateLabelJson};
+            calendar.classList.add('flatpickr-has-date-heading');
             if (months && months.parentNode) {
                 months.parentNode.insertBefore(heading, months);
             } else if (weekdays && weekdays.parentNode) {

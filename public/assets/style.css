@@ -179,6 +179,11 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     padding-bottom: 0.45rem;
 }
 
+.flatpickr-calendar.flatpickr-has-date-heading .flatpickr-months .flatpickr-prev-month,
+.flatpickr-calendar.flatpickr-has-date-heading .flatpickr-months .flatpickr-next-month {
+    top: 31px;
+}
+
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time {
     height: 48px;
     max-height: 48px;
