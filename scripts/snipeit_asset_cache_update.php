@@ -248,6 +248,11 @@ foreach ($allAccessories as $accessory) {
     }
     $seenAccessoryIds[$accessoryId] = true;
 
+    $accessoryCategoryId = snipeit_extract_category_id($accessory);
+    if (!empty($allowedCategoryMap) && ($accessoryCategoryId <= 0 || !isset($allowedCategoryMap[$accessoryCategoryId]))) {
+        continue;
+    }
+
     $manufacturerName = is_array($accessory['manufacturer'] ?? null)
         ? trim((string)($accessory['manufacturer']['name'] ?? ''))
         : trim((string)($accessory['manufacturer_name'] ?? ''));
@@ -260,7 +265,7 @@ foreach ($allAccessories as $accessory) {
         'accessory_id' => $accessoryId,
         'accessory_name' => trim((string)($accessory['name'] ?? '')),
         'manufacturer_name' => $manufacturerName,
-        'category_id' => snipeit_extract_category_id($accessory),
+        'category_id' => $accessoryCategoryId,
         'category_name' => snipeit_extract_category_name($accessory),
         'image_path' => $imagePath,
         'notes_text' => $extractText($accessory['notes'] ?? ''),

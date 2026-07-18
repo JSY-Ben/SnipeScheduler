@@ -169,6 +169,85 @@ function checked_out_row_type_key(array $row): string
     return (($row['item_type'] ?? 'asset') === 'accessory') ? 'accessory' : 'asset';
 }
 
+function checked_out_apply_display_visibility(PDO $pdo, array $rows, array $config): array
+{
+    $catalogue = is_array($config['catalogue'] ?? null) ? $config['catalogue'] : [];
+    $showAssets = array_key_exists('show_models_tab', $catalogue)
+        ? !empty($catalogue['show_models_tab'])
+        : true;
+    $showAccessories = array_key_exists('show_accessories_tab', $catalogue)
+        ? !empty($catalogue['show_accessories_tab'])
+        : true;
+
+    $checkedOut = is_array($config['checked_out'] ?? null) ? $config['checked_out'] : [];
+    $allowedCategories = [];
+    foreach (($checkedOut['allowed_categories'] ?? []) as $categoryId) {
+        $categoryId = (int)$categoryId;
+        if ($categoryId > 0) {
+            $allowedCategories[$categoryId] = true;
+        }
+    }
+
+    $allowedModelIds = [];
+    $allowedAccessoryIds = [];
+    if (!empty($allowedCategories)) {
+        $categoryIds = array_keys($allowedCategories);
+        $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+
+        $modelStmt = $pdo->prepare("SELECT model_id FROM catalogue_model_cache WHERE category_id IN ({$placeholders})");
+        $modelStmt->execute($categoryIds);
+        foreach ($modelStmt->fetchAll(PDO::FETCH_COLUMN) as $modelId) {
+            $allowedModelIds[(int)$modelId] = true;
+        }
+
+        $accessoryStmt = $pdo->prepare("SELECT accessory_id FROM catalogue_accessory_cache WHERE category_id IN ({$placeholders})");
+        $accessoryStmt->execute($categoryIds);
+        foreach ($accessoryStmt->fetchAll(PDO::FETCH_COLUMN) as $accessoryId) {
+            $allowedAccessoryIds[(int)$accessoryId] = true;
+        }
+    }
+
+    return array_values(array_filter($rows, static function (array $row) use (
+        $showAssets,
+        $showAccessories,
+        $allowedCategories,
+        $allowedModelIds,
+        $allowedAccessoryIds
+    ): bool {
+        if (checked_out_row_type_key($row) === 'accessory') {
+            if (!$showAccessories) {
+                return false;
+            }
+            if (empty($allowedCategories)) {
+                return true;
+            }
+
+            $categoryId = (int)($row['category_id'] ?? 0);
+            if ($categoryId > 0) {
+                return isset($allowedCategories[$categoryId]);
+            }
+
+            $accessoryId = (int)($row['accessory_id'] ?? ($row['id'] ?? 0));
+            return $accessoryId > 0 && isset($allowedAccessoryIds[$accessoryId]);
+        }
+
+        if (!$showAssets) {
+            return false;
+        }
+        if (empty($allowedCategories)) {
+            return true;
+        }
+
+        $categoryId = (int)($row['model']['category']['id'] ?? ($row['category_id'] ?? 0));
+        if ($categoryId > 0) {
+            return isset($allowedCategories[$categoryId]);
+        }
+
+        $modelId = (int)($row['model']['id'] ?? ($row['model_id'] ?? 0));
+        return $modelId > 0 && isset($allowedModelIds[$modelId]);
+    }));
+}
+
 function checked_out_row_identifier(array $row): string
 {
     if (checked_out_row_type_key($row) === 'accessory') {
@@ -493,6 +572,7 @@ try {
         : list_checked_out_assets(false);
     $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
     $assets = array_merge($assets, $accessories);
+    $assets = checked_out_apply_display_visibility($pdo, $assets, $config);
     $assets = checked_out_attach_image_paths($pdo, $assets);
     if ($restrictReservationsToSameGroup) {
         $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user(

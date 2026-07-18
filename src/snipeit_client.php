@@ -2781,6 +2781,9 @@ function snipeit_normalize_checked_out_accessory_row(array $accessory, array $ro
     $category = is_array($accessory['category'] ?? null)
         ? trim((string)($accessory['category']['name'] ?? ''))
         : trim((string)($accessory['category_name'] ?? ''));
+    $categoryId = is_array($accessory['category'] ?? null)
+        ? (int)($accessory['category']['id'] ?? 0)
+        : (int)($accessory['category_id'] ?? 0);
 
     $assignedSource = $row['assigned_to'] ?? ($row['assigned_user'] ?? ($row['user'] ?? ($row['target'] ?? ($accessory['assigned_to'] ?? ($accessory['assigned_to_fullname'] ?? '')))));
     $assigned = snipeit_extract_assigned_user_fields($assignedSource);
@@ -2832,6 +2835,7 @@ function snipeit_normalize_checked_out_accessory_row(array $accessory, array $ro
         'image' => $accessory['image'] ?? ($accessory['image_path'] ?? ($accessory['image_url'] ?? ($accessory['thumbnail'] ?? ''))),
         'image_path' => $accessory['image_path'] ?? ($accessory['image'] ?? ($accessory['image_url'] ?? ($accessory['thumbnail'] ?? ''))),
         'manufacturer_name' => $manufacturer,
+        'category_id' => $categoryId,
         'category_name' => $category,
         'assigned_qty' => snipeit_accessory_checked_out_quantity_from_payload($row),
         'last_checkout' => $lastCheckout,

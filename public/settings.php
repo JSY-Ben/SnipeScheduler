@@ -47,6 +47,9 @@ $languageOptions = layout_available_language_options(SRC_PATH . '/locales');
 $categoryOptions    = [];
 $categoryFetchNotice = '';
 $categoryFetchError = '';
+$checkedOutCategoryOptions = [];
+$checkedOutCategoryFetchNotice = '';
+$checkedOutCategoryFetchError = '';
 $quickCheckoutAccessoryCategoryOptions = [];
 $quickCheckoutAccessoryCategoryFetchNotice = '';
 $quickCheckoutAccessoryCategoryFetchError = '';
@@ -82,6 +85,23 @@ try {
             $categoryOptions    = [];
             $categoryFetchError = $e->getMessage();
         }
+    }
+}
+// Checked-out visibility needs the complete Snipe-IT category list, including
+// categories that do not currently contain requestable catalogue models.
+try {
+    $checkedOutCategoryOptions = fetch_model_categories_from_snipeit(false, true);
+} catch (Throwable $e) {
+    try {
+        $checkedOutCategoryOptions = fetch_model_categories_from_snipeit(true, true);
+        if (!empty($checkedOutCategoryOptions)) {
+            $checkedOutCategoryFetchNotice = 'Could not refresh live categories from Snipe-IT; showing the last cached API results.';
+        } else {
+            $checkedOutCategoryFetchError = $e->getMessage();
+        }
+    } catch (Throwable $cachedError) {
+        $checkedOutCategoryOptions = [];
+        $checkedOutCategoryFetchError = $e->getMessage();
     }
 }
 try {
@@ -838,6 +858,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $catalogue['allowed_categories'] = $allowedCategories;
+
+    $checkedOut = $config['checked_out'] ?? [];
+    $checkedOutAllowedRaw = $_POST['checked_out_allowed_categories'] ?? [];
+    $checkedOutAllowedCategories = [];
+    if (is_array($checkedOutAllowedRaw)) {
+        foreach ($checkedOutAllowedRaw as $cid) {
+            if (ctype_digit((string)$cid) && (int)$cid > 0) {
+                $checkedOutAllowedCategories[(int)$cid] = (int)$cid;
+            }
+        }
+    }
+    $checkedOut['allowed_categories'] = array_values($checkedOutAllowedCategories);
+
     if (isset($_POST['catalogue_allowed_status_labels_present'])) {
         $statusRaw = $_POST['catalogue_allowed_status_labels'] ?? [];
         $allowedStatuses = [];
@@ -892,6 +925,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newConfig['microsoft_oauth'] = $ms;
     $newConfig['app']        = $app;
     $newConfig['catalogue']  = $catalogue;
+    $newConfig['checked_out'] = $checkedOut;
     $newConfig['quick_checkout'] = $quickCheckout;
     $newConfig['smtp']       = $smtp;
 
@@ -1117,6 +1151,12 @@ if (!is_array($allowedCategoryIds)) {
     $allowedCategoryIds = [];
 }
 $allowedCategoryIds = array_map('intval', $allowedCategoryIds);
+
+$checkedOutAllowedCategoryIds = $cfg(['checked_out', 'allowed_categories'], []);
+if (!is_array($checkedOutAllowedCategoryIds)) {
+    $checkedOutAllowedCategoryIds = [];
+}
+$checkedOutAllowedCategoryIds = array_map('intval', $checkedOutAllowedCategoryIds);
 
 $quickCheckoutAllowedAccessoryCategories = snipeit_normalize_category_filter_values(
     $cfg(['quick_checkout', 'allowed_accessory_categories'], [])
@@ -1870,6 +1910,60 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                             <div class="form-text mt-2">Tip: leave all unchecked to allow every category to show in the dropdown.</div>
                         <?php endif; ?>
 
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12<?= $settingsTab === 'frontend' ? '' : ' d-none' ?>" data-settings-group="frontend">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">Checked Out Reservations categories</h5>
+                        <p class="text-muted small mb-3">Choose which Snipe-IT categories appear in the All Checked Out and Overdue sections. Category types such as assets and accessories are shown beside each category. Leave everything unticked to show all categories.</p>
+                        <?php if ($checkedOutCategoryFetchNotice): ?>
+                            <div class="alert alert-warning small mb-3">
+                                <?= h($checkedOutCategoryFetchNotice) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($checkedOutCategoryFetchError): ?>
+                            <div class="alert alert-warning small mb-3">
+                                Could not load categories from Snipe-IT: <?= h($checkedOutCategoryFetchError) ?>
+                            </div>
+                        <?php elseif (empty($checkedOutCategoryOptions)): ?>
+                            <div class="text-muted small">No categories available.</div>
+                        <?php else: ?>
+                            <div class="row g-2">
+                                <?php foreach ($checkedOutCategoryOptions as $cat): ?>
+                                    <?php
+                                    $cid = (int)($cat['id'] ?? 0);
+                                    $categoryLabel = trim((string)($cat['name'] ?? ''));
+                                    $categoryType = snipeit_extract_category_type($cat);
+                                    if ($cid <= 0) {
+                                        continue;
+                                    }
+                                    if ($categoryLabel === '') {
+                                        $categoryLabel = 'Unnamed category';
+                                    }
+                                    ?>
+                                    <div class="col-md-4 col-sm-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="checked_out_allowed_categories[]"
+                                                   id="checked_out_cat_filter_<?= $cid ?>"
+                                                   value="<?= $cid ?>"
+                                                <?= in_array($cid, $checkedOutAllowedCategoryIds, true) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="checked_out_cat_filter_<?= $cid ?>">
+                                                <?= h($categoryLabel) ?>
+                                                <?php if ($categoryType !== ''): ?>
+                                                    <span class="fw-bold small">(<?= h($categoryType) ?>)</span>
+                                                <?php endif; ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text mt-2">Tip: leave all unchecked to show checked-out items from every category.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

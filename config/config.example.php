@@ -235,6 +235,12 @@ return [
         'allow_public_view' => false,
     ],
 
+    'checked_out' => [
+        // Restrict which Snipe-IT categories appear in All Checked Out and Overdue.
+        // Leave empty to show checked-out items from every category.
+        'allowed_categories' => [],
+    ],
+
     'quick_checkout' => [
         // Restrict which accessory categories appear on the Quick Checkout Accessories tab.
         // Leave empty to show all accessory categories.
