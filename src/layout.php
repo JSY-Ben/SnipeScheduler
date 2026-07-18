@@ -502,6 +502,10 @@ if (!function_exists('layout_footer')) {
         if (!is_string($todayLabelJson)) {
             $todayLabelJson = '"Today"';
         }
+        $timeLabelJson = json_encode(_('Time'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        if (!is_string($timeLabelJson)) {
+            $timeLabelJson = '"Time"';
+        }
         $hideFooter = (bool)($cfg['app']['hide_footer'] ?? false);
 
         layout_render_pending_upgrade_modal();
@@ -733,6 +737,19 @@ if (!function_exists('layout_footer')) {
             }
         };
 
+        const emphasizeTimeSelection = (picker, pickerType) => {
+            if (!picker || !picker.calendarContainer || !picker.timeContainer || pickerType === 'date') return;
+
+            const calendar = picker.calendarContainer;
+            calendar.classList.add('flatpickr-has-prominent-time');
+            if (calendar.querySelector('.flatpickr-time-heading')) return;
+
+            const heading = document.createElement('div');
+            heading.className = 'flatpickr-time-heading';
+            heading.textContent = {$timeLabelJson};
+            calendar.insertBefore(heading, picker.timeContainer);
+        };
+
         const initInput = (input) => {
             if (!(input instanceof HTMLInputElement)) return;
             if (input.dataset.flatpickrBound === '1') return;
@@ -795,6 +812,7 @@ if (!function_exists('layout_footer')) {
 
             try {
                 const picker = window.flatpickr(input, baseOptions);
+                emphasizeTimeSelection(picker, pickerType);
                 addTodayAction(input, picker, pickerType);
                 if (picker && picker.altInput) {
                     if (input.style && input.style.cssText) {
