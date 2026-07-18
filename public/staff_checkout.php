@@ -1578,9 +1578,28 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                 <button type="submit"
                                                                         name="remove_slot"
                                                                         value="<?= $mid ?>:<?= $i ?>"
-                                                                        class="btn btn-sm btn-outline-danger"
+                                                                        class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                                                        aria-label="Remove this asset"
+                                                                        title="Remove this asset"
                                                                         <?= $removeOneCancels ? 'data-confirm-cancel="1"' : '' ?>>
-                                                                    Remove
+                                                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                                                         width="16"
+                                                                         height="16"
+                                                                         viewBox="0 0 24 24"
+                                                                         fill="none"
+                                                                         stroke="currentColor"
+                                                                         stroke-width="2"
+                                                                         stroke-linecap="round"
+                                                                         stroke-linejoin="round"
+                                                                         aria-hidden="true"
+                                                                         focusable="false">
+                                                                        <path d="M3 6h18"></path>
+                                                                        <path d="M8 6V4h8v2"></path>
+                                                                        <path d="M19 6l-1 14H6L5 6"></path>
+                                                                        <path d="M10 11v5"></path>
+                                                                        <path d="M14 11v5"></path>
+                                                                    </svg>
+                                                                    <span class="visually-hidden">Remove this asset</span>
                                                                 </button>
                                                             </div>
                                                         <?php endfor; ?>
