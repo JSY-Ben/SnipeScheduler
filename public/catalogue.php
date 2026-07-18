@@ -1990,7 +1990,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                     <a href="login.php"
                        class="btn btn-lg btn-primary fw-semibold shadow-sm px-4"
                        style="font-size:16px;">
-                        <?= _('View basket') ?>
+                        <?= _('Login to view basket') ?>
                     </a>
                 </div>
             <?php endif; ?>
@@ -2438,7 +2438,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                     <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
                                                     <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
                                                 <?php endif; ?>
-                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
+                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Login to add to basket') ?></button>
                                             </form>
                                         <?php else: ?>
                                             <div class="alert alert-secondary small mb-0">
@@ -2644,7 +2644,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                     <input type="hidden" name="start_datetime" value="<?= h($windowStartRaw) ?>">
                                                     <input type="hidden" name="end_datetime" value="<?= h($windowEndRaw) ?>">
                                                 <?php endif; ?>
-                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Add to basket') ?></button>
+                                                <button type="submit" class="btn btn-sm btn-success w-100"><?= _('Login to add to basket') ?></button>
                                             </form>
                                         <?php else: ?>
                                             <button type="button" class="btn btn-sm btn-secondary w-100" disabled><?= _('Add to basket') ?></button>
@@ -2988,7 +2988,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                                                 <?php endif; ?>
                                                 <input type="hidden" name="quantity" value="1">
                                                 <button type="submit" class="btn btn-sm btn-success w-100">
-                                                    <?= _('Add to basket') ?>
+                                                    <?= _('Login to add to basket') ?>
                                                 </button>
                                             </form>
                                         <?php else: ?>
