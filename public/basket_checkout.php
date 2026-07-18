@@ -280,6 +280,9 @@ try {
             "Start: {$startDisplay}",
             "End: {$endDisplay}",
         ];
+        if ($reservationNote !== '') {
+            $userBody[] = "Reservation notes: {$reservationNote}";
+        }
         if ($isOnBehalfBooking) {
             $userBody[] = "Submitted by: {$submittedByDisplay}";
         }
@@ -292,6 +295,9 @@ try {
             "End: {$endDisplay}",
             "Submitted by: {$submittedByDisplay}",
         ];
+        if ($reservationNote !== '') {
+            $adminBody[] = "Reservation notes: {$reservationNote}";
+        }
         $reservationLinkLine = layout_reservation_link_line($reservationId, $config);
         if ($reservationLinkLine !== null) {
             $userBody[] = $reservationLinkLine;
@@ -317,6 +323,7 @@ try {
             'staff_reservations_link' => layout_staff_reservations_url($config),
             'staff_name' => $submittedByName !== '' ? $submittedByName : $submittedByEmail,
             'staff_email' => $submittedByEmail,
+            'reservation_note' => $reservationNote,
         ];
 
         $notifiedEmails = [];

@@ -282,7 +282,7 @@ function layout_notification_template_definitions(): array
         'reservation_submitted' => [
             'label' => 'Reservation submitted email text',
             'config_key' => 'notification_reservation_submitted_template_html',
-            'default' => '<p>Reservation <strong>#{{reservation_id}}</strong> has been submitted.</p><p><strong>Reserved for:</strong> {{person_name}}<br><strong>Equipment:</strong> {{equipment_list}}<br><strong>Start:</strong> {{start_date}}<br><strong>Return:</strong> {{return_date}}<br><strong>Submitted by:</strong> {{staff_name}}</p><p>{{reservation_link}}</p>',
+            'default' => '<p>Reservation <strong>#{{reservation_id}}</strong> has been submitted.</p><p><strong>Reserved for:</strong> {{person_name}}<br><strong>Equipment:</strong> {{equipment_list}}<br><strong>Start:</strong> {{start_date}}<br><strong>Return:</strong> {{return_date}}<br><strong>Reservation notes:</strong> {{reservation_note}}<br><strong>Submitted by:</strong> {{staff_name}}</p><p>{{reservation_link}}</p>',
         ],
         'quick_checkout' => [
             'label' => 'Quick checkout email text',
@@ -367,7 +367,7 @@ function layout_render_notification_template(string $templateKey, array $variabl
         }
     }
     // Known but unavailable values become empty rather than leaking a token.
-    foreach (['recipient_name','person_name','person_email','equipment_list','start_date','return_date','app_name','reservation_id','reservation_link','my_reservations_link','staff_reservations_link','staff_name','staff_email','note'] as $name) {
+    foreach (['recipient_name','person_name','person_email','equipment_list','start_date','return_date','app_name','reservation_id','reservation_link','my_reservations_link','staff_reservations_link','staff_name','staff_email','note','reservation_note'] as $name) {
         $token = '{{' . $name . '}}';
         $htmlReplacements[$token] = $htmlReplacements[$token] ?? '';
         $textReplacements[$token] = $textReplacements[$token] ?? '';
@@ -548,6 +548,15 @@ function layout_send_notification(
         : null;
     if ($renderedTemplate !== null) {
         $body = $renderedTemplate['text'];
+        if ($templateKey === 'reservation_submitted') {
+            $reservationNote = trim((string)($templateVariables['reservation_note'] ?? ''));
+            $configuredTemplate = (string)($config['app']['notification_reservation_submitted_template_html'] ?? '');
+            if ($reservationNote !== '' && strpos($configuredTemplate, '{{reservation_note}}') === false) {
+                $body .= ($body !== '' ? "\n" : '') . 'Reservation notes: ' . $reservationNote;
+                $renderedTemplate['html'] .= '<p><strong>Reservation notes:</strong><br>'
+                    . nl2br(htmlspecialchars($reservationNote, ENT_QUOTES, 'UTF-8')) . '</p>';
+            }
+        }
     }
 
     $htmlBody = null;

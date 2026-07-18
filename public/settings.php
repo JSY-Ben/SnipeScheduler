@@ -512,7 +512,8 @@ function layout_notification_template_editor(string $templateKey, array $config)
         'Staff reservations' => '{{staff_reservations_link}}',
         'Staff name' => '{{staff_name}}',
         'Staff email' => '{{staff_email}}',
-        'Note' => '{{note}}',
+        'Snipe-IT checkout/check-in note' => '{{note}}',
+        'Reservation note' => '{{reservation_note}}',
         'Recipient name' => '{{recipient_name}}',
     ];
     ?>

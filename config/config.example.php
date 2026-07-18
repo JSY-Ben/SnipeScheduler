@@ -144,7 +144,7 @@ return [
         'notification_reservation_submitted_send_checkout_users' => true, // include all configured checkout users for submitted notifications
         'notification_reservation_submitted_send_admins' => true, // include all configured administrators for submitted notifications
         'notification_reservation_submitted_extra_emails' => '', // extra recipients for reservation submitted emails (comma/newline separated)
-        'notification_reservation_submitted_template_html' => '<p>Reservation <strong>#{{reservation_id}}</strong> has been submitted.</p><p><strong>Reserved for:</strong> {{person_name}}<br><strong>Equipment:</strong> {{equipment_list}}<br><strong>Start:</strong> {{start_date}}<br><strong>Return:</strong> {{return_date}}<br><strong>Submitted by:</strong> {{staff_name}}</p><p>{{reservation_link}}</p>',
+        'notification_reservation_submitted_template_html' => '<p>Reservation <strong>#{{reservation_id}}</strong> has been submitted.</p><p><strong>Reserved for:</strong> {{person_name}}<br><strong>Equipment:</strong> {{equipment_list}}<br><strong>Start:</strong> {{start_date}}<br><strong>Return:</strong> {{return_date}}<br><strong>Reservation notes:</strong> {{reservation_note}}<br><strong>Submitted by:</strong> {{staff_name}}</p><p>{{reservation_link}}</p>',
         'notification_quick_checkout_enabled' => true, // quick checkout email notifications
         'notification_quick_checkout_send_user' => true, // include checked-out user for quick checkout notifications
         'notification_quick_checkout_send_staff' => true, // include staff member who performed quick checkout notifications
