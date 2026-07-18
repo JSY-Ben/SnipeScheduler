@@ -2,6 +2,15 @@
 
 ## [v1.7.6](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.6) - 18/07/2026
 
+With this version, the admin will be warned when logging in after updating the files that you will need to run an upgrade script as it requires new database schema in order to work correctly. However, if you'd prefer to do this manually, please do the following:
+
+Run the upgrade script at www.yourinstallation.com/install/upgrade through a browser.
+
+Use the new SQL backup button on the upgrade page to download a database backup before applying the upgrades.
+
+
+
+
 ### Reservation notes and checkout notes
 
 - Users can add a note when creating a reservation. Reservation notes are shown in My Reservations, Reservation Details, All Reservations and prominently on Today's Reservations (Checkout) for admins/checkout users to check as they are signing out equipment. This note is purely for SnipeScheduler, it does not get used in Snipe-IT. Only the checkout/checkin notes from Staff are added to Snipe-IT. 
