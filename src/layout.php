@@ -506,6 +506,10 @@ if (!function_exists('layout_footer')) {
         if (!is_string($timeLabelJson)) {
             $timeLabelJson = '"Time"';
         }
+        $dateLabelJson = json_encode(_('Date'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        if (!is_string($dateLabelJson)) {
+            $dateLabelJson = '"Date"';
+        }
         $hideFooter = (bool)($cfg['app']['hide_footer'] ?? false);
 
         layout_render_pending_upgrade_modal();
@@ -729,12 +733,25 @@ if (!function_exists('layout_footer')) {
                 if (pickerType === 'date') picker.close();
             });
 
-            const confirmButton = calendar.querySelector('.flatpickr-confirm');
-            if (confirmButton) {
-                calendar.insertBefore(button, confirmButton);
+            const calendarDays = calendar.querySelector('.flatpickr-days');
+            if (calendarDays && calendarDays.parentNode) {
+                calendarDays.parentNode.insertBefore(button, calendarDays);
             } else {
                 calendar.appendChild(button);
             }
+        };
+
+        const emphasizeDateSelection = (picker, pickerType) => {
+            if (!picker || !picker.calendarContainer || pickerType === 'time') return;
+
+            const calendar = picker.calendarContainer;
+            const calendarDays = calendar.querySelector('.flatpickr-days');
+            if (!calendarDays || !calendarDays.parentNode || calendar.querySelector('.flatpickr-date-heading')) return;
+
+            const heading = document.createElement('div');
+            heading.className = 'flatpickr-date-heading';
+            heading.textContent = {$dateLabelJson};
+            calendarDays.parentNode.insertBefore(heading, calendarDays);
         };
 
         const emphasizeTimeSelection = (picker, pickerType) => {
@@ -812,6 +829,7 @@ if (!function_exists('layout_footer')) {
 
             try {
                 const picker = window.flatpickr(input, baseOptions);
+                emphasizeDateSelection(picker, pickerType);
                 emphasizeTimeSelection(picker, pickerType);
                 addTodayAction(input, picker, pickerType);
                 if (picker && picker.altInput) {

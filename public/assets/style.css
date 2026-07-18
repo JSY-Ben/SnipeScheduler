@@ -162,6 +162,7 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     outline: none;
 }
 
+.flatpickr-calendar .flatpickr-date-heading,
 .flatpickr-calendar .flatpickr-time-heading {
     padding: 0.55rem 0.75rem 0.15rem;
     border-top: 2px solid rgba(var(--primary-rgb), 0.3);
@@ -172,6 +173,10 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     letter-spacing: 0.08em;
     text-align: center;
     text-transform: uppercase;
+}
+
+.flatpickr-calendar .flatpickr-date-heading {
+    padding-bottom: 0.45rem;
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time {
