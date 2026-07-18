@@ -182,122 +182,135 @@ if (!empty($_GET['cancelled'])) {
                     <?= _('You don’t have any reservations yet.') ?>
                 </div>
             <?php else: ?>
-                <?php foreach ($reservations as $res): ?>
-                    <?php
-                        $resId   = (int)$res['id'];
-                        $canEditReservation = booking_reservation_contains_only_models($pdo, $resId);
-                        $items   = get_reservation_items_with_names($pdo, $resId);
-                        $summary = build_items_summary_text($items);
-                        $status  = strtolower((string)($res['status'] ?? ''));
-                    ?>
-                    <div class="card mb-3 my-reservation-card">
-                        <div class="card-body p-0">
-                            <div class="my-reservation-header">
-                                <div>
-                                    <div class="my-reservation-eyebrow"><?= _('Reservation') ?></div>
-                                    <h2 class="h4 mb-0">#<?= $resId ?></h2>
-                                </div>
-                                <span class="my-reservation-status my-reservation-status--<?= h(in_array($status, ['pending', 'confirmed', 'completed', 'cancelled', 'missed'], true) ? $status : 'default') ?>">
-                                    <?= h(ucfirst((string)($res['status'] ?? ''))) ?>
-                                </span>
-                            </div>
-
-                            <div class="my-reservation-content">
-                                <div class="my-reservation-meta">
-                                    <div class="my-reservation-meta-item">
-                                        <span class="my-reservation-label"><?= _('Reserved for') ?></span>
-                                        <strong><?= h($res['user_name'] ?? $userName) ?></strong>
-                                    </div>
-                                    <div class="my-reservation-meta-item">
-                                        <span class="my-reservation-label"><?= _('Starts') ?></span>
-                                        <strong><?= display_datetime($res['start_datetime'] ?? '') ?></strong>
-                                    </div>
-                                    <div class="my-reservation-meta-item">
-                                        <span class="my-reservation-label"><?= _('Returns') ?></span>
-                                        <strong><?= display_datetime($res['end_datetime'] ?? '') ?></strong>
-                                    </div>
-                                </div>
-
-                                <?php if (trim((string)($res['reservation_note'] ?? '')) !== '' || trim((string)($res['checkout_note'] ?? '')) !== ''): ?>
-                                    <div class="my-reservation-notes">
-                                        <?php if (trim((string)($res['reservation_note'] ?? '')) !== ''): ?>
-                                            <div class="my-reservation-note my-reservation-note--booking">
-                                                <span class="my-reservation-label"><?= _('Reservation note') ?></span>
-                                                <div><?= h($res['reservation_note']) ?></div>
-                                            </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle reservation-history-table my-reservations-history-table">
+                        <thead>
+                            <tr>
+                                <th><?= _('ID') ?></th>
+                                <th><?= _('Items Reserved') ?></th>
+                                <th><?= _('Start') ?></th>
+                                <th><?= _('End') ?></th>
+                                <th><?= _('Status') ?></th>
+                                <th><?= _('Actions') ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($reservations as $res): ?>
+                                <?php
+                                    $resId = (int)$res['id'];
+                                    $canEditReservation = booking_reservation_contains_only_models($pdo, $resId);
+                                    $items = get_reservation_items_with_names($pdo, $resId);
+                                    $status = strtolower((string)($res['status'] ?? ''));
+                                    $reservationNote = trim((string)($res['reservation_note'] ?? ''));
+                                    $checkoutNote = trim((string)($res['checkout_note'] ?? ''));
+                                    $assignedAssets = array_values(array_filter(array_map('trim', preg_split('/,(?![^()]*\))/', (string)($res['asset_name_cache'] ?? '')) ?: []), 'strlen'));
+                                ?>
+                                <tr>
+                                    <td data-label="<?= _('ID') ?>">#<?= $resId ?></td>
+                                    <td data-label="<?= _('Items Reserved') ?>" class="items-cell">
+                                        <?php if (!empty($items)): ?>
+                                            <details class="items-section">
+                                                <summary><strong><?= _('Items Reserved:') ?></strong></summary>
+                                                <div class="items-section-body items-section-body--scroll">
+                                                    <ul class="items-list">
+                                                        <?php foreach ($items as $item): ?>
+                                                            <li><?= h($item['name'] ?? '') ?><?= (int)($item['qty'] ?? 0) > 1 ? ' (' . (int)$item['qty'] . ')' : '' ?></li>
+                                                        <?php endforeach; ?>
+                                                    </ul>
+                                                </div>
+                                            </details>
                                         <?php endif; ?>
-                                        <?php if (trim((string)($res['checkout_note'] ?? '')) !== ''): ?>
-                                            <div class="my-reservation-note my-reservation-note--checkout">
-                                                <span class="my-reservation-label"><?= _('Checkout note') ?></span>
-                                                <div><?= h($res['checkout_note']) ?></div>
-                                            </div>
+                                        <?php if (!empty($assignedAssets)): ?>
+                                            <details class="items-section mt-2">
+                                                <summary><strong><?= _('Assets Assigned:') ?></strong></summary>
+                                                <div class="items-section-body">
+                                                    <ul class="items-list">
+                                                        <?php foreach ($assignedAssets as $assetLabel): ?>
+                                                            <li><?= h($assetLabel) ?></li>
+                                                        <?php endforeach; ?>
+                                                    </ul>
+                                                </div>
+                                            </details>
                                         <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if (!empty($items)): ?>
-                                    <div class="my-reservation-section">
-                                        <h3 class="h6 mb-2"><?= _('Items in this reservation') ?></h3>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm align-middle mb-0 my-reservation-items">
-                                        <thead>
-                                            <tr>
-                                                <th><?= _('Item') ?></th>
-                                                <th style="width: 80px;"><?= _('Qty') ?></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($items as $item): ?>
-                                                <tr>
-                                                    <td><?= h($item['name'] ?? '') ?></td>
-                                                    <td><?= (int)$item['qty'] ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                            </table>
+                                    </td>
+                                    <td data-label="<?= _('Start') ?>"><?= display_datetime($res['start_datetime'] ?? '') ?></td>
+                                    <td data-label="<?= _('End') ?>"><?= display_datetime($res['end_datetime'] ?? '') ?></td>
+                                    <td data-label="<?= _('Status') ?>"><?= h($res['status'] ?? '') ?></td>
+                                    <td data-label="<?= _('Actions') ?>" class="actions-cell">
+                                        <div class="d-flex gap-2">
+                                            <a href="reservation_detail.php?id=<?= $resId ?>" class="btn btn-sm btn-outline-secondary btn-action"><?= _('View') ?></a>
+                                            <?php if ($status === 'pending' && $canEditReservation): ?>
+                                                <a href="reservation_edit.php?id=<?= $resId ?>&from=my_bookings" class="btn btn-outline-primary btn-sm btn-action"><?= _('Edit') ?></a>
+                                            <?php endif; ?>
+                                            <?php if (in_array($status, ['pending', 'confirmed'], true)): ?>
+                                                <form method="post" action="cancel_reservation.php" onsubmit="return confirm('<?= _('Cancel this reservation? It will remain in your reservation history.') ?>');">
+                                                    <input type="hidden" name="reservation_id" value="<?= $resId ?>">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm btn-action"><?= _('Cancel') ?></button>
+                                                </form>
+                                            <?php endif; ?>
                                         </div>
-                                    </div>
-                                <?php elseif ($summary !== ''): ?>
-                                    <div class="my-reservation-section">
-                                        <span class="my-reservation-label"><?= _('Items') ?></span>
-                                        <div><?= h($summary) ?></div>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if (!empty($res['asset_name_cache'])): ?>
-                                    <div class="my-reservation-assets">
-                                        <span class="my-reservation-label"><?= _('Checked-out assets') ?></span>
-                                        <div><?= h($res['asset_name_cache']) ?></div>
-                                    </div>
-                                <?php endif; ?>
-
-                            <div class="d-flex justify-content-end gap-2 mt-3 my-reservation-actions">
-                                <?php if ($status === 'pending' && $canEditReservation): ?>
-                                    <a href="reservation_edit.php?id=<?= $resId ?>&from=my_bookings"
-                                       class="btn btn-outline-primary btn-sm btn-action">
-                                        <?= _('Edit') ?>
-                                    </a>
-                                <?php endif; ?>
-                                <?php if (in_array($status, ['pending', 'confirmed'], true)): ?>
-                                    <form method="post"
-                                          action="cancel_reservation.php"
-                                          onsubmit="return confirm('<?= _('Cancel this reservation? It will remain in your reservation history.') ?>');">
-                                        <input type="hidden" name="reservation_id" value="<?= $resId ?>">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                                            <?= _('Cancel Reservation') ?>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
+                                        <div class="d-grid gap-2 mt-2 reservation-note-actions">
+                                            <button type="button" class="btn btn-sm btn-outline-primary js-view-my-reservation-note"
+                                                    data-note-title="<?= h(_('Reservation') . ' #' . $resId . ' — ' . _('Reservation Notes')) ?>"
+                                                    data-note="<?= h((string)json_encode($reservationNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                                <?= $reservationNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                                <?= _('View Reservation Notes') ?>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary js-view-my-reservation-note"
+                                                    data-note-title="<?= h(_('Reservation') . ' #' . $resId . ' — ' . _('Checkout Notes')) ?>"
+                                                    data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                                <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                                <?= _('View Checkout Notes') ?>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php endif; ?>
         <?php endif; ?>
 
+        <dialog id="my-reservation-note-dialog" class="border-0 rounded-3 shadow p-0" style="max-width: 620px; width: calc(100% - 2rem);">
+            <div class="p-4">
+                <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                    <h5 id="my-reservation-note-dialog-title" class="mb-0"><?= _('Reservation Notes') ?></h5>
+                    <button type="button" class="btn-close" id="close-my-reservation-note-dialog" aria-label="<?= _('Close') ?>"></button>
+                </div>
+                <div id="my-reservation-note-dialog-content" class="reservation-note-dialog-content"></div>
+            </div>
+        </dialog>
+
     </div>
 </div>
+<script>
+(function () {
+    const dialog = document.getElementById('my-reservation-note-dialog');
+    const title = document.getElementById('my-reservation-note-dialog-title');
+    const content = document.getElementById('my-reservation-note-dialog-content');
+    if (!dialog || !title || !content) return;
+
+    document.querySelectorAll('.js-view-my-reservation-note:not([disabled])').forEach(function (button) {
+        button.addEventListener('click', function () {
+            title.textContent = button.dataset.noteTitle || <?= json_encode(_('Reservation Notes'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+            try {
+                content.textContent = JSON.parse(button.dataset.note || '""');
+            } catch (_) {
+                content.textContent = '';
+            }
+            dialog.showModal();
+        });
+    });
+
+    const closeButton = document.getElementById('close-my-reservation-note-dialog');
+    if (closeButton) {
+        closeButton.addEventListener('click', function () {
+            dialog.close();
+        });
+    }
+}());
+</script>
 <?php layout_footer(); ?>
 </body>
 </html>

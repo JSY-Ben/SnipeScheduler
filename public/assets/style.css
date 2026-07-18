@@ -97,109 +97,6 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     font-size: 0.875rem;
 }
 
-.my-reservation-card {
-    overflow: hidden;
-    border-color: rgba(var(--primary-rgb), 0.16);
-}
-
-.my-reservation-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(120deg, rgba(var(--primary-rgb), 0.08), rgba(var(--primary-soft-rgb), 0.1));
-    border-bottom: 1px solid var(--border);
-}
-
-.my-reservation-eyebrow,
-.my-reservation-label {
-    display: block;
-    margin-bottom: 0.2rem;
-    color: var(--muted);
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.my-reservation-status {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.38rem 0.75rem;
-    border-radius: 999px;
-    background: #e2e8f0;
-    color: #334155;
-    font-size: 0.82rem;
-    font-weight: 700;
-}
-
-.my-reservation-status--pending { background: #fef3c7; color: #92400e; }
-.my-reservation-status--confirmed { background: #dbeafe; color: #1e40af; }
-.my-reservation-status--completed { background: #dcfce7; color: #166534; }
-.my-reservation-status--cancelled { background: #fee2e2; color: #991b1b; }
-.my-reservation-status--missed { background: #f1f5f9; color: #475569; }
-
-.my-reservation-content {
-    padding: 1.25rem;
-}
-
-.my-reservation-meta {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.my-reservation-meta-item,
-.my-reservation-section,
-.my-reservation-assets {
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    background: rgba(255, 255, 255, 0.72);
-}
-
-.my-reservation-notes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.my-reservation-note {
-    padding: 0.9rem 1rem;
-    border-radius: 0.75rem;
-    border-left: 4px solid var(--primary);
-    background: rgba(var(--primary-rgb), 0.06);
-    white-space: pre-wrap;
-}
-
-.my-reservation-note--checkout {
-    border-left-color: #2563eb;
-    background: rgba(37, 99, 235, 0.07);
-}
-
-.my-reservation-section {
-    margin-bottom: 1rem;
-}
-
-.my-reservation-items thead th {
-    color: var(--muted);
-    font-size: 0.76rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.my-reservation-items tbody tr:last-child td {
-    border-bottom: 0;
-}
-
-.my-reservation-assets {
-    border-left: 4px solid #16a34a;
-    background: rgba(22, 163, 74, 0.06);
-}
-
 .reservation-note-actions .btn {
     white-space: nowrap;
 }
@@ -221,29 +118,10 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     white-space: pre-wrap;
 }
 
-#reservation-note-dialog::backdrop {
+#reservation-note-dialog::backdrop,
+#my-reservation-note-dialog::backdrop {
     background: rgba(15, 23, 42, 0.45);
     backdrop-filter: blur(3px);
-}
-
-@media (max-width: 767.98px) {
-    .my-reservation-meta {
-        grid-template-columns: 1fr;
-    }
-
-    .my-reservation-actions {
-        justify-content: stretch !important;
-        flex-direction: column;
-    }
-
-    .my-reservation-actions .btn,
-    .my-reservation-actions form {
-        width: 100%;
-    }
-
-    .my-reservation-actions form .btn {
-        width: 100%;
-    }
 }
 
 a {
@@ -1526,6 +1404,33 @@ form .form-select {
     width: 190px;
 }
 
+.reservation-history-table.my-reservations-history-table th:nth-child(1),
+.reservation-history-table.my-reservations-history-table td:nth-child(1) {
+    width: 55px;
+}
+
+.reservation-history-table.my-reservations-history-table th:nth-child(2),
+.reservation-history-table.my-reservations-history-table td:nth-child(2) {
+    width: 34%;
+}
+
+.reservation-history-table.my-reservations-history-table th:nth-child(3),
+.reservation-history-table.my-reservations-history-table td:nth-child(3),
+.reservation-history-table.my-reservations-history-table th:nth-child(4),
+.reservation-history-table.my-reservations-history-table td:nth-child(4) {
+    width: 110px;
+}
+
+.reservation-history-table.my-reservations-history-table th:nth-child(5),
+.reservation-history-table.my-reservations-history-table td:nth-child(5) {
+    width: 90px;
+}
+
+.reservation-history-table.my-reservations-history-table th:nth-child(6),
+.reservation-history-table.my-reservations-history-table td:nth-child(6) {
+    width: 230px;
+}
+
 .items-cell {
     padding-top: 0.5rem;
     word-break: break-word;
@@ -1561,6 +1466,10 @@ form .form-select {
     .reservation-history-table td {
         display: block;
         width: 100%;
+    }
+
+    .reservation-history-table.my-reservations-history-table td {
+        width: 100% !important;
     }
 
     .reservation-history-table tr {
