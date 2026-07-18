@@ -1578,7 +1578,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                                                                 <button type="submit"
                                                                         name="remove_slot"
                                                                         value="<?= $mid ?>:<?= $i ?>"
-                                                                        class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                                                        class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center reservation-asset-remove-button"
                                                                         aria-label="Remove this asset"
                                                                         title="Remove this asset"
                                                                         <?= $removeOneCancels ? 'data-confirm-cancel="1"' : '' ?>>
