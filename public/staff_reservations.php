@@ -536,18 +536,26 @@ try {
                                     <?= $itemsText !== '' ? '<div class="items-cell-content">' . $itemsText . '</div>' : '' ?>
                                 </td>
                                 <td data-label="Notes">
-                                    <?php if (trim((string)($r['reservation_note'] ?? '')) !== ''): ?>
-                                        <div class="mb-2">
-                                            <strong>Reservation:</strong>
-                                            <div style="white-space: pre-wrap;"><?= h($r['reservation_note']) ?></div>
-                                        </div>
-                                    <?php endif; ?>
-                                    <?php if (trim((string)($r['checkout_note'] ?? '')) !== ''): ?>
-                                        <div>
-                                            <strong>Checkout:</strong>
-                                            <div style="white-space: pre-wrap;"><?= h($r['checkout_note']) ?></div>
-                                        </div>
-                                    <?php endif; ?>
+                                    <?php
+                                        $reservationNote = trim((string)($r['reservation_note'] ?? ''));
+                                        $checkoutNote = trim((string)($r['checkout_note'] ?? ''));
+                                    ?>
+                                    <div class="d-grid gap-2 reservation-note-actions">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary js-view-reservation-note"
+                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Reservation Notes"
+                                                data-note="<?= h((string)json_encode($reservationNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                            <?= $reservationNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                            View Reservation Notes
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary js-view-reservation-note"
+                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Checkout Notes"
+                                                data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                            <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                            View Checkout Notes
+                                        </button>
+                                    </div>
                                 </td>
                                 <td data-label="Start"><?= display_datetime($r['start_datetime'] ?? '') ?></td>
                                 <td data-label="End"><?= display_datetime($r['end_datetime'] ?? '') ?></td>
@@ -661,6 +669,16 @@ try {
             <?php endif; ?>
         <?php endif; ?>
 
+        <dialog id="reservation-note-dialog" class="border-0 rounded-3 shadow p-0" style="max-width: 620px; width: calc(100% - 2rem);">
+            <div class="p-4">
+                <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                    <h5 id="reservation-note-dialog-title" class="mb-0">Reservation Notes</h5>
+                    <button type="button" class="btn-close" id="close-reservation-note-dialog" aria-label="Close"></button>
+                </div>
+                <div id="reservation-note-dialog-content" class="reservation-note-dialog-content"></div>
+            </div>
+        </dialog>
+
         <dialog id="cancel-pending-reservation-dialog" class="border-0 rounded-3 shadow p-0" style="max-width: 520px; width: calc(100% - 2rem);">
             <form method="post" action="delete_reservation.php" class="p-4">
                 <input type="hidden" name="action" value="cancel_pending">
@@ -716,6 +734,30 @@ try {
 
         <script>
         (function () {
+            const noteDialog = document.getElementById('reservation-note-dialog');
+            const noteTitle = document.getElementById('reservation-note-dialog-title');
+            const noteContent = document.getElementById('reservation-note-dialog-content');
+            if (noteDialog && noteTitle && noteContent) {
+                document.querySelectorAll('.js-view-reservation-note:not([disabled])').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        noteTitle.textContent = button.dataset.noteTitle || 'Reservation Notes';
+                        try {
+                            noteContent.textContent = JSON.parse(button.dataset.note || '""');
+                        } catch (_) {
+                            noteContent.textContent = '';
+                        }
+                        noteDialog.showModal();
+                    });
+                });
+
+                const closeNoteButton = document.getElementById('close-reservation-note-dialog');
+                if (closeNoteButton) {
+                    closeNoteButton.addEventListener('click', function () {
+                        noteDialog.close();
+                    });
+                }
+            }
+
             const dialog = document.getElementById('cancel-pending-reservation-dialog');
             const idInput = document.getElementById('cancel-pending-reservation-id');
             const deleteCheckbox = document.getElementById('delete-pending-reservation-permanently');

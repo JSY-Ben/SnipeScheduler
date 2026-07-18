@@ -200,6 +200,32 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     background: rgba(22, 163, 74, 0.06);
 }
 
+.reservation-note-actions .btn {
+    white-space: nowrap;
+}
+
+.reservation-note-actions .btn:disabled {
+    color: #94a3b8;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    opacity: 0.72;
+}
+
+.reservation-note-dialog-content {
+    max-height: min(60vh, 520px);
+    overflow-y: auto;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    white-space: pre-wrap;
+}
+
+#reservation-note-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+}
+
 @media (max-width: 767.98px) {
     .my-reservation-meta {
         grid-template-columns: 1fr;
