@@ -99,6 +99,19 @@ if ($action === 'cancel_pending') {
     }
 }
 
+if ($action === 'delete_completed') {
+    if (strtolower((string)($reservation['status'] ?? '')) !== 'completed') {
+        http_response_code(409);
+        echo 'Only completed reservations can use this deletion action.';
+        exit;
+    }
+    if (($_POST['acknowledge_checked_out_risk'] ?? '') !== '1') {
+        http_response_code(400);
+        echo 'You must acknowledge the Snipe-IT checked-out item warning before deleting this reservation.';
+        exit;
+    }
+}
+
 try {
     $pdo->beginTransaction();
 

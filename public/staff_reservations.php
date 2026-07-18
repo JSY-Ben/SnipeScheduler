@@ -579,6 +579,12 @@ try {
                                                     data-reservation-id="<?= (int)$r['id'] ?>">
                                                 Cancel
                                             </button>
+                                        <?php elseif ($status === 'completed'): ?>
+                                            <button class="btn btn-sm btn-outline-danger btn-action js-delete-completed-reservation"
+                                                    type="button"
+                                                    data-reservation-id="<?= (int)$r['id'] ?>">
+                                                Delete
+                                            </button>
                                         <?php else: ?>
                                             <form method="post"
                                                   action="delete_reservation.php"
@@ -664,6 +670,35 @@ try {
             </form>
         </dialog>
 
+        <dialog id="delete-completed-reservation-dialog" class="border-0 rounded-3 shadow p-0" style="max-width: 560px; width: calc(100% - 2rem);">
+            <form method="post" action="delete_reservation.php" class="p-4">
+                <input type="hidden" name="action" value="delete_completed">
+                <input type="hidden" name="reservation_id" id="delete-completed-reservation-id" value="">
+                <?php if ($embedded): ?>
+                    <input type="hidden" name="return_to_history" value="1">
+                <?php endif; ?>
+                <h5>Delete completed reservation?</h5>
+                <div class="alert alert-warning">
+                    Deleting a completed reservation may cause issues in Snipe-IT if any equipment from it is still checked out. This removes only the scheduler’s reservation history; it does not check items back into Snipe-IT.
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           name="acknowledge_checked_out_risk"
+                           value="1"
+                           id="acknowledge-completed-reservation-risk"
+                           required>
+                    <label class="form-check-label" for="acknowledge-completed-reservation-risk">
+                        I understand that items may still be checked out in Snipe-IT and want to permanently delete this reservation.
+                    </label>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="close-delete-completed-reservation-dialog">Keep reservation</button>
+                    <button type="submit" class="btn btn-danger">Delete permanently</button>
+                </div>
+            </form>
+        </dialog>
+
         <script>
         (function () {
             const dialog = document.getElementById('cancel-pending-reservation-dialog');
@@ -684,6 +719,26 @@ try {
                 closeButton.addEventListener('click', function () {
                     dialog.close();
                 });
+            }
+
+            const completedDialog = document.getElementById('delete-completed-reservation-dialog');
+            const completedIdInput = document.getElementById('delete-completed-reservation-id');
+            const riskCheckbox = document.getElementById('acknowledge-completed-reservation-risk');
+            if (completedDialog && completedIdInput) {
+                document.querySelectorAll('.js-delete-completed-reservation').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        completedIdInput.value = button.dataset.reservationId || '';
+                        if (riskCheckbox) riskCheckbox.checked = false;
+                        completedDialog.showModal();
+                    });
+                });
+
+                const closeCompletedButton = document.getElementById('close-delete-completed-reservation-dialog');
+                if (closeCompletedButton) {
+                    closeCompletedButton.addEventListener('click', function () {
+                        completedDialog.close();
+                    });
+                }
             }
         }());
         </script>
