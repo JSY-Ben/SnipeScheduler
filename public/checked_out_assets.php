@@ -6,6 +6,72 @@ require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
 require_once SRC_PATH . '/staff_group_visibility.php';
 require_once SRC_PATH . '/layout.php';
+require_once SRC_PATH . '/booking_helpers.php';
+
+function checked_out_attach_image_paths(PDO $pdo, array $rows): array
+{
+    $modelIds = [];
+    $accessoryIds = [];
+    foreach ($rows as $row) {
+        if (checked_out_row_type_key($row) === 'accessory') {
+            $id = (int)($row['accessory_id'] ?? ($row['id'] ?? 0));
+            if ($id > 0) {
+                $accessoryIds[$id] = true;
+            }
+            continue;
+        }
+
+        $modelId = (int)($row['model']['id'] ?? ($row['model_id'] ?? 0));
+        if ($modelId > 0) {
+            $modelIds[$modelId] = true;
+        }
+    }
+
+    $modelImages = [];
+    $accessoryImages = [];
+    try {
+        if (!empty($modelIds)) {
+            $ids = array_keys($modelIds);
+            $stmt = $pdo->prepare('SELECT model_id, image_path FROM catalogue_model_cache WHERE model_id IN ('
+                . implode(',', array_fill(0, count($ids), '?')) . ')');
+            $stmt->execute($ids);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $imageRow) {
+                $modelImages[(int)$imageRow['model_id']] = trim((string)($imageRow['image_path'] ?? ''));
+            }
+        }
+        if (!empty($accessoryIds)) {
+            $ids = array_keys($accessoryIds);
+            $stmt = $pdo->prepare('SELECT accessory_id, image_path FROM catalogue_accessory_cache WHERE accessory_id IN ('
+                . implode(',', array_fill(0, count($ids), '?')) . ')');
+            $stmt->execute($ids);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $imageRow) {
+                $accessoryImages[(int)$imageRow['accessory_id']] = trim((string)($imageRow['image_path'] ?? ''));
+            }
+        }
+    } catch (Throwable $e) {
+        // Older installations may not have catalogue image caches yet.
+    }
+
+    foreach ($rows as &$row) {
+        $imagePath = booking_extract_catalogue_item_image_path($row);
+        if ($imagePath === '' && isset($row['model']) && is_array($row['model'])) {
+            $imagePath = booking_extract_catalogue_item_image_path($row['model']);
+        }
+        if ($imagePath === '') {
+            if (checked_out_row_type_key($row) === 'accessory') {
+                $id = (int)($row['accessory_id'] ?? ($row['id'] ?? 0));
+                $imagePath = $accessoryImages[$id] ?? '';
+            } else {
+                $modelId = (int)($row['model']['id'] ?? ($row['model_id'] ?? 0));
+                $imagePath = $modelImages[$modelId] ?? '';
+            }
+        }
+        $row['_image_path'] = $imagePath;
+    }
+    unset($row);
+
+    return $rows;
+}
 
 function load_asset_labels(PDO $pdo, array $assetIds): array
 {
@@ -427,6 +493,7 @@ try {
         : list_checked_out_assets(false);
     $accessories = fetch_checked_out_accessories_from_snipeit(!$forceRefresh);
     $assets = array_merge($assets, $accessories);
+    $assets = checked_out_attach_image_paths($pdo, $assets);
     if ($restrictReservationsToSameGroup) {
         $cachedVisibleEmails = staff_group_visibility_cached_visible_emails_for_current_user(
             $currentUser,
@@ -771,6 +838,8 @@ function layout_checked_out_url(string $base, array $params): string
                                     $checkedOutTs = $checkedOut ? strtotime($checkedOut) : 0;
                                     $expectedTs = expected_to_timestamp($expected);
                                     $isOverdue = $expectedTs !== null && $expectedTs < time();
+                                    $imagePath = trim((string)($a['_image_path'] ?? ''));
+                                    $imageUrl = $imagePath !== '' ? 'image_proxy.php?src=' . urlencode($imagePath) : '';
                                 ?>
                                 <tr data-asset-tag="<?= h(strtolower($identifier)) ?>"
                                     data-asset-name="<?= h(strtolower($name)) ?>"
@@ -788,10 +857,24 @@ function layout_checked_out_url(string $base, array $params): string
                                     </td>
                                     <td><?= h($identifier) ?></td>
                                     <td>
-                                        <div class="fw-semibold"><?= h($name) ?></div>
-                                        <?php if ($isAccessory && $assignedQty > 1): ?>
-                                            <div class="text-muted small">Checked out quantity: <?= (int)$assignedQty ?></div>
-                                        <?php endif; ?>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <?php if ($imageUrl !== ''): ?>
+                                                <img src="<?= h($imageUrl) ?>"
+                                                     alt="<?= h($name . ' thumbnail') ?>"
+                                                     loading="lazy"
+                                                     style="width:48px;height:48px;object-fit:contain;border:1px solid rgba(0,0,0,.12);border-radius:.35rem;background:#fff;flex:0 0 48px;">
+                                            <?php else: ?>
+                                                <div class="d-flex align-items-center justify-content-center text-muted border rounded bg-white"
+                                                     aria-label="No image available"
+                                                     style="width:48px;height:48px;font-size:9px;text-align:center;line-height:1.1;flex:0 0 48px;">No image</div>
+                                            <?php endif; ?>
+                                            <div>
+                                                <div class="fw-semibold"><?= h($name) ?></div>
+                                                <?php if ($isAccessory && $assignedQty > 1): ?>
+                                                    <div class="text-muted small">Checked out quantity: <?= (int)$assignedQty ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td><?= h($details) ?></td>
                                     <td><?= h($user) ?></td>
