@@ -14,6 +14,9 @@ if (php_sapi_name() !== 'cli') {
     exit(1);
 }
 
+require_once __DIR__ . '/../src/cron_lock.php';
+$cronLock = cron_acquire_lock('snipeit-user-group-cache-update');
+
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/catalogue_permissions.php';

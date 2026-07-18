@@ -16,6 +16,9 @@ if (php_sapi_name() !== 'cli') {
     exit(1);
 }
 
+require_once __DIR__ . '/../src/cron_lock.php';
+$cronLock = cron_acquire_lock('email-overdue-users');
+
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/snipeit_client.php';
 require_once SRC_PATH . '/email.php';

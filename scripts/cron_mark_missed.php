@@ -5,6 +5,14 @@
 // Run via cron, e.g.:
 //   */10 * * * * /usr/bin/php /path/to/scripts/cron_mark_missed.php >> /var/log/layout_missed.log 2>&1
 
+if (php_sapi_name() !== 'cli') {
+    fwrite(STDERR, "This script must be run from the command line.\n");
+    exit(1);
+}
+
+require_once __DIR__ . '/../src/cron_lock.php';
+$cronLock = cron_acquire_lock('mark-missed-reservations');
+
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/db.php';
 require_once SRC_PATH . '/activity_log.php';
