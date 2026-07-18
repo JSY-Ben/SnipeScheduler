@@ -1938,7 +1938,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <?php endif; ?>
             <input type="hidden" name="prefetch" value="1">
             <div class="row g-3 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-6">
                     <label class="form-label fw-semibold"><?= _('Start date & time') ?></label>
                     <input type="datetime-local"
                            name="start_datetime"
@@ -1946,18 +1946,13 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                            class="form-control form-control-lg"
                            value="<?= h($windowStartRaw) ?>">
                 </div>
-                <div class="col-md-5">
+                <div class="col-md-6">
                     <label class="form-label fw-semibold"><?= _('End date & time') ?></label>
                     <input type="datetime-local"
                            name="end_datetime"
                            id="catalogue_end_datetime"
                            class="form-control form-control-lg"
                            value="<?= h($windowEndRaw) ?>">
-                </div>
-                <div class="col-12 col-md-2 d-grid mb-2 mb-md-0">
-                    <button class="btn btn-primary btn-lg" type="button" id="catalogue-today-btn">
-                        <?= _('Today') ?>
-                    </button>
                 </div>
             </div>
             <?php if ($windowError !== ''): ?>
@@ -2916,7 +2911,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const windowStartInput = document.getElementById('catalogue_start_datetime');
     const windowEndInput = document.getElementById('catalogue_end_datetime');
     const windowForm = document.getElementById('catalogue-window-form');
-    const todayBtn = document.getElementById('catalogue-today-btn');
     const windowScrollRestoreKey = 'snipeScheduler:catalogueWindowScrollY';
     let windowSubmitInFlight = false;
     let lastSubmittedWindow = (windowStartInput && windowEndInput)
@@ -3096,9 +3090,16 @@ document.addEventListener('DOMContentLoaded', function () {
         tomorrow.setHours(9, 0, 0, 0);
         setDatetimeInputValue(windowStartInput, toLocalDatetimeValue(now));
         setDatetimeInputValue(windowEndInput, toLocalDatetimeValue(tomorrow));
-        showLoadingOverlay();
         maybeSubmitWindow();
     }
+
+    [windowStartInput, windowEndInput].forEach(function (input) {
+        if (!input) return;
+        input.addEventListener('snipescheduler:picker-today', function (event) {
+            event.preventDefault();
+            setTodayWindow();
+        });
+    });
 
     function normalizeWindowEnd() {
         if (!windowStartInput || !windowEndInput) return;
@@ -3783,9 +3784,6 @@ document.addEventListener('DOMContentLoaded', function () {
             saveWindowScrollPosition();
             showLoadingOverlay();
         });
-    }
-    if (todayBtn) {
-        todayBtn.addEventListener('click', setTodayWindow);
     }
     document.addEventListener('click', function (event) {
         if (!windowStartInput || !windowEndInput) return;

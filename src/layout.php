@@ -498,6 +498,10 @@ if (!function_exists('layout_footer')) {
         $cfg = layout_cached_config();
         $flatpickrCfg = app_flatpickr_settings($cfg);
         $flatpickrCfgJson = json_encode($flatpickrCfg, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        $todayLabelJson = json_encode(_('Today'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        if (!is_string($todayLabelJson)) {
+            $todayLabelJson = '"Today"';
+        }
         $hideFooter = (bool)($cfg['app']['hide_footer'] ?? false);
 
         layout_render_pending_upgrade_modal();
@@ -693,6 +697,42 @@ if (!function_exists('layout_footer')) {
             });
         };
 
+        const addTodayAction = (input, picker, pickerType) => {
+            if (!picker || !picker.calendarContainer || pickerType === 'time') return;
+
+            const calendar = picker.calendarContainer;
+            if (calendar.querySelector('.flatpickr-today-action')) return;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'flatpickr-today-action';
+            button.textContent = {$todayLabelJson};
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const todayEvent = new CustomEvent('snipescheduler:picker-today', {
+                    cancelable: true,
+                    detail: { picker, pickerType },
+                });
+                if (!input.dispatchEvent(todayEvent)) return;
+
+                const today = new Date();
+                if (pickerType === 'date') {
+                    today.setHours(0, 0, 0, 0);
+                }
+                picker.setDate(today, true, picker.config.dateFormat);
+                if (pickerType === 'date') picker.close();
+            });
+
+            const confirmButton = calendar.querySelector('.flatpickr-confirm');
+            if (confirmButton) {
+                calendar.insertBefore(button, confirmButton);
+            } else {
+                calendar.appendChild(button);
+            }
+        };
+
         const initInput = (input) => {
             if (!(input instanceof HTMLInputElement)) return;
             if (input.dataset.flatpickrBound === '1') return;
@@ -755,6 +795,7 @@ if (!function_exists('layout_footer')) {
 
             try {
                 const picker = window.flatpickr(input, baseOptions);
+                addTodayAction(input, picker, pickerType);
                 if (picker && picker.altInput) {
                     if (input.style && input.style.cssText) {
                         picker.altInput.style.cssText = input.style.cssText;
