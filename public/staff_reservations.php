@@ -529,6 +529,7 @@ try {
                                 $itemsText = $modelsHtml . $assetsHtml;
                                 $reservationNote = trim((string)($r['reservation_note'] ?? ''));
                                 $checkoutNote = trim((string)($r['checkout_note'] ?? ''));
+                                $checkinNote = trim((string)($r['checkin_note'] ?? ''));
                             ?>
                             <tr>
                                 <td data-label="ID">#<?= (int)$r['id'] ?></td>
@@ -615,6 +616,13 @@ try {
                                                 data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
                                             <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
                                             View Checkout Notes
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary js-view-reservation-note"
+                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Checkin Notes"
+                                                data-note="<?= h((string)json_encode($checkinNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                            <?= $checkinNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                            View Checkin Notes
                                         </button>
                                     </div>
                                 </td>
