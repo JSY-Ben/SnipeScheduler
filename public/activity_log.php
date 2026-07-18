@@ -333,10 +333,10 @@ try {
                         <table class="table table-sm table-striped align-middle">
                             <thead>
                                 <tr>
-                                    <th>Time</th>
-                                    <th>Event</th>
-                                    <th>User</th>
-                                    <th>Details</th>
+                                    <th><?= layout_sortable_column_header('Time', 'time_asc', 'time_desc', $sort) ?></th>
+                                    <th><?= layout_sortable_column_header('Event', 'event_asc', 'event_desc', $sort) ?></th>
+                                    <th><?= layout_sortable_column_header('User', 'actor_asc', 'actor_desc', $sort) ?></th>
+                                    <th><?= layout_sortable_column_header('Details', 'subject_asc', 'subject_desc', $sort) ?></th>
                                 </tr>
                             </thead>
                             <tbody>

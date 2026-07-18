@@ -154,6 +154,42 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     height: 18px;
 }
 
+.table-sort-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+
+.table-sort-heading__buttons {
+    display: inline-flex;
+    gap: 0.15rem;
+}
+
+.table-sort-button {
+    display: inline-flex;
+    width: 1.35rem;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(var(--primary-rgb), 0.28);
+    border-radius: 0.3rem;
+    background: #fff;
+    color: var(--primary-strong);
+    font-size: 0.78rem;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.table-sort-button:hover,
+.table-sort-button:focus-visible,
+.table-sort-button.is-active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+    text-decoration: none;
+}
+
 .flatpickr-calendar .flatpickr-today-action {
     display: block;
     width: calc(100% - 1rem);

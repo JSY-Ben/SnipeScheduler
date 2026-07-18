@@ -74,6 +74,8 @@ $sortOptions = [
     'status_desc' => 'status DESC',
     'id_desc' => 'id DESC',
     'id_asc' => 'id ASC',
+    'items_asc' => '(SELECT MIN(ri_sort.item_name_cache) FROM reservation_items ri_sort WHERE ri_sort.reservation_id = reservations.id) ASC',
+    'items_desc' => '(SELECT MIN(ri_sort.item_name_cache) FROM reservation_items ri_sort WHERE ri_sort.reservation_id = reservations.id) DESC',
 ];
 $sort = array_key_exists($sortRaw, $sortOptions) ? $sortRaw : 'start_desc';
 
@@ -428,6 +430,8 @@ try {
                         <option value="status_desc" <?= $sort === 'status_desc' ? 'selected' : '' ?>>Status (Z–A)</option>
                         <option value="id_desc" <?= $sort === 'id_desc' ? 'selected' : '' ?>>Reservation ID (high → low)</option>
                         <option value="id_asc" <?= $sort === 'id_asc' ? 'selected' : '' ?>>Reservation ID (low → high)</option>
+                        <option value="items_asc" <?= $sort === 'items_asc' ? 'selected' : '' ?>>Items (A–Z)</option>
+                        <option value="items_desc" <?= $sort === 'items_desc' ? 'selected' : '' ?>>Items (Z–A)</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -463,12 +467,12 @@ try {
                 <table class="table table-sm table-striped align-middle reservation-history-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>User Name</th>
-                            <th>Items Reserved</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>Status</th>
+                            <th><?= layout_sortable_column_header('ID', 'id_asc', 'id_desc', $sort) ?></th>
+                            <th><?= layout_sortable_column_header('User Name', 'user_asc', 'user_desc', $sort) ?></th>
+                            <th><?= layout_sortable_column_header('Items Reserved', 'items_asc', 'items_desc', $sort) ?></th>
+                            <th><?= layout_sortable_column_header('Start', 'start_asc', 'start_desc', $sort) ?></th>
+                            <th><?= layout_sortable_column_header('End', 'end_asc', 'end_desc', $sort) ?></th>
+                            <th><?= layout_sortable_column_header('Status', 'status_asc', 'status_desc', $sort) ?></th>
                             <th style="width: 230px;">Actions</th>
                         </tr>
                     </thead>

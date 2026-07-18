@@ -488,6 +488,38 @@ if (!function_exists('layout_render_nav')) {
     }
 }
 
+if (!function_exists('layout_sortable_column_header')) {
+    function layout_sortable_column_header(string $label, string $ascendingSort, string $descendingSort, string $currentSort): string
+    {
+        $params = $_GET;
+        unset($params['page']);
+        foreach (array_keys($params) as $name) {
+            $name = (string)$name;
+            if (strlen($name) >= 5 && substr($name, -5) === '_page') {
+                unset($params[$name]);
+            }
+        }
+
+        $script = basename((string)($_SERVER['PHP_SELF'] ?? ''));
+        $buildUrl = static function (string $sort) use ($params, $script): string {
+            $next = $params;
+            $next['sort'] = $sort;
+            return $script . '?' . http_build_query($next);
+        };
+        $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $ascActive = $currentSort === $ascendingSort;
+        $descActive = $currentSort === $descendingSort;
+        return '<span class="table-sort-heading"><span class="table-sort-heading__label">' . $escape($label) . '</span>'
+            . '<span class="table-sort-heading__buttons">'
+            . '<a class="table-sort-button' . ($ascActive ? ' is-active' : '') . '" href="' . $escape($buildUrl($ascendingSort)) . '"'
+            . ' aria-label="Sort ' . $escape($label) . ' ascending" title="Sort ascending">↑</a>'
+            . '<a class="table-sort-button' . ($descActive ? ' is-active' : '') . '" href="' . $escape($buildUrl($descendingSort)) . '"'
+            . ' aria-label="Sort ' . $escape($label) . ' descending" title="Sort descending">↓</a>'
+            . '</span></span>';
+    }
+}
+
 if (!function_exists('layout_footer')) {
     function layout_footer(): void
     {
@@ -509,6 +541,17 @@ if (!function_exists('layout_footer')) {
         $dateLabelJson = json_encode(_('Date'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
         if (!is_string($dateLabelJson)) {
             $dateLabelJson = '"Date"';
+        }
+        $preferenceUser = $GLOBALS['currentUser'] ?? [];
+        $preferenceIdentity = is_array($preferenceUser)
+            ? trim((string)($preferenceUser['email'] ?? ($preferenceUser['username'] ?? ($preferenceUser['id'] ?? ''))))
+            : '';
+        $sortPreferenceUserKeyJson = json_encode(
+            $preferenceIdentity !== '' ? hash('sha256', strtolower($preferenceIdentity)) : '',
+            JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        if (!is_string($sortPreferenceUserKeyJson)) {
+            $sortPreferenceUserKeyJson = '""';
         }
         $hideFooter = (bool)($cfg['app']['hide_footer'] ?? false);
 
@@ -581,6 +624,57 @@ if (!function_exists('layout_footer')) {
     });
 
     window.addEventListener('pageshow', () => hide(true));
+}());
+
+(function () {
+    const userKey = {$sortPreferenceUserKeyJson};
+    if (!userKey || typeof window.localStorage === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    const isSortParameter = (name) => name === 'sort' || name.endsWith('_sort');
+    const isSortDirectionParameter = (name) => name.endsWith('_dir');
+    const contextParts = ['tab', 'view']
+        .filter((name) => url.searchParams.has(name))
+        .map((name) => name + '=' + url.searchParams.get(name));
+    const storageKey = 'snipeScheduler:sortPreferences:'
+        + userKey + ':' + url.pathname + ':' + contextParts.join('&');
+    const explicitSortKeys = Array.from(url.searchParams.keys()).filter(isSortParameter);
+
+    try {
+        if (explicitSortKeys.length > 0) {
+            const values = {};
+            url.searchParams.forEach((value, name) => {
+                if (isSortParameter(name) || isSortDirectionParameter(name)) {
+                    values[name] = value;
+                }
+            });
+            window.localStorage.setItem(storageKey, JSON.stringify(values));
+            return;
+        }
+
+        const savedRaw = window.localStorage.getItem(storageKey);
+        if (!savedRaw) return;
+        const saved = JSON.parse(savedRaw);
+        if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+
+        let restored = false;
+        Object.keys(saved).forEach((name) => {
+            if (!isSortParameter(name) && !isSortDirectionParameter(name)) return;
+            const value = String(saved[name] || '');
+            if (value === '') return;
+            url.searchParams.set(name, value);
+            restored = true;
+        });
+        if (!restored) return;
+
+        url.searchParams.delete('page');
+        Array.from(url.searchParams.keys()).forEach((name) => {
+            if (name.endsWith('_page')) url.searchParams.delete(name);
+        });
+        window.location.replace(url.toString());
+    } catch (_) {
+        // Storage can be unavailable in private or restricted browser modes.
+    }
 }());
 
 (function () {

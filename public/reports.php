@@ -769,12 +769,11 @@ $buildSortUrl = static function (
     string $dirParam,
     string $pageParam,
     string $columnKey,
-    string $currentSort,
-    string $currentDir
+    string $direction
 ) use ($paginationBaseParams): string {
     $params = $paginationBaseParams;
     $params[$sortParam] = $columnKey;
-    $params[$dirParam] = ($currentSort === $columnKey && $currentDir === 'asc') ? 'desc' : 'asc';
+    $params[$dirParam] = $direction === 'desc' ? 'desc' : 'asc';
     $params[$pageParam] = 1;
     return 'reports.php?' . http_build_query($params);
 };
@@ -828,20 +827,18 @@ $renderSortableHeader = static function (
     string $dirParam,
     string $pageParam
 ) use ($buildSortUrl): string {
-    $href = h($buildSortUrl($sortParam, $dirParam, $pageParam, $columnKey, $currentSort, $currentDir));
-    $isActive = $currentSort === $columnKey;
-    $indicator = '';
-    if ($isActive) {
-        $indicator = $currentDir === 'asc' ? ' (asc)' : ' (desc)';
-    }
+    $ascHref = h($buildSortUrl($sortParam, $dirParam, $pageParam, $columnKey, 'asc'));
+    $descHref = h($buildSortUrl($sortParam, $dirParam, $pageParam, $columnKey, 'desc'));
+    $ascActive = $currentSort === $columnKey && $currentDir === 'asc';
+    $descActive = $currentSort === $columnKey && $currentDir === 'desc';
 
-    return '<a class="link-body-emphasis text-decoration-none js-report-sort-link" href="'
-        . $href
-        . '">'
-        . h($label)
-        . '<span class="text-muted small">'
-        . h($indicator)
-        . '</span></a>';
+    return '<span class="table-sort-heading"><span class="table-sort-heading__label">' . h($label) . '</span>'
+        . '<span class="table-sort-heading__buttons">'
+        . '<a class="table-sort-button js-report-sort-link' . ($ascActive ? ' is-active' : '') . '" href="' . $ascHref . '"'
+        . ' aria-label="Sort ' . h($label) . ' ascending" title="Sort ascending">↑</a>'
+        . '<a class="table-sort-button js-report-sort-link' . ($descActive ? ' is-active' : '') . '" href="' . $descHref . '"'
+        . ' aria-label="Sort ' . h($label) . ' descending" title="Sort descending">↓</a>'
+        . '</span></span>';
 };
 ?>
 <!DOCTYPE html>

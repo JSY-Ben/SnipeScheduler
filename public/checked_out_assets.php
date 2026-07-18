@@ -386,6 +386,8 @@ $sortOptions = [
     'expected_desc',
     'tag_asc',
     'tag_desc',
+    'item_asc',
+    'item_desc',
     'model_asc',
     'model_desc',
     'user_asc',
@@ -631,6 +633,8 @@ try {
     usort($assets, function ($a, $b) use ($sort) {
         $aTag = strtolower(checked_out_row_identifier($a));
         $bTag = strtolower(checked_out_row_identifier($b));
+        $aItem = strtolower(checked_out_row_name($a));
+        $bItem = strtolower(checked_out_row_name($b));
         $aModel = strtolower(checked_out_row_details($a));
         $bModel = strtolower(checked_out_row_details($b));
         $aUser = strtolower(checked_out_row_user_display($a));
@@ -684,6 +688,10 @@ try {
                 return $cmpText($bTag, $aTag);
             case 'tag_asc':
                 return $cmpText($aTag, $bTag);
+            case 'item_desc':
+                return $cmpText($bItem, $aItem);
+            case 'item_asc':
+                return $cmpText($aItem, $bItem);
             case 'model_desc':
                 return $cmpText($bModel, $aModel);
             case 'model_asc':
@@ -793,6 +801,8 @@ function layout_checked_out_url(string $base, array $params): string
                     <option value="expected_desc" <?= $sort === 'expected_desc' ? 'selected' : '' ?>>Expected check-in (latest first)</option>
                     <option value="tag_asc" <?= $sort === 'tag_asc' ? 'selected' : '' ?>>Identifier (A–Z)</option>
                     <option value="tag_desc" <?= $sort === 'tag_desc' ? 'selected' : '' ?>>Identifier (Z–A)</option>
+                    <option value="item_asc" <?= $sort === 'item_asc' ? 'selected' : '' ?>>Item (A–Z)</option>
+                    <option value="item_desc" <?= $sort === 'item_desc' ? 'selected' : '' ?>>Item (Z–A)</option>
                     <option value="model_asc" <?= $sort === 'model_asc' ? 'selected' : '' ?>>Details (A–Z)</option>
                     <option value="model_desc" <?= $sort === 'model_desc' ? 'selected' : '' ?>>Details (Z–A)</option>
                     <option value="user_asc" <?= $sort === 'user_asc' ? 'selected' : '' ?>>User (A–Z)</option>
@@ -889,12 +899,12 @@ function layout_checked_out_url(string $base, array $params): string
                         <thead>
                             <tr>
                                 <th></th>
-                                <th>Identifier</th>
-                                <th>Item</th>
-                                <th>Details</th>
-                                <th>User</th>
-                                <th>Assigned Since</th>
-                                <th>Expected Check-in</th>
+                                <th><?= layout_sortable_column_header('Identifier', 'tag_asc', 'tag_desc', $sort) ?></th>
+                                <th><?= layout_sortable_column_header('Item', 'item_asc', 'item_desc', $sort) ?></th>
+                                <th><?= layout_sortable_column_header('Details', 'model_asc', 'model_desc', $sort) ?></th>
+                                <th><?= layout_sortable_column_header('User', 'user_asc', 'user_desc', $sort) ?></th>
+                                <th><?= layout_sortable_column_header('Assigned Since', 'checkout_asc', 'checkout_desc', $sort) ?></th>
+                                <th><?= layout_sortable_column_header('Expected Check-in', 'expected_asc', 'expected_desc', $sort) ?></th>
                                 <th>Renew to</th>
                                 <th>Actions</th>
                             </tr>
