@@ -3272,7 +3272,29 @@ document.addEventListener('DOMContentLoaded', function () {
             ? document.createElement('a')
             : document.createElement('span');
         if (className) element.className = className;
-        element.textContent = bookingReferenceText(booking);
+        const referenceText = bookingReferenceText(booking);
+        if (element.classList.contains('model-calendar-event')) {
+            const label = document.createElement('span');
+            label.className = 'model-calendar-event__label';
+            label.textContent = referenceText;
+            element.appendChild(label);
+            element.addEventListener('mouseenter', function () {
+                const styles = window.getComputedStyle(element);
+                const horizontalPadding = (parseFloat(styles.paddingLeft) || 0)
+                    + (parseFloat(styles.paddingRight) || 0);
+                const availableWidth = Math.max(0, element.clientWidth - horizontalPadding);
+                const overflowDistance = Math.ceil(label.scrollWidth - availableWidth);
+                if (overflowDistance <= 1) return;
+                element.style.setProperty('--calendar-label-scroll-distance', overflowDistance + 'px');
+                element.style.setProperty('--calendar-label-scroll-duration', Math.max(2, overflowDistance / 24) + 's');
+                element.classList.add('is-overflowing');
+            });
+            element.addEventListener('mouseleave', function () {
+                element.classList.remove('is-overflowing');
+            });
+        } else {
+            element.textContent = referenceText;
+        }
         if (element instanceof HTMLAnchorElement) {
             element.href = 'reservation_detail.php?id=' + encodeURIComponent(String(booking.id));
             element.title = '<?= _('View reservation') ?> #' + booking.id;

@@ -1236,6 +1236,28 @@ a.model-calendar-event {
     white-space: nowrap;
 }
 
+.model-calendar-event__label {
+    display: inline-block;
+    min-width: max-content;
+    transform: translateX(0);
+}
+
+.model-calendar-event.is-overflowing .model-calendar-event__label {
+    animation: model-calendar-label-scroll var(--calendar-label-scroll-duration, 2s) ease-in-out 0.2s forwards;
+}
+
+@keyframes model-calendar-label-scroll {
+    to {
+        transform: translateX(calc(-1 * var(--calendar-label-scroll-distance, 0px)));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .model-calendar-event.is-overflowing .model-calendar-event__label {
+        animation: none;
+    }
+}
+
 a.model-calendar-event:hover,
 a.model-calendar-event:focus-visible,
 .model-booking-reference:hover,
