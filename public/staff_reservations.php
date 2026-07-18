@@ -466,11 +466,10 @@ try {
                             <th>ID</th>
                             <th>User Name</th>
                             <th>Items Reserved</th>
-                            <th>Notes</th>
                             <th>Start</th>
                             <th>End</th>
                             <th>Status</th>
-                            <th style="width: 180px;">Actions</th>
+                            <th style="width: 230px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -528,34 +527,14 @@ try {
                                         . '</details>';
                                 }
                                 $itemsText = $modelsHtml . $assetsHtml;
+                                $reservationNote = trim((string)($r['reservation_note'] ?? ''));
+                                $checkoutNote = trim((string)($r['checkout_note'] ?? ''));
                             ?>
                             <tr>
                                 <td data-label="ID">#<?= (int)$r['id'] ?></td>
                                 <td data-label="User Name"><?= h($r['user_name'] ?? '(Unknown)') ?></td>
                                 <td data-label="Items Reserved" class="items-cell">
                                     <?= $itemsText !== '' ? '<div class="items-cell-content">' . $itemsText . '</div>' : '' ?>
-                                </td>
-                                <td data-label="Notes">
-                                    <?php
-                                        $reservationNote = trim((string)($r['reservation_note'] ?? ''));
-                                        $checkoutNote = trim((string)($r['checkout_note'] ?? ''));
-                                    ?>
-                                    <div class="d-grid gap-2 reservation-note-actions">
-                                        <button type="button"
-                                                class="btn btn-sm btn-outline-primary js-view-reservation-note"
-                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Reservation Notes"
-                                                data-note="<?= h((string)json_encode($reservationNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-                                            <?= $reservationNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
-                                            View Reservation Notes
-                                        </button>
-                                        <button type="button"
-                                                class="btn btn-sm btn-outline-secondary js-view-reservation-note"
-                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Checkout Notes"
-                                                data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
-                                            <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
-                                            View Checkout Notes
-                                        </button>
-                                    </div>
                                 </td>
                                 <td data-label="Start"><?= display_datetime($r['start_datetime'] ?? '') ?></td>
                                 <td data-label="End"><?= display_datetime($r['end_datetime'] ?? '') ?></td>
@@ -621,6 +600,22 @@ try {
                                                 </button>
                                             </form>
                                         <?php endif; ?>
+                                    </div>
+                                    <div class="d-grid gap-2 mt-2 reservation-note-actions">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary js-view-reservation-note"
+                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Reservation Notes"
+                                                data-note="<?= h((string)json_encode($reservationNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                            <?= $reservationNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                            View Reservation Notes
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary js-view-reservation-note"
+                                                data-note-title="Reservation #<?= (int)$r['id'] ?> — Checkout Notes"
+                                                data-note="<?= h((string)json_encode($checkoutNote, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>"
+                                            <?= $checkoutNote === '' ? ' disabled aria-disabled="true"' : '' ?>>
+                                            View Checkout Notes
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
