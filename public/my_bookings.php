@@ -24,20 +24,86 @@ $userName = trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_
 $tabRaw = $_GET['tab'] ?? 'reservations';
 $tab = $tabRaw === 'checked_out' ? 'checked_out' : 'reservations';
 
+$qRaw = trim((string)($_GET['q'] ?? ''));
+$fromRaw = trim((string)($_GET['from'] ?? ''));
+$toRaw = trim((string)($_GET['to'] ?? ''));
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPageOptions = [10, 25, 50, 100];
+$perPageRaw = (int)($_GET['per_page'] ?? 10);
+$perPage = in_array($perPageRaw, $perPageOptions, true) ? $perPageRaw : 10;
+$sortOptions = [
+    'start_desc' => 'start_datetime DESC',
+    'start_asc' => 'start_datetime ASC',
+    'end_desc' => 'end_datetime DESC',
+    'end_asc' => 'end_datetime ASC',
+    'status_asc' => 'status ASC',
+    'status_desc' => 'status DESC',
+    'id_desc' => 'id DESC',
+    'id_asc' => 'id ASC',
+];
+$sortRaw = trim((string)($_GET['sort'] ?? ''));
+$sort = array_key_exists($sortRaw, $sortOptions) ? $sortRaw : 'start_desc';
+$totalRows = 0;
+$totalPages = 1;
+
 // Load this user's reservations
 try {
-    $sql = "
-        SELECT *
-        FROM reservations
-        WHERE user_id = :user_id
-        ORDER BY start_datetime DESC
-    ";
+    $where = ['user_id = :user_id'];
+    $params = [':user_id' => $currentUserId];
+    if ($qRaw !== '') {
+        $where[] = "(
+            CAST(id AS CHAR) LIKE :q_id
+            OR asset_name_cache LIKE :q_assets
+            OR reservation_note LIKE :q_reservation_note
+            OR checkout_note LIKE :q_checkout_note
+            OR EXISTS (
+                SELECT 1
+                  FROM reservation_items ri
+                 WHERE ri.reservation_id = reservations.id
+                   AND (ri.item_name_cache LIKE :q_item OR ri.model_name_cache LIKE :q_model)
+            )
+        )";
+        $likeQuery = '%' . $qRaw . '%';
+        $params[':q_id'] = $likeQuery;
+        $params[':q_assets'] = $likeQuery;
+        $params[':q_reservation_note'] = $likeQuery;
+        $params[':q_checkout_note'] = $likeQuery;
+        $params[':q_item'] = $likeQuery;
+        $params[':q_model'] = $likeQuery;
+    }
+    if ($fromRaw !== '') {
+        $where[] = 'start_datetime >= :from_date';
+        $params[':from_date'] = $fromRaw . ' 00:00:00';
+    }
+    if ($toRaw !== '') {
+        $where[] = 'end_datetime <= :to_date';
+        $params[':to_date'] = $toRaw . ' 23:59:59';
+    }
+
+    $whereSql = ' WHERE ' . implode(' AND ', $where);
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM reservations' . $whereSql);
+    $countStmt->execute($params);
+    $totalRows = (int)$countStmt->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalRows / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+
+    $sql = 'SELECT * FROM reservations' . $whereSql
+        . ' ORDER BY ' . $sortOptions[$sort]
+        . ' LIMIT :limit OFFSET :offset';
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([':user_id' => $currentUserId]);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $reservations = [];
     $loadError = $e->getMessage();
+    $totalRows = 0;
+    $totalPages = 1;
 }
 
 $checkedOutItems = [];
@@ -177,9 +243,59 @@ if (!empty($_GET['cancelled'])) {
                 </div>
             <?php endif; ?>
         <?php else: ?>
+            <div class="border rounded-3 p-4 mb-4">
+                <form class="row g-2 mb-0 align-items-end" method="get" action="my_bookings.php" id="my-reservations-filter-form">
+                    <input type="hidden" name="tab" value="reservations">
+                    <div class="col-12 col-lg">
+                        <label class="form-label" for="my_reservations_search"><?= _('Search') ?></label>
+                        <input type="text"
+                               id="my_reservations_search"
+                               name="q"
+                               class="form-control form-control-lg"
+                               placeholder="<?= _('Search by reservation ID, items, assets, or notes...') ?>"
+                               value="<?= h($qRaw) ?>">
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label" for="my_reservations_from"><?= _('From') ?></label>
+                        <input type="date" id="my_reservations_from" name="from" class="form-control form-control-lg" style="min-width: 160px;" value="<?= h($fromRaw) ?>">
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label" for="my_reservations_to"><?= _('To') ?></label>
+                        <input type="date" id="my_reservations_to" name="to" class="form-control form-control-lg" style="min-width: 160px;" value="<?= h($toRaw) ?>">
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label" for="my_reservations_sort"><?= _('Sort') ?></label>
+                        <select id="my_reservations_sort" name="sort" class="form-select form-select-lg" style="min-width: 220px;">
+                            <option value="start_desc" <?= $sort === 'start_desc' ? 'selected' : '' ?>><?= _('Start (newest first)') ?></option>
+                            <option value="start_asc" <?= $sort === 'start_asc' ? 'selected' : '' ?>><?= _('Start (oldest first)') ?></option>
+                            <option value="end_desc" <?= $sort === 'end_desc' ? 'selected' : '' ?>><?= _('End (latest first)') ?></option>
+                            <option value="end_asc" <?= $sort === 'end_asc' ? 'selected' : '' ?>><?= _('End (soonest first)') ?></option>
+                            <option value="status_asc" <?= $sort === 'status_asc' ? 'selected' : '' ?>><?= _('Status (A–Z)') ?></option>
+                            <option value="status_desc" <?= $sort === 'status_desc' ? 'selected' : '' ?>><?= _('Status (Z–A)') ?></option>
+                            <option value="id_desc" <?= $sort === 'id_desc' ? 'selected' : '' ?>><?= _('Reservation ID (high → low)') ?></option>
+                            <option value="id_asc" <?= $sort === 'id_asc' ? 'selected' : '' ?>><?= _('Reservation ID (low → high)') ?></option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="form-label" for="my_reservations_per_page"><?= _('Page size') ?></label>
+                        <select id="my_reservations_per_page" name="per_page" class="form-select form-select-lg" style="min-width: 150px;">
+                            <?php foreach ($perPageOptions as $option): ?>
+                                <option value="<?= $option ?>" <?= $perPage === $option ? 'selected' : '' ?>><?= $option ?> <?= _('per page') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-auto d-flex gap-2">
+                        <button class="btn btn-primary" type="submit"><?= _('Filter') ?></button>
+                        <a href="my_bookings.php?tab=reservations" class="btn btn-outline-secondary"><?= _('Clear') ?></a>
+                    </div>
+                </form>
+            </div>
+
             <?php if (empty($reservations)): ?>
                 <div class="alert alert-info">
-                    <?= _('You don’t have any reservations yet.') ?>
+                    <?= ($qRaw !== '' || $fromRaw !== '' || $toRaw !== '')
+                        ? _('There are no reservations matching your filters.')
+                        : _('You don’t have any reservations yet.') ?>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
@@ -269,6 +385,36 @@ if (!empty($_GET['cancelled'])) {
                         </tbody>
                     </table>
                 </div>
+                <?php if ($totalPages > 1): ?>
+                    <?php
+                        $pagerQuery = [
+                            'tab' => 'reservations',
+                            'q' => $qRaw,
+                            'from' => $fromRaw,
+                            'to' => $toRaw,
+                            'sort' => $sort,
+                            'per_page' => $perPage,
+                        ];
+                    ?>
+                    <nav class="mt-3" aria-label="<?= _('Reservation pages') ?>">
+                        <ul class="pagination justify-content-center">
+                            <?php $pagerQuery['page'] = max(1, $page - 1); ?>
+                            <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+                                <a class="page-link" href="my_bookings.php?<?= h(http_build_query($pagerQuery)) ?>"><?= _('Previous') ?></a>
+                            </li>
+                            <?php for ($pageNumber = 1; $pageNumber <= $totalPages; $pageNumber++): ?>
+                                <?php $pagerQuery['page'] = $pageNumber; ?>
+                                <li class="page-item <?= $pageNumber === $page ? 'active' : '' ?>">
+                                    <a class="page-link" href="my_bookings.php?<?= h(http_build_query($pagerQuery)) ?>"><?= $pageNumber ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            <?php $pagerQuery['page'] = min($totalPages, $page + 1); ?>
+                            <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+                                <a class="page-link" href="my_bookings.php?<?= h(http_build_query($pagerQuery)) ?>"><?= _('Next') ?></a>
+                            </li>
+                        </ul>
+                    </nav>
+                <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
 
