@@ -213,6 +213,11 @@ if (!empty($_GET['cancelled'])) {
                                     <span class="d-inline-block mt-1 mb-2" style="white-space: pre-wrap;"><?= h($res['reservation_note']) ?></span><br>
                                 <?php endif; ?>
 
+                                <?php if (trim((string)($res['checkout_note'] ?? '')) !== ''): ?>
+                                    <strong><?= _('Checkout note:') ?></strong><br>
+                                    <span class="d-inline-block mt-1 mb-2" style="white-space: pre-wrap;"><?= h($res['checkout_note']) ?></span><br>
+                                <?php endif; ?>
+
                                 <?php if ($summary !== ''): ?>
                                     <strong><?= _('Items:') ?></strong>
                                     <?= h($summary) ?><br>

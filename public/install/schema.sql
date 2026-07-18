@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     -- Cached display string of items (for quick admin lists)
     asset_name_cache TEXT NULL,
     reservation_note TEXT NULL,
+    checkout_note TEXT NULL,
 
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

@@ -952,12 +952,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $upd = $pdo->prepare("
                             UPDATE reservations
                                SET status = 'completed',
-                                   asset_name_cache = :assets_text
+                                   asset_name_cache = :assets_text,
+                                   checkout_note = :checkout_note
                              WHERE id = :id
                         ");
                         $upd->execute([
                             ':id'          => $selectedReservationId,
                             ':assets_text' => $assetsText,
+                            ':checkout_note' => $note !== '' ? $note : null,
                         ]);
                         $checkoutMessages[] = 'Reservation marked as checked out.';
                         if ($selectedReservationId) {
@@ -1162,6 +1164,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // If no errors, clear the list
                     if (empty($checkoutErrors)) {
+                        $storeCheckoutNote = $pdo->prepare("
+                            UPDATE reservations
+                               SET checkout_note = :checkout_note
+                             WHERE id = :id
+                        ");
+                        $storeCheckoutNote->execute([
+                            ':checkout_note' => $note !== '' ? $note : null,
+                            ':id' => $selectedReservationId,
+                        ]);
+
                         $assetTags = array_map(static function ($asset): string {
                             $tag = $asset['asset_tag'] ?? '';
                             $model = $asset['model'] ?? '';

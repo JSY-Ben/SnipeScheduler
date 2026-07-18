@@ -466,6 +466,7 @@ try {
                             <th>ID</th>
                             <th>User Name</th>
                             <th>Items Reserved</th>
+                            <th>Notes</th>
                             <th>Start</th>
                             <th>End</th>
                             <th>Status</th>
@@ -533,6 +534,20 @@ try {
                                 <td data-label="User Name"><?= h($r['user_name'] ?? '(Unknown)') ?></td>
                                 <td data-label="Items Reserved" class="items-cell">
                                     <?= $itemsText !== '' ? '<div class="items-cell-content">' . $itemsText . '</div>' : '' ?>
+                                </td>
+                                <td data-label="Notes">
+                                    <?php if (trim((string)($r['reservation_note'] ?? '')) !== ''): ?>
+                                        <div class="mb-2">
+                                            <strong>Reservation:</strong>
+                                            <div style="white-space: pre-wrap;"><?= h($r['reservation_note']) ?></div>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if (trim((string)($r['checkout_note'] ?? '')) !== ''): ?>
+                                        <div>
+                                            <strong>Checkout:</strong>
+                                            <div style="white-space: pre-wrap;"><?= h($r['checkout_note']) ?></div>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td data-label="Start"><?= display_datetime($r['start_datetime'] ?? '') ?></td>
                                 <td data-label="End"><?= display_datetime($r['end_datetime'] ?? '') ?></td>

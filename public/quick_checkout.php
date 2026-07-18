@@ -1287,11 +1287,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $insertRes = $pdo->prepare("
                                         INSERT INTO reservations (
                                             user_name, user_email, user_id, snipeit_user_id,
-                                            asset_id, asset_name_cache,
+                                            asset_id, asset_name_cache, checkout_note,
                                             start_datetime, end_datetime, status
                                         ) VALUES (
                                             :user_name, :user_email, :user_id, :snipeit_user_id,
-                                            0, :asset_name_cache,
+                                            0, :asset_name_cache, :checkout_note,
                                             :start_datetime, :end_datetime, 'completed'
                                         )
                                     ");
@@ -1301,6 +1301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         ':user_id'          => (string)$userId,
                                         ':snipeit_user_id'  => $userId,
                                         ':asset_name_cache' => $itemsText,
+                                        ':checkout_note'    => $note !== '' ? $note : null,
                                         ':start_datetime'   => $reservationStart,
                                         ':end_datetime'     => $reservationEnd,
                                     ]);
