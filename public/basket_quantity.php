@@ -39,12 +39,13 @@ if ($direction === 'up') {
     $startRaw = trim((string)($_SESSION['reservation_window_start'] ?? ''));
     $endRaw = trim((string)($_SESSION['reservation_window_end'] ?? ''));
     if ($startRaw !== '' && $endRaw !== '') {
-        $startTs = strtotime($startRaw);
-        $endTs = strtotime($endRaw);
-        if ($startTs !== false && $endTs !== false && $endTs > $startTs) {
-            $windowStartTs = (int)$startTs;
-            $windowStart = date('Y-m-d H:i:s', $startTs);
-            $windowEnd = date('Y-m-d H:i:s', $endTs);
+        $timezone = app_get_timezone($config);
+        $startDateTime = app_parse_local_datetime_input($startRaw, $timezone);
+        $endDateTime = app_parse_local_datetime_input($endRaw, $timezone);
+        if ($startDateTime && $endDateTime && $endDateTime > $startDateTime) {
+            $windowStartTs = $startDateTime->getTimestamp();
+            $windowStart = $startDateTime->format('Y-m-d H:i:s');
+            $windowEnd = $endDateTime->format('Y-m-d H:i:s');
         }
     }
 

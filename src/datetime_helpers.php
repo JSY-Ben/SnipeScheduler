@@ -187,6 +187,35 @@ if (!function_exists('app_parse_datetime_value')) {
     }
 }
 
+if (!function_exists('app_parse_local_datetime_input')) {
+    /**
+     * Parse a timezone-less HTML datetime-local value in the application's timezone.
+     */
+    function app_parse_local_datetime_input($value, ?DateTimeZone $tz = null): ?DateTimeImmutable
+    {
+        $text = trim((string)$value);
+        if ($text === '') {
+            return null;
+        }
+
+        $tz = $tz ?? app_get_timezone();
+        if (!$tz) {
+            return null;
+        }
+
+        foreach (['!Y-m-d\\TH:i:s', '!Y-m-d\\TH:i'] as $format) {
+            $dt = DateTimeImmutable::createFromFormat($format, $text, $tz);
+            $errors = DateTimeImmutable::getLastErrors();
+            if ($dt instanceof DateTimeImmutable
+                && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $dt;
+            }
+        }
+
+        return null;
+    }
+}
+
 if (!function_exists('app_format_date')) {
     function app_format_date($value, ?array $cfg = null, ?DateTimeZone $tz = null): string
     {

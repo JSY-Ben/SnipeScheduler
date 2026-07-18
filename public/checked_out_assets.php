@@ -72,11 +72,11 @@ function normalize_expected_datetime(?string $raw): string
     if ($raw === '') {
         return '';
     }
-    $ts = strtotime($raw);
-    if ($ts === false) {
+    $dateTime = app_parse_local_datetime_input($raw, app_get_timezone());
+    if (!$dateTime) {
         return '';
     }
-    return date('Y-m-d H:i', $ts);
+    return $dateTime->format('Y-m-d H:i');
 }
 
 function expected_to_timestamp($value): ?int

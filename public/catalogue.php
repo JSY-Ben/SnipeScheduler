@@ -1539,8 +1539,11 @@ if ($windowStartRaw === '' && $windowEndRaw === '') {
     $windowEndRaw   = $windowEndDt->format('Y-m-d\TH:i');
 }
 
-$windowStartTs = $windowStartRaw !== '' ? strtotime($windowStartRaw) : false;
-$windowEndTs   = $windowEndRaw !== '' ? strtotime($windowEndRaw) : false;
+$windowTz = app_get_timezone($config);
+$windowStartDateTime = $windowStartRaw !== '' ? app_parse_local_datetime_input($windowStartRaw, $windowTz) : null;
+$windowEndDateTime = $windowEndRaw !== '' ? app_parse_local_datetime_input($windowEndRaw, $windowTz) : null;
+$windowStartTs = $windowStartDateTime ? $windowStartDateTime->getTimestamp() : false;
+$windowEndTs = $windowEndDateTime ? $windowEndDateTime->getTimestamp() : false;
 $windowActive  = false;
 $windowError   = '';
 if ($windowStartRaw !== '' || $windowEndRaw !== '') {
@@ -1572,9 +1575,9 @@ $kits        = [];
 $modelErr    = '';
 $totalModels = 0;
 $totalPages  = 1;
-$nowIso      = date('Y-m-d H:i:s');
-$windowStartIso = $windowActive ? date('Y-m-d H:i:s', $windowStartTs) : '';
-$windowEndIso   = $windowActive ? date('Y-m-d H:i:s', $windowEndTs) : '';
+$nowIso = (new DateTimeImmutable('now', $windowTz ?: null))->format('Y-m-d H:i:s');
+$windowStartIso = $windowActive ? $windowStartDateTime->format('Y-m-d H:i:s') : '';
+$windowEndIso = $windowActive ? $windowEndDateTime->format('Y-m-d H:i:s') : '';
 $checkedOutCounts = [];
 $checkedOutAssetIdsByModel = [];
 $favouritesAvailable = false;

@@ -24,17 +24,20 @@ if (!$startRaw || !$endRaw) {
     die(_('Start and end date/time are required.'));
 }
 
-$startTs = strtotime($startRaw);
-$endTs = strtotime($endRaw);
+$timezone = app_get_timezone($config);
+$startDateTime = app_parse_local_datetime_input($startRaw, $timezone);
+$endDateTime = app_parse_local_datetime_input($endRaw, $timezone);
 
-if ($startTs === false || $endTs === false) {
+if (!$startDateTime || !$endDateTime) {
     die(_('Invalid date/time.'));
 }
 
-$start = date('Y-m-d H:i:s', $startTs);
-$end = date('Y-m-d H:i:s', $endTs);
+$startTs = $startDateTime->getTimestamp();
+$endTs = $endDateTime->getTimestamp();
+$start = $startDateTime->format('Y-m-d H:i:s');
+$end = $endDateTime->format('Y-m-d H:i:s');
 
-if ($end <= $start) {
+if ($endDateTime <= $startDateTime) {
     die(_('End time must be after start time.'));
 }
 

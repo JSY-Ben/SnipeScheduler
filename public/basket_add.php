@@ -60,9 +60,10 @@ function basket_add_window_bounds(): array
         ];
     }
 
-    $startTs = strtotime($startRaw);
-    $endTs = strtotime($endRaw);
-    if ($startTs === false || $endTs === false || $endTs <= $startTs) {
+    $timezone = app_get_timezone();
+    $startDateTime = app_parse_local_datetime_input($startRaw, $timezone);
+    $endDateTime = app_parse_local_datetime_input($endRaw, $timezone);
+    if (!$startDateTime || !$endDateTime || $endDateTime <= $startDateTime) {
         return [
             'start_ts' => null,
             'start' => '',
@@ -74,9 +75,9 @@ function basket_add_window_bounds(): array
     $_SESSION['reservation_window_end'] = $endRaw;
 
     return [
-        'start_ts' => (int)$startTs,
-        'start' => date('Y-m-d H:i:s', $startTs),
-        'end' => date('Y-m-d H:i:s', $endTs),
+        'start_ts' => $startDateTime->getTimestamp(),
+        'start' => $startDateTime->format('Y-m-d H:i:s'),
+        'end' => $endDateTime->format('Y-m-d H:i:s'),
     ];
 }
 

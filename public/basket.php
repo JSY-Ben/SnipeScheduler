@@ -56,16 +56,18 @@ $previewEndTs = false;
 $policyViolations = [];
 
 if ($previewStartRaw && $previewEndRaw) {
-    $previewStartTs = strtotime($previewStartRaw);
-    $previewEndTs   = strtotime($previewEndRaw);
+    $previewStartDateTime = app_parse_local_datetime_input($previewStartRaw, $windowTz);
+    $previewEndDateTime = app_parse_local_datetime_input($previewEndRaw, $windowTz);
 
-    if ($previewStartTs === false || $previewEndTs === false) {
+    if (!$previewStartDateTime || !$previewEndDateTime) {
         $previewError = _('Invalid date/time for availability preview.');
-    } elseif ($previewEndTs <= $previewStartTs) {
+    } elseif ($previewEndDateTime <= $previewStartDateTime) {
         $previewError = _('End time must be after start time for availability preview.');
     } else {
-        $previewStart = date('Y-m-d H:i:s', $previewStartTs);
-        $previewEnd   = date('Y-m-d H:i:s', $previewEndTs);
+        $previewStartTs = $previewStartDateTime->getTimestamp();
+        $previewEndTs = $previewEndDateTime->getTimestamp();
+        $previewStart = $previewStartDateTime->format('Y-m-d H:i:s');
+        $previewEnd = $previewEndDateTime->format('Y-m-d H:i:s');
         $_SESSION['reservation_window_start'] = $previewStartRaw;
         $_SESSION['reservation_window_end']   = $previewEndRaw;
     }

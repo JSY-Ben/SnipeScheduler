@@ -44,7 +44,8 @@ if ($showQuickCheckoutKitsTab) {
 }
 $quickCheckoutTabsEnabled = !empty($quickCheckoutVisibleTabs);
 
-$defaultEnd   = (new DateTime('tomorrow 9:00'))->format('Y-m-d\TH:i');
+$appTimezone = app_get_timezone($config);
+$defaultEnd = (new DateTimeImmutable('tomorrow 9:00', $appTimezone ?: null))->format('Y-m-d\TH:i');
 
 $endRaw   = $_POST['end_datetime'] ?? $defaultEnd;
 
@@ -1068,8 +1069,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $overrideValue   = $overrideAllowed;
         $endRaw          = trim((string)($_POST['end_datetime'] ?? $endRaw));
 
-        $startTs = time();
-        $endTs   = strtotime($endRaw);
+        $now = new DateTimeImmutable('now', $appTimezone ?: null);
+        $endDateTime = app_parse_local_datetime_input($endRaw, $appTimezone);
+        $endTs = $endDateTime ? $endDateTime->getTimestamp() : false;
         $checkoutEntries = array_values($checkoutItems);
         $assetEntries = array_values(array_filter($checkoutEntries, static function (array $entry): bool {
             return ($entry['entry_type'] ?? '') === 'asset';
@@ -1087,7 +1089,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'This installation must run the latest database upgrade before accessories can be quick checked out.';
         } elseif ($endTs === false) {
             $errors[] = 'Invalid return date/time.';
-        } elseif ($endTs <= $startTs) {
+        } elseif ($endDateTime <= $now) {
             $errors[] = 'Return date/time must be after the current time.';
         } else {
             try {
@@ -1144,7 +1146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     if (empty($errors)) {
                         $windowStartIso = date('Y-m-d H:i:s', $startTs);
-                        $windowEndIso   = date('Y-m-d H:i:s', $endTs);
+                        $windowEndIso   = $endDateTime->format('Y-m-d H:i:s');
                         $reservationConflicts = [];
 
                         $checkoutModelCounts = [];
@@ -1227,7 +1229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (!empty($reservationConflicts) && !$overrideAllowed) {
                             $errors[] = 'Some items are reserved during this checkout period. Review who reserved them below or tick "Override" to proceed anyway.';
                         } else {
-                            $expectedCheckinIso = date('Y-m-d H:i:s', $endTs);
+                            $expectedCheckinIso = $endDateTime->format('Y-m-d H:i:s');
                             $checkedOutLabels = [];
                             $successfulEntries = [];
                             $failedCheckoutLabels = [];
@@ -1273,7 +1275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             if (!empty($successfulEntries)) {
                                 $reservationStart = date('Y-m-d H:i:s', $startTs);
-                                $reservationEnd   = date('Y-m-d H:i:s', $endTs);
+                                $reservationEnd   = $endDateTime->format('Y-m-d H:i:s');
                                 $historyItems     = qc_history_items_from_checkout_items($successfulEntries);
                                 $itemsText        = implode(', ', $checkedOutLabels);
                                 $reservationId    = 0;
