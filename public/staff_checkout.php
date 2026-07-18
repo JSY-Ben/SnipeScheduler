@@ -1337,6 +1337,12 @@ $active  = basename($_SERVER['PHP_SELF']);
                             <div>This reservation has no items recorded.</div>
                         <?php endif; ?>
                     </div>
+                    <?php if (trim((string)($selectedReservation['reservation_note'] ?? '')) !== ''): ?>
+                        <div class="mt-3 alert alert-warning border-warning mb-0">
+                            <div class="fw-bold fs-5 mb-1">Reservation notes</div>
+                            <div style="white-space: pre-wrap;"><?= h($selectedReservation['reservation_note']) ?></div>
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if (!empty($futureReservationEarlyConflicts)): ?>
@@ -1411,9 +1417,15 @@ $active  = basename($_SERVER['PHP_SELF']);
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">Reservation checkout</h5>
-                    <p class="card-text">
-                        Choose concrete assets for model lines and confirm accessory quantities for reservation #<?= (int)$selectedReservation['id'] ?>.
-                    </p>
+                        <p class="card-text">
+                            Choose concrete assets for model lines and confirm accessory quantities for reservation #<?= (int)$selectedReservation['id'] ?>.
+                        </p>
+                        <?php if (trim((string)($selectedReservation['reservation_note'] ?? '')) !== ''): ?>
+                            <div class="alert alert-warning border-warning">
+                                <div class="fw-bold fs-5 mb-1">Reservation notes</div>
+                                <div style="white-space: pre-wrap;"><?= h($selectedReservation['reservation_note']) ?></div>
+                            </div>
+                        <?php endif; ?>
 
                     <form method="post" action="<?= h($selfUrl) ?>">
                         <?php foreach ($baseQuery as $k => $v): ?>
@@ -1438,11 +1450,11 @@ $active  = basename($_SERVER['PHP_SELF']);
                                        readonly>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Note (optional)</label>
+                                <label class="form-label">Snipe-IT checkout note (optional)</label>
                                 <input type="text"
                                        name="reservation_note"
                                        class="form-control"
-                                       placeholder="Optional note to store with checkout"
+                                       placeholder="Optional note to send to Snipe-IT with the checkout"
                                        value="<?= h($reservationNoteValue) ?>">
                             </div>
                         </div>

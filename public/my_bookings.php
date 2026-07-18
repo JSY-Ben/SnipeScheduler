@@ -208,6 +208,11 @@ if (!empty($_GET['cancelled'])) {
                                 <strong><?= _('Status:') ?></strong>
                                 <?= h($res['status'] ?? '') ?><br>
 
+                                <?php if (trim((string)($res['reservation_note'] ?? '')) !== ''): ?>
+                                    <strong><?= _('Reservation notes:') ?></strong><br>
+                                    <span class="d-inline-block mt-1 mb-2" style="white-space: pre-wrap;"><?= h($res['reservation_note']) ?></span><br>
+                                <?php endif; ?>
+
                                 <?php if ($summary !== ''): ?>
                                     <strong><?= _('Items:') ?></strong>
                                     <?= h($summary) ?><br>

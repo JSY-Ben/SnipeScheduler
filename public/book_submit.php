@@ -14,6 +14,10 @@ $user = $userOverride ?: $currentUser;
 $assetId  = (int)($_POST['asset_id'] ?? 0);
 $startRaw = $_POST['start_datetime'] ?? '';
 $endRaw   = $_POST['end_datetime'] ?? '';
+$reservationNote = trim((string)($_POST['reservation_note'] ?? ''));
+if (mb_strlen($reservationNote) > 5000) {
+    die('Reservation notes must be 5,000 characters or fewer.');
+}
 
 if (!$assetId || !$startRaw || !$endRaw) {
     die('Missing required fields.');
@@ -103,11 +107,11 @@ $insert = $pdo->prepare("
     INSERT INTO reservations (
         user_name, user_email, user_id, snipeit_user_id,
         asset_id, asset_name_cache,
-        start_datetime, end_datetime, status
+        reservation_note, start_datetime, end_datetime, status
     ) VALUES (
         :user_name, :user_email, :user_id, :snipeit_user_id,
         :asset_id, :asset_name_cache,
-        :start_datetime, :end_datetime, 'pending'
+        :reservation_note, :start_datetime, :end_datetime, 'pending'
     )
 ");
 $insert->execute([
@@ -117,6 +121,7 @@ $insert->execute([
     ':snipeit_user_id'  => $user['id'],
     ':asset_id'         => $assetId,
     ':asset_name_cache' => 'Pending checkout',
+    ':reservation_note' => $reservationNote !== '' ? $reservationNote : null,
     ':start_datetime'   => $start,
     ':end_datetime'     => $end,
 ]);
@@ -131,6 +136,7 @@ activity_log_event('reservation_submitted', 'Reservation submitted', [
         'start'      => $start,
         'end'        => $end,
         'booked_for' => $userEmail,
+        'reservation_note' => $reservationNote,
     ],
 ]);
 

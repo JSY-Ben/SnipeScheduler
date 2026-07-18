@@ -19,6 +19,10 @@ if (empty($basket)) {
 
 $startRaw = $_POST['start_datetime'] ?? '';
 $endRaw = $_POST['end_datetime'] ?? '';
+$reservationNote = trim((string)($_POST['reservation_note'] ?? ''));
+if (mb_strlen($reservationNote) > 5000) {
+    die(_('Reservation notes must be 5,000 characters or fewer.'));
+}
 
 if (!$startRaw || !$endRaw) {
     die(_('Start and end date/time are required.'));
@@ -138,11 +142,11 @@ try {
         INSERT INTO reservations (
             user_name, user_email, user_id, snipeit_user_id,
             asset_id, asset_name_cache,
-            start_datetime, end_datetime, status
+            reservation_note, start_datetime, end_datetime, status
         ) VALUES (
             :user_name, :user_email, :user_id, :snipeit_user_id,
             0, :asset_name_cache,
-            :start_datetime, :end_datetime, 'pending'
+            :reservation_note, :start_datetime, :end_datetime, 'pending'
         )
     ");
     $insertRes->execute([
@@ -151,6 +155,7 @@ try {
         ':user_id' => $userId,
         ':snipeit_user_id' => $user['id'],
         ':asset_name_cache' => 'Pending checkout',
+        ':reservation_note' => $reservationNote !== '' ? $reservationNote : null,
         ':start_datetime' => $start,
         ':end_datetime' => $end,
     ]);
@@ -220,6 +225,7 @@ try {
             'start' => $start,
             'end' => $end,
             'booked_for' => $userEmail,
+            'reservation_note' => $reservationNote,
         ],
     ]);
 

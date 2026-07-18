@@ -127,6 +127,12 @@ if (!$showStaffView) {
                         <?= h($reservation['asset_name_cache']) ?><br>
                     <?php endif; ?>
                 </p>
+                <?php if (trim((string)($reservation['reservation_note'] ?? '')) !== ''): ?>
+                    <div class="alert alert-info mb-0">
+                        <div class="fw-semibold mb-1">Reservation notes</div>
+                        <div style="white-space: pre-wrap;"><?= h($reservation['reservation_note']) ?></div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 

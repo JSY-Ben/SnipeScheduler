@@ -413,6 +413,17 @@ if (!empty($basket)) {
                 <input type="hidden" name="end_datetime"
                        value="<?= htmlspecialchars($previewEndRaw) ?>">
 
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="reservation_note"><?= _('Reservation notes (optional)') ?></label>
+                    <textarea name="reservation_note"
+                              id="reservation_note"
+                              class="form-control"
+                              rows="3"
+                              maxlength="5000"
+                              placeholder="<?= _('Add any information the checkout team should know about this reservation') ?>"></textarea>
+                    <div class="form-text"><?= _('These notes will be visible with the reservation and to staff during checkout.') ?></div>
+                </div>
+
                 <p class="mb-2 text-muted">
                     <?= _('When you click <strong>Confirm booking</strong>, the system will re-check availability and reject the booking if another user has taken items in the meantime.') ?>
                 </p>
