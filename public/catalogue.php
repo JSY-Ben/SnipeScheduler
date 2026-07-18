@@ -820,16 +820,21 @@ if ($isStaff && ($_GET['ajax'] ?? '') === 'user_search') {
 // Handle staff override selection
 if ($isStaff && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') === 'set_booking_user') {
     $revert   = isset($_POST['booking_user_revert']) && $_POST['booking_user_revert'] === '1';
+    $selId = (int)($_POST['booking_user_id'] ?? 0);
     $selEmail = trim($_POST['booking_user_email'] ?? '');
     $selName  = trim($_POST['booking_user_name'] ?? '');
-    if ($revert || $selEmail === '') {
+    $selUsername = trim($_POST['booking_user_username'] ?? '');
+    if ($revert || $selId <= 0 || ($selEmail === '' && $selUsername === '')) {
         unset($_SESSION['booking_user_override']);
     } else {
         $_SESSION['booking_user_override'] = [
             'email'      => $selEmail,
             'first_name' => $selName,
             'last_name'  => '',
-            'id'         => 0,
+            'name'       => $selName,
+            'username'   => $selUsername,
+            'id'         => $selId,
+            'snipeit_user_id' => $selId,
         ];
     }
     header('Location: catalogue.php');
@@ -2007,8 +2012,10 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                 </div>
                 <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
                     <input type="hidden" name="mode" value="set_booking_user">
+                    <input type="hidden" name="booking_user_id" id="booking_user_id">
                     <input type="hidden" name="booking_user_email" id="booking_user_email">
                     <input type="hidden" name="booking_user_name" id="booking_user_name">
+                    <input type="hidden" name="booking_user_username" id="booking_user_username">
                     <div class="position-relative">
                         <input type="text"
                                id="booking_user_input"
@@ -3230,6 +3237,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookingList  = document.getElementById('booking_user_suggestions');
     const bookingEmail = document.getElementById('booking_user_email');
     const bookingName  = document.getElementById('booking_user_name');
+    const bookingId = document.getElementById('booking_user_id');
+    const bookingUsername = document.getElementById('booking_user_username');
     const basketToast  = document.getElementById('basket-toast');
     const filterForm = document.getElementById('catalogue-filter-form');
     const categorySelect = filterForm ? filterForm.querySelector('select[name="category"]') : null;
@@ -4256,16 +4265,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         items.forEach(function (item) {
             const email = item.email || '';
-            const name = item.name || '';
-            const label = (name && email && name !== email) ? (name + ' (' + email + ')') : (name || email);
+            const username = item.username || '';
+            const name = item.name || username || email;
+            const identity = email || username;
+            const label = (name && identity && name !== identity) ? (name + ' (' + identity + ')') : (name || identity);
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'list-group-item list-group-item-action';
             btn.textContent = label;
             btn.addEventListener('click', function () {
                 bookingInput.value = label;
+                bookingId.value = String(item.id || '');
                 bookingEmail.value = email;
-                bookingName.value  = name || email;
+                bookingName.value  = name;
+                bookingUsername.value = username;
                 hideBookingSuggestions();
             });
             bookingList.appendChild(btn);
@@ -4276,6 +4289,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (bookingInput && bookingList) {
         bookingInput.addEventListener('input', function () {
             const q = bookingInput.value.trim();
+            if (bookingId) bookingId.value = '';
+            if (bookingEmail) bookingEmail.value = '';
+            if (bookingName) bookingName.value = '';
+            if (bookingUsername) bookingUsername.value = '';
             if (q.length < 2) {
                 hideBookingSuggestions();
                 return;
@@ -4283,7 +4300,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (bookingTimer) clearTimeout(bookingTimer);
             bookingTimer = setTimeout(function () {
                 bookingQuery = q;
-                fetch('catalogue.php?ajax=user_search&q=' + encodeURIComponent(q), {
+                fetch('user_search.php?q=' + encodeURIComponent(q), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
                     .then(function (res) { return res.ok ? res.json() : null; })
@@ -4453,22 +4470,30 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function clearBookingUser() {
+    const id = document.getElementById('booking_user_id');
     const email = document.getElementById('booking_user_email');
     const name  = document.getElementById('booking_user_name');
+    const username = document.getElementById('booking_user_username');
     const input = document.getElementById('booking_user_input');
+    if (id) id.value = '';
     if (email) email.value = '';
     if (name) name.value = '';
+    if (username) username.value = '';
     if (input) input.value = '';
 }
 
 function revertToLoggedIn(e) {
     if (e) e.preventDefault();
+    const id = document.getElementById('booking_user_id');
     const email = document.getElementById('booking_user_email');
     const name  = document.getElementById('booking_user_name');
+    const username = document.getElementById('booking_user_username');
     const input = document.getElementById('booking_user_input');
     const form  = document.getElementById('booking_user_form');
+    if (id) id.value = '';
     if (email) email.value = '';
     if (name) name.value = '';
+    if (username) username.value = '';
     if (input) input.value = '';
     // Submit form via hidden revert button to mirror normal submit
     const revertBtn = document.querySelector('button[name="booking_user_revert"]');

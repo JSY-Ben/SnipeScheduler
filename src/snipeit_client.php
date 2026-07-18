@@ -2360,6 +2360,43 @@ function find_user_by_email_or_name_with_candidates(string $query): array
 }
 
 /**
+ * Search Snipe-IT users for assignment autocompletes.
+ *
+ * @return array<int, array{id:int,name:string,email:string,username:string}>
+ */
+function search_snipeit_users(string $query, int $limit = 10): array
+{
+    $query = trim($query);
+    if (mb_strlen($query) < 2) {
+        return [];
+    }
+
+    $data = snipeit_request('GET', 'users', [
+        'search' => $query,
+        'limit' => max(1, min(50, $limit)),
+    ]);
+
+    $results = [];
+    foreach (($data['rows'] ?? []) as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $id = (int)($row['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $results[] = [
+            'id' => $id,
+            'name' => trim((string)($row['name'] ?? '')),
+            'email' => trim((string)($row['email'] ?? '')),
+            'username' => trim((string)($row['username'] ?? '')),
+        ];
+    }
+
+    return $results;
+}
+
+/**
  * Check out a single asset to a Snipe-IT user by ID.
  *
  * Uses POST /hardware/{id}/checkout

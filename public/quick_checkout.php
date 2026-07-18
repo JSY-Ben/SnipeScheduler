@@ -2230,7 +2230,7 @@ if ($selectorTab === 'accessories') {
 
         function fetchSuggestions(q) {
             lastQuery = q;
-            fetch('staff_checkout.php?ajax=user_search&q=' + encodeURIComponent(q), {
+            fetch('user_search.php?q=' + encodeURIComponent(q), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
                 .then((res) => res.ok ? res.json() : Promise.reject())

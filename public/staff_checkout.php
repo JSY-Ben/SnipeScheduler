@@ -42,43 +42,6 @@ if (!$isStaff) {
     exit;
 }
 
-// ---------------------------------------------------------------------
-// AJAX: user search for autocomplete
-// ---------------------------------------------------------------------
-if (($_GET['ajax'] ?? '') === 'user_search') {
-    header('Content-Type: application/json');
-
-    $q = trim($_GET['q'] ?? '');
-    if ($q === '' || strlen($q) < 2) {
-        echo json_encode(['results' => []]);
-        exit;
-    }
-
-    try {
-        $data = snipeit_request('GET', 'users', [
-            'search' => $q,
-            'limit'  => 10,
-        ]);
-
-        $rows = $data['rows'] ?? [];
-        $results = [];
-        foreach ($rows as $row) {
-            $results[] = [
-                'id'       => $row['id'] ?? null,
-                'name'     => $row['name'] ?? '',
-                'email'    => $row['email'] ?? '',
-                'username' => $row['username'] ?? '',
-            ];
-        }
-
-        echo json_encode(['results' => $results]);
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage()]);
-    }
-    exit;
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $allowedKeys = array_keys($baseQuery);
     $extraKeys = array_diff(array_keys($_GET), $allowedKeys);
@@ -1692,7 +1655,7 @@ $active  = basename($_SERVER['PHP_SELF']);
 
         function fetchSuggestions(q) {
             lastQuery = q;
-            fetch('<?= h($ajaxBase) ?>ajax=user_search&q=' + encodeURIComponent(q), {
+            fetch('user_search.php?q=' + encodeURIComponent(q), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
                 .then((res) => res.ok ? res.json() : Promise.reject())
