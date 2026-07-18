@@ -1420,14 +1420,7 @@ $active  = basename($_SERVER['PHP_SELF']);
                         <p class="card-text">
                             Choose concrete assets for model lines and confirm accessory quantities for reservation #<?= (int)$selectedReservation['id'] ?>.
                         </p>
-                        <?php if (trim((string)($selectedReservation['reservation_note'] ?? '')) !== ''): ?>
-                            <div class="alert alert-warning border-warning">
-                                <div class="fw-bold fs-5 mb-1">Reservation notes</div>
-                                <div style="white-space: pre-wrap;"><?= h($selectedReservation['reservation_note']) ?></div>
-                            </div>
-                        <?php endif; ?>
-
-                    <form method="post" action="<?= h($selfUrl) ?>">
+                        <form method="post" action="<?= h($selfUrl) ?>">
                         <?php foreach ($baseQuery as $k => $v): ?>
                             <input type="hidden" name="<?= h($k) ?>" value="<?= h($v) ?>">
                         <?php endforeach; ?>
