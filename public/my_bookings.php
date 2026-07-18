@@ -71,9 +71,9 @@ if ($tab === 'checked_out') {
     }
 }
 
-$deletedMsg = '';
-if (!empty($_GET['deleted'])) {
-    $deletedMsg = _('Reservation #') . (int)$_GET['deleted'] . ' ' . _('has been deleted.');
+$cancelledMsg = '';
+if (!empty($_GET['cancelled'])) {
+    $cancelledMsg = _('Reservation #') . (int)$_GET['cancelled'] . ' ' . _('has been cancelled.');
 }
 ?>
 <!DOCTYPE html>
@@ -114,9 +114,9 @@ if (!empty($_GET['deleted'])) {
             </div>
         </div>
 
-        <?php if (!empty($deletedMsg)): ?>
+        <?php if (!empty($cancelledMsg)): ?>
             <div class="alert alert-success">
-                <?= htmlspecialchars($deletedMsg) ?>
+                <?= htmlspecialchars($cancelledMsg) ?>
             </div>
         <?php endif; ?>
 
@@ -248,14 +248,16 @@ if (!empty($_GET['deleted'])) {
                                         <?= _('Edit') ?>
                                     </a>
                                 <?php endif; ?>
-                                <form method="post"
-                                      action="delete_reservation.php"
-                                      onsubmit="return confirm('<?= _('Delete this reservation and all its items? This cannot be undone.') ?>');">
-                                    <input type="hidden" name="reservation_id" value="<?= $resId ?>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                                        <?= _('Delete reservation') ?>
-                                    </button>
-                                </form>
+                                <?php if (in_array($status, ['pending', 'confirmed'], true)): ?>
+                                    <form method="post"
+                                          action="cancel_reservation.php"
+                                          onsubmit="return confirm('<?= _('Cancel this reservation? It will remain in your reservation history.') ?>');">
+                                        <input type="hidden" name="reservation_id" value="<?= $resId ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <?= _('Cancel Reservation') ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
