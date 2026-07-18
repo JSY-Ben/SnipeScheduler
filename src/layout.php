@@ -734,7 +734,10 @@ if (!function_exists('layout_footer')) {
             });
 
             const calendarDays = calendar.querySelector('.flatpickr-days');
-            if (calendarDays && calendarDays.parentNode) {
+            const weekdays = calendar.querySelector('.flatpickr-weekdays');
+            if (weekdays && weekdays.parentNode) {
+                weekdays.parentNode.insertBefore(button, weekdays);
+            } else if (calendarDays && calendarDays.parentNode) {
                 calendarDays.parentNode.insertBefore(button, calendarDays);
             } else {
                 calendar.appendChild(button);
@@ -747,11 +750,16 @@ if (!function_exists('layout_footer')) {
             const calendar = picker.calendarContainer;
             const calendarDays = calendar.querySelector('.flatpickr-days');
             if (!calendarDays || !calendarDays.parentNode || calendar.querySelector('.flatpickr-date-heading')) return;
+            const weekdays = calendar.querySelector('.flatpickr-weekdays');
 
             const heading = document.createElement('div');
             heading.className = 'flatpickr-date-heading';
             heading.textContent = {$dateLabelJson};
-            calendarDays.parentNode.insertBefore(heading, calendarDays);
+            if (weekdays && weekdays.parentNode) {
+                weekdays.parentNode.insertBefore(heading, weekdays);
+            } else {
+                calendarDays.parentNode.insertBefore(heading, calendarDays);
+            }
         };
 
         const emphasizeTimeSelection = (picker, pickerType) => {
