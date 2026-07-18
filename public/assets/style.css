@@ -1465,6 +1465,35 @@ form .form-select {
     vertical-align: top;
 }
 
+@media (min-width: 981px) {
+    .reservation-history-table {
+        border-collapse: separate;
+        border-spacing: 0 0.7rem;
+    }
+
+    .reservation-history-table thead th {
+        border-bottom: 0;
+    }
+
+    .reservation-history-table tbody td {
+        padding-top: 0.85rem;
+        padding-bottom: 0.85rem;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.82);
+    }
+
+    .reservation-history-table tbody td:first-child {
+        border-left: 1px solid var(--border);
+        border-radius: 0.75rem 0 0 0.75rem;
+    }
+
+    .reservation-history-table tbody td:last-child {
+        border-right: 1px solid var(--border);
+        border-radius: 0 0.75rem 0.75rem 0;
+    }
+}
+
 .reservation-history-table th:nth-child(1),
 .reservation-history-table td:nth-child(1) {
     width: 50px;
@@ -1535,10 +1564,11 @@ form .form-select {
     }
 
     .reservation-history-table tr {
-        border-bottom: 1px solid var(--border);
-        padding: 0.35rem 0;
-        background: transparent;
-        margin-bottom: 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 0.65rem 0.8rem;
+        background: rgba(255, 255, 255, 0.82);
+        margin-bottom: 1rem;
     }
 
     .reservation-history-table td {
