@@ -1227,6 +1227,28 @@ button.model-image-wrapper {
     border: 1px solid transparent;
 }
 
+a.model-calendar-event {
+    max-width: 100%;
+    overflow: hidden;
+    color: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+a.model-calendar-event:hover,
+a.model-calendar-event:focus-visible,
+.model-booking-reference:hover,
+.model-booking-reference:focus-visible {
+    color: var(--primary-strong);
+    text-decoration: underline;
+}
+
+.model-booking-reference {
+    font-weight: 700;
+}
+
 .model-bookings-table th,
 .model-bookings-table td {
     font-size: 0.82rem;

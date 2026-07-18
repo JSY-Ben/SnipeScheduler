@@ -872,7 +872,7 @@ function format_location_availability_summary(array $locationCounts): string
     return '(' . implode(', ', $parts) . ')';
 }
 
-function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds): array
+function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds, bool $includeBooker = false): array
 {
     $allowedStatuses = ['pending', 'confirmed', 'completed', 'missed'];
     $bookingsById = [];
@@ -883,13 +883,14 @@ function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds)
             r.status,
             r.start_datetime,
             r.end_datetime,
+            r.user_name,
             COALESCE(SUM(ri.quantity), 0) AS model_qty
         FROM reservations r
         JOIN reservation_items ri
           ON ri.reservation_id = r.id
         WHERE ri.model_id = :model_id
           AND r.status IN ('pending','confirmed','completed','missed')
-        GROUP BY r.id, r.status, r.start_datetime, r.end_datetime
+        GROUP BY r.id, r.status, r.start_datetime, r.end_datetime, r.user_name
     ";
     $modelStmt = $pdo->prepare($modelSql);
     $modelStmt->execute([':model_id' => $modelId]);
@@ -905,6 +906,7 @@ function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds)
             'status' => (string)($row['status'] ?? ''),
             'start_datetime' => (string)($row['start_datetime'] ?? ''),
             'end_datetime' => (string)($row['end_datetime'] ?? ''),
+            'booker_name' => $includeBooker ? trim((string)($row['user_name'] ?? '')) : '',
             'quantity' => max(1, (int)($row['model_qty'] ?? 0)),
             'via_model' => true,
             'via_asset' => false,
@@ -920,7 +922,7 @@ function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds)
         foreach ($assetChunks as $chunk) {
             $placeholders = implode(',', array_fill(0, count($chunk), '?'));
             $assetSql = "
-                SELECT id, status, start_datetime, end_datetime
+                SELECT id, status, start_datetime, end_datetime, user_name
                   FROM reservations
                  WHERE status IN ('pending','confirmed','completed','missed')
                    AND asset_id IN ({$placeholders})
@@ -945,6 +947,7 @@ function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds)
                     'status' => (string)($row['status'] ?? ''),
                     'start_datetime' => (string)($row['start_datetime'] ?? ''),
                     'end_datetime' => (string)($row['end_datetime'] ?? ''),
+                    'booker_name' => $includeBooker ? trim((string)($row['user_name'] ?? '')) : '',
                     'quantity' => 1,
                     'via_model' => false,
                     'via_asset' => true,
@@ -981,6 +984,9 @@ function fetch_catalogue_model_bookings(PDO $pdo, int $modelId, array $assetIds)
             'quantity' => max(1, (int)($booking['quantity'] ?? 1)),
             'source' => $source,
         ];
+        if ($includeBooker) {
+            $result[count($result) - 1]['booker_name'] = trim((string)($booking['booker_name'] ?? ''));
+        }
     }
 
     usort($result, static function (array $a, array $b): int {
@@ -1032,7 +1038,7 @@ if (($_GET['ajax'] ?? '') === 'model_details') {
                 : _('Could not load all model assets.');
         }
 
-        $bookings = fetch_catalogue_model_bookings($pdo, $modelId, $assetIds);
+        $bookings = fetch_catalogue_model_bookings($pdo, $modelId, $assetIds, $isStaff);
 
         echo json_encode([
             'model' => [
@@ -2944,6 +2950,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let basketToastTimer = null;
     let modelCalendarMonthCursor = new Date();
     let modelBookings = [];
+    const canViewCatalogueBookingDetails = <?= $isStaff ? 'true' : 'false' ?>;
     let modelDetailsRequestId = 0;
     let modelModalOpen = false;
     let modelImageZoomOpen = false;
@@ -3247,8 +3254,30 @@ document.addEventListener('DOMContentLoaded', function () {
             start: start,
             end: end,
             startDisplay: String(raw.start_display || ''),
-            endDisplay: String(raw.end_display || '')
+            endDisplay: String(raw.end_display || ''),
+            bookerName: canViewCatalogueBookingDetails ? String(raw.booker_name || '').trim() : ''
         };
+    }
+
+    function bookingReferenceText(booking) {
+        let label = booking.id > 0 ? '#' + booking.id : '<?= _('N/A') ?>';
+        if (canViewCatalogueBookingDetails && booking.bookerName !== '') {
+            label += ' (' + booking.bookerName + ')';
+        }
+        return label;
+    }
+
+    function createBookingReference(booking, className) {
+        const element = canViewCatalogueBookingDetails && booking.id > 0
+            ? document.createElement('a')
+            : document.createElement('span');
+        if (className) element.className = className;
+        element.textContent = bookingReferenceText(booking);
+        if (element instanceof HTMLAnchorElement) {
+            element.href = 'reservation_detail.php?id=' + encodeURIComponent(String(booking.id));
+            element.title = '<?= _('View reservation') ?> #' + booking.id;
+        }
+        return element;
     }
 
     function renderModelBookingsTable() {
@@ -3284,7 +3313,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const tr = document.createElement('tr');
 
             const idCell = document.createElement('td');
-            idCell.textContent = booking.id > 0 ? '#' + booking.id : '<?= _('N/A') ?>';
+            idCell.appendChild(createBookingReference(booking, 'model-booking-reference'));
 
             const statusCell = document.createElement('td');
             const statusBadge = document.createElement('span');
@@ -3404,9 +3433,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     const eventsList = document.createElement('div');
                     eventsList.className = 'model-calendar-events';
                     dayBookings.slice(0, 3).forEach(function (booking) {
-                        const eventPill = document.createElement('span');
-                        eventPill.className = 'model-calendar-event ' + bookingStatusClass(booking.status);
-                        eventPill.textContent = '#' + booking.id;
+                        const eventPill = createBookingReference(
+                            booking,
+                            'model-calendar-event ' + bookingStatusClass(booking.status)
+                        );
                         eventsList.appendChild(eventPill);
                     });
 
