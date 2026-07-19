@@ -647,11 +647,42 @@ try {
                             $prevUrl = $pagerBase . '?' . http_build_query($pagerQuery);
                             $pagerQuery['page'] = $nextPage;
                             $nextUrl = $pagerBase . '?' . http_build_query($pagerQuery);
+
+                            $windowSize = 2;
+                            $rangeStart = max(1, $page - $windowSize);
+                            $rangeEnd = min($totalPages, $page + $windowSize);
+
+                            if ($totalPages <= 7) {
+                                $rangeStart = 1;
+                                $rangeEnd = $totalPages;
+                            } elseif ($page <= ($windowSize + 2)) {
+                                $rangeStart = 1;
+                                $rangeEnd = 1 + ($windowSize * 2);
+                            } elseif ($page >= ($totalPages - $windowSize - 1)) {
+                                $rangeStart = $totalPages - ($windowSize * 2);
+                                $rangeEnd = $totalPages;
+                            }
                         ?>
                         <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
                             <a class="page-link" href="<?= h($prevUrl) ?>">Previous</a>
                         </li>
-                        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+
+                        <?php if ($rangeStart > 1): ?>
+                            <?php
+                                $pagerQuery['page'] = 1;
+                                $firstUrl = $pagerBase . '?' . http_build_query($pagerQuery);
+                            ?>
+                            <li class="page-item">
+                                <a class="page-link" href="<?= h($firstUrl) ?>">1</a>
+                            </li>
+                            <?php if ($rangeStart > 2): ?>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&hellip;</span>
+                                </li>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($p = $rangeStart; $p <= $rangeEnd; $p++): ?>
                             <?php
                                 $pagerQuery['page'] = $p;
                                 $pageUrl = $pagerBase . '?' . http_build_query($pagerQuery);
@@ -660,6 +691,22 @@ try {
                                 <a class="page-link" href="<?= h($pageUrl) ?>"><?= $p ?></a>
                             </li>
                         <?php endfor; ?>
+
+                        <?php if ($rangeEnd < $totalPages): ?>
+                            <?php if ($rangeEnd < ($totalPages - 1)): ?>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&hellip;</span>
+                                </li>
+                            <?php endif; ?>
+                            <?php
+                                $pagerQuery['page'] = $totalPages;
+                                $lastUrl = $pagerBase . '?' . http_build_query($pagerQuery);
+                            ?>
+                            <li class="page-item">
+                                <a class="page-link" href="<?= h($lastUrl) ?>"><?= $totalPages ?></a>
+                            </li>
+                        <?php endif; ?>
+
                         <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
                             <a class="page-link" href="<?= h($nextUrl) ?>">Next</a>
                         </li>
