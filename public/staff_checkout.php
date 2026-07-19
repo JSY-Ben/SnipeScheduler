@@ -1476,9 +1476,16 @@ $active  = basename($_SERVER['PHP_SELF']);
                                             <td class="reservation-model-cell">
                                                 <div class="reservation-model-header">
                                                     <?php if ($proxiedImage !== ''): ?>
-                                                        <img src="<?= h($proxiedImage) ?>"
-                                                             alt="<?= h($item['name'] ?? ('Model #' . $mid)) ?>"
-                                                             class="reservation-model-image">
+                                                        <button type="button"
+                                                                class="image-preview-trigger"
+                                                                data-image-preview
+                                                                data-image-title="<?= h($itemName) ?>"
+                                                                aria-label="View full-size image of <?= h($itemName) ?>"
+                                                                aria-haspopup="dialog">
+                                                            <img src="<?= h($proxiedImage) ?>"
+                                                                 alt="<?= h($itemName . ' thumbnail') ?>"
+                                                                 class="reservation-model-image">
+                                                        </button>
                                                     <?php else: ?>
                                                         <div class="reservation-model-image reservation-model-image--placeholder">
                                                             No image

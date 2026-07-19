@@ -949,10 +949,17 @@ function layout_checked_out_url(string $base, array $params): string
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
                                             <?php if ($imageUrl !== ''): ?>
-                                                <img src="<?= h($imageUrl) ?>"
-                                                     alt="<?= h($name . ' thumbnail') ?>"
-                                                     loading="lazy"
-                                                     style="width:48px;height:48px;object-fit:contain;border:1px solid rgba(0,0,0,.12);border-radius:.35rem;background:#fff;flex:0 0 48px;">
+                                                <button type="button"
+                                                        class="image-preview-trigger"
+                                                        data-image-preview
+                                                        data-image-title="<?= h($name) ?>"
+                                                        aria-label="View full-size image of <?= h($name) ?>"
+                                                        aria-haspopup="dialog">
+                                                    <img src="<?= h($imageUrl) ?>"
+                                                         alt="<?= h($name . ' thumbnail') ?>"
+                                                         loading="lazy"
+                                                         style="width:48px;height:48px;object-fit:contain;border:1px solid rgba(0,0,0,.12);border-radius:.35rem;background:#fff;flex:0 0 48px;">
+                                                </button>
                                             <?php else: ?>
                                                 <div class="d-flex align-items-center justify-content-center text-muted border rounded bg-white"
                                                      aria-label="No image available"

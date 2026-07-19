@@ -2834,6 +2834,10 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                                             $permissionImageUrl = $permissionImagePath !== ''
                                                 ? 'image_proxy.php?src=' . urlencode($permissionImagePath)
                                                 : '';
+                                            $permissionImageTitle = trim((string)($permissionItem['name'] ?? ''));
+                                            if ($permissionImageTitle === '') {
+                                                $permissionImageTitle = $permissionItemType === 'accessory' ? 'Accessory' : 'Equipment';
+                                            }
                                             ?>
                                             <tr data-permissions-row
                                                 data-permissions-search-text="<?= h($permissionSearchText) ?>"
@@ -2857,10 +2861,17 @@ if (!in_array($selectedLanguage, $languageOptions, true)) {
                                                 <td>
                                                     <div class="settings-permissions-thumb">
                                                         <?php if ($permissionImageUrl !== ''): ?>
-                                                            <img src="<?= h($permissionImageUrl) ?>"
-                                                                 alt=""
-                                                                 class="settings-permissions-thumb__image"
-                                                                 loading="lazy">
+                                                            <button type="button"
+                                                                    class="image-preview-trigger"
+                                                                    data-image-preview
+                                                                    data-image-title="<?= h($permissionImageTitle) ?>"
+                                                                    aria-label="View full-size image of <?= h($permissionImageTitle) ?>"
+                                                                    aria-haspopup="dialog">
+                                                                <img src="<?= h($permissionImageUrl) ?>"
+                                                                     alt="<?= h($permissionImageTitle . ' thumbnail') ?>"
+                                                                     class="settings-permissions-thumb__image"
+                                                                     loading="lazy">
+                                                            </button>
                                                         <?php else: ?>
                                                             <div class="settings-permissions-thumb__placeholder">
                                                                 <?= h($permissionItemType === 'accessory' ? 'Acc' : 'Eq') ?>

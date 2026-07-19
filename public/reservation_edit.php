@@ -550,9 +550,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <tr>
                                         <td>
                                             <?php if ($proxiedImage !== ''): ?>
+                                                <?php if ($isStaff): ?>
+                                                    <button type="button"
+                                                            class="image-preview-trigger"
+                                                            data-image-preview
+                                                            data-image-title="<?= h($name) ?>"
+                                                            aria-label="View full-size image of <?= h($name) ?>"
+                                                            aria-haspopup="dialog">
+                                                <?php endif; ?>
                                                 <img src="<?= h($proxiedImage) ?>"
-                                                     alt="<?= h($name) ?>"
+                                                     alt="<?= h($name . ($isStaff ? ' thumbnail' : '')) ?>"
                                                      class="reservation-model-image">
+                                                <?php if ($isStaff): ?>
+                                                    </button>
+                                                <?php endif; ?>
                                             <?php else: ?>
                                                 <div class="reservation-model-image reservation-model-image--placeholder">
                                                     No image

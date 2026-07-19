@@ -1207,11 +1207,22 @@ if ($selectorTab === 'accessories') {
                                                 <td>
                                                     <?php
                                                         $accessoryImageUrl = qci_image_proxy_url(qci_extract_record_image_path($accessory));
+                                                        $accessoryImageTitle = trim((string)($accessory['name'] ?? ''));
+                                                        if ($accessoryImageTitle === '') {
+                                                            $accessoryImageTitle = 'Accessory';
+                                                        }
                                                     ?>
                                                     <?php if ($accessoryImageUrl !== ''): ?>
-                                                        <img src="<?= h($accessoryImageUrl) ?>"
-                                                             alt="<?= h(($accessory['name'] ?? 'Accessory') . ' image') ?>"
-                                                             class="report-model-thumb">
+                                                        <button type="button"
+                                                                class="image-preview-trigger"
+                                                                data-image-preview
+                                                                data-image-title="<?= h($accessoryImageTitle) ?>"
+                                                                aria-label="View full-size image of <?= h($accessoryImageTitle) ?>"
+                                                                aria-haspopup="dialog">
+                                                            <img src="<?= h($accessoryImageUrl) ?>"
+                                                                 alt="<?= h($accessoryImageTitle . ' thumbnail') ?>"
+                                                                 class="report-model-thumb">
+                                                        </button>
                                                     <?php else: ?>
                                                         <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
                                                     <?php endif; ?>

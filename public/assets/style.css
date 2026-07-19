@@ -139,6 +139,117 @@ body.settings-page .settings-form [data-permissions-row][hidden] {
     text-align: center;
 }
 
+body.app-image-preview-open {
+    overflow: hidden;
+}
+
+.image-preview-trigger {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: inherit;
+    cursor: zoom-in;
+}
+
+.image-preview-trigger > img {
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.image-preview-trigger:hover > img {
+    border-color: rgba(var(--primary-rgb), 0.55) !important;
+    box-shadow: 0 3px 10px rgba(var(--primary-rgb), 0.2);
+    transform: translateY(-1px);
+}
+
+.image-preview-trigger:focus-visible {
+    outline: 3px solid rgba(var(--primary-rgb), 0.32);
+    outline-offset: 2px;
+}
+
+.image-preview-dialog {
+    width: min(980px, calc(100% - 2rem));
+    max-width: 980px;
+    max-height: calc(100vh - 2rem);
+    margin: auto;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: #ffffff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+    color: var(--text);
+    overflow: hidden;
+}
+
+.image-preview-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.image-preview-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.68);
+    backdrop-filter: blur(2px);
+}
+
+.image-preview-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.95rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(120deg, rgba(var(--primary-rgb), 0.08), rgba(var(--primary-soft-rgb), 0.15));
+}
+
+.image-preview-dialog__title {
+    min-width: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.image-preview-dialog__body {
+    min-height: 220px;
+    padding: 1rem;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f172a;
+}
+
+.image-preview-dialog__image {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: calc(100vh - 8rem);
+    object-fit: contain;
+}
+
+.settings-permissions-thumb .image-preview-trigger {
+    width: 100%;
+    height: 100%;
+}
+
+.settings-permissions-thumb .image-preview-trigger:focus-visible {
+    outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .image-preview-trigger > img {
+        transition: none;
+    }
+}
+
 .reservation-asset-remove-button {
     width: 38px;
     min-width: 38px;

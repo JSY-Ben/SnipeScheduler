@@ -1029,10 +1029,17 @@ $renderSortableHeader = static function (
                                         <div class="report-model-cell">
                                             <?php $modelImageUrl = trim((string)($row['model_image_url'] ?? '')); ?>
                                             <?php if ($modelImageUrl !== ''): ?>
-                                                <img src="<?= h($modelImageUrl) ?>"
-                                                     alt="<?= h((string)$row['model_name']) ?>"
-                                                     class="report-model-thumb"
-                                                     loading="lazy">
+                                                <button type="button"
+                                                        class="image-preview-trigger"
+                                                        data-image-preview
+                                                        data-image-title="<?= h((string)$row['model_name']) ?>"
+                                                        aria-label="View full-size image of <?= h((string)$row['model_name']) ?>"
+                                                        aria-haspopup="dialog">
+                                                    <img src="<?= h($modelImageUrl) ?>"
+                                                         alt="<?= h((string)$row['model_name'] . ' thumbnail') ?>"
+                                                         class="report-model-thumb"
+                                                         loading="lazy">
+                                                </button>
                                             <?php else: ?>
                                                 <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">-</div>
                                             <?php endif; ?>
@@ -1091,10 +1098,17 @@ $renderSortableHeader = static function (
                                         <div class="report-model-cell">
                                             <?php $accessoryImageUrl = trim((string)($row['accessory_image_url'] ?? '')); ?>
                                             <?php if ($accessoryImageUrl !== ''): ?>
-                                                <img src="<?= h($accessoryImageUrl) ?>"
-                                                     alt="<?= h((string)$row['accessory_name']) ?>"
-                                                     class="report-model-thumb"
-                                                     loading="lazy">
+                                                <button type="button"
+                                                        class="image-preview-trigger"
+                                                        data-image-preview
+                                                        data-image-title="<?= h((string)$row['accessory_name']) ?>"
+                                                        aria-label="View full-size image of <?= h((string)$row['accessory_name']) ?>"
+                                                        aria-haspopup="dialog">
+                                                    <img src="<?= h($accessoryImageUrl) ?>"
+                                                         alt="<?= h((string)$row['accessory_name'] . ' thumbnail') ?>"
+                                                         class="report-model-thumb"
+                                                         loading="lazy">
+                                                </button>
                                             <?php else: ?>
                                                 <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">-</div>
                                             <?php endif; ?>

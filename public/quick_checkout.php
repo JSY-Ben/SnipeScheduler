@@ -1750,10 +1750,17 @@ if ($selectorTab === 'accessories') {
                                                         <td>
                                                             <div class="report-model-cell">
                                                                 <?php if ($row['image_url'] !== ''): ?>
-                                                                    <img src="<?= h($row['image_url']) ?>"
-                                                                         alt=""
-                                                                         class="report-model-thumb"
-                                                                         loading="lazy">
+                                                                    <button type="button"
+                                                                            class="image-preview-trigger"
+                                                                            data-image-preview
+                                                                            data-image-title="<?= h($row['name']) ?>"
+                                                                            aria-label="View full-size image of <?= h($row['name']) ?>"
+                                                                            aria-haspopup="dialog">
+                                                                        <img src="<?= h($row['image_url']) ?>"
+                                                                             alt="<?= h($row['name'] . ' thumbnail') ?>"
+                                                                             class="report-model-thumb"
+                                                                             loading="lazy">
+                                                                    </button>
                                                                 <?php else: ?>
                                                                     <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">A</div>
                                                                 <?php endif; ?>
@@ -1851,10 +1858,17 @@ if ($selectorTab === 'accessories') {
                                                         <td>
                                                             <div class="report-model-cell">
                                                                 <?php if ($row['image_url'] !== ''): ?>
-                                                                    <img src="<?= h($row['image_url']) ?>"
-                                                                         alt=""
-                                                                         class="report-model-thumb"
-                                                                         loading="lazy">
+                                                                    <button type="button"
+                                                                            class="image-preview-trigger"
+                                                                            data-image-preview
+                                                                            data-image-title="<?= h($row['name']) ?>"
+                                                                            aria-label="View full-size image of <?= h($row['name']) ?>"
+                                                                            aria-haspopup="dialog">
+                                                                        <img src="<?= h($row['image_url']) ?>"
+                                                                             alt="<?= h($row['name'] . ' thumbnail') ?>"
+                                                                             class="report-model-thumb"
+                                                                             loading="lazy">
+                                                                    </button>
                                                                 <?php else: ?>
                                                                     <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true">K</div>
                                                                 <?php endif; ?>
@@ -1938,6 +1952,15 @@ if ($selectorTab === 'accessories') {
                                                 <?php
                                                     $isAccessoryEntry = ($entry['entry_type'] ?? '') === 'accessory';
                                                     $itemImageUrl = qc_image_proxy_url((string)($entry['image_path'] ?? ''));
+                                                    $itemImageTitle = trim((string)($isAccessoryEntry
+                                                        ? ($entry['name'] ?? '')
+                                                        : ($entry['model_name'] ?? '')));
+                                                    if (!$isAccessoryEntry && $itemImageTitle === '') {
+                                                        $itemImageTitle = trim((string)($entry['asset_tag'] ?? ''));
+                                                    }
+                                                    if ($itemImageTitle === '') {
+                                                        $itemImageTitle = $isAccessoryEntry ? 'Accessory' : 'Asset';
+                                                    }
                                                     $detailParts = [];
                                                     if ($isAccessoryEntry) {
                                                         if (!empty($entry['manufacturer'])) {
@@ -1970,10 +1993,17 @@ if ($selectorTab === 'accessories') {
                                                     <td>
                                                         <div class="report-model-cell">
                                                             <?php if ($itemImageUrl !== ''): ?>
-                                                                <img src="<?= h($itemImageUrl) ?>"
-                                                                     alt=""
-                                                                     class="report-model-thumb"
-                                                                     loading="lazy">
+                                                                <button type="button"
+                                                                        class="image-preview-trigger"
+                                                                        data-image-preview
+                                                                        data-image-title="<?= h($itemImageTitle) ?>"
+                                                                        aria-label="View full-size image of <?= h($itemImageTitle) ?>"
+                                                                        aria-haspopup="dialog">
+                                                                    <img src="<?= h($itemImageUrl) ?>"
+                                                                         alt="<?= h($itemImageTitle . ' thumbnail') ?>"
+                                                                         class="report-model-thumb"
+                                                                         loading="lazy">
+                                                                </button>
                                                             <?php else: ?>
                                                                 <div class="report-model-thumb report-model-thumb--placeholder" aria-hidden="true"><?= $isAccessoryEntry ? 'A' : 'M' ?></div>
                                                             <?php endif; ?>
