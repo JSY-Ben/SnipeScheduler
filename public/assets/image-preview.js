@@ -112,8 +112,22 @@
         restoreTriggerFocus = false;
         if (shouldRestoreFocus && focusTarget && focusTarget.isConnected && typeof focusTarget.focus === 'function') {
             focusTarget.focus();
-        } else if (focusTarget && typeof focusTarget.blur === 'function') {
-            focusTarget.blur();
+        } else if (focusTarget) {
+            const clearPointerFocus = function () {
+                if (typeof focusTarget.blur === 'function') {
+                    focusTarget.blur();
+                }
+
+                const parentCard = typeof focusTarget.closest === 'function'
+                    ? focusTarget.closest('.model-card--details')
+                    : null;
+                if (parentCard && typeof parentCard.blur === 'function') {
+                    parentCard.blur();
+                }
+            };
+
+            clearPointerFocus();
+            window.requestAnimationFrame(clearPointerFocus);
         }
     });
 }());
