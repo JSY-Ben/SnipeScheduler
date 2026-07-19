@@ -191,7 +191,11 @@ if (!function_exists('layout_user_avatar')) {
             return $fallback;
         }
 
-        $escapedAvatar = layout_html_escape($avatar);
+        $config = layout_cached_config($cfg);
+        $proxySignature = hash_hmac('sha256', $avatar, (string)($config['snipeit']['api_token'] ?? ''));
+        $proxiedAvatar = 'image_proxy.php?src=' . rawurlencode($avatar)
+            . '&avatar=1&sig=' . rawurlencode($proxySignature);
+        $escapedAvatar = layout_html_escape($proxiedAvatar);
         $escapedName = layout_html_escape($name);
         return '<button type="button" class="user-avatar-button" data-user-avatar data-image-preview'
             . ' data-image-src="' . $escapedAvatar . '" data-image-title="' . $escapedName . ' profile photo"'
