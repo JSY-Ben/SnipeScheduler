@@ -143,7 +143,8 @@ if (!function_exists('layout_is_install_upgrade_page')) {
     function layout_is_install_upgrade_page(): bool
     {
         $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
-        return (bool)preg_match('#/install/upgrade/(?:index\.php)?$#', $scriptName)
+        return (bool)preg_match('#/install(?:/index\.php)?/?$#', $scriptName)
+            || (bool)preg_match('#/install/upgrade/(?:index\.php)?$#', $scriptName)
             || (bool)preg_match('#/install/upgrade$#', $scriptName);
     }
 }
@@ -282,19 +283,21 @@ SCRIPT;
     }
 }
 
-if (!function_exists('layout_render_staff_image_preview_dialog')) {
-    function layout_render_staff_image_preview_dialog(): void
+if (!function_exists('layout_render_image_preview_dialog')) {
+    function layout_render_image_preview_dialog(): void
     {
-        echo '<dialog id="staff-image-preview-dialog"'
+        $title = layout_html_escape(_('Image preview'));
+        $close = layout_html_escape(_('Close'));
+        echo '<dialog id="image-preview-dialog"'
             . ' class="image-preview-dialog"'
             . ' aria-modal="true"'
-            . ' aria-labelledby="staff-image-preview-title">';
+            . ' aria-labelledby="image-preview-title">';
         echo '<div class="image-preview-dialog__header">';
-        echo '<h2 id="staff-image-preview-title" class="image-preview-dialog__title">Image preview</h2>';
-        echo '<button type="button" class="btn btn-sm btn-outline-secondary" data-image-preview-close>Close</button>';
+        echo '<h2 id="image-preview-title" class="image-preview-dialog__title">' . $title . '</h2>';
+        echo '<button type="button" class="btn btn-sm btn-outline-secondary" data-image-preview-close>' . $close . '</button>';
         echo '</div>';
         echo '<div class="image-preview-dialog__body">';
-        echo '<img id="staff-image-preview-image" class="image-preview-dialog__image" alt="">';
+        echo '<img id="image-preview-image" class="image-preview-dialog__image" alt="">';
         echo '</div>';
         echo '</dialog>';
     }
@@ -572,12 +575,11 @@ if (!function_exists('layout_footer')) {
             $sortPreferenceUserKeyJson = '""';
         }
         $hideFooter = (bool)($cfg['app']['hide_footer'] ?? false);
-        $staffImagePreviewEnabled = is_array($preferenceUser)
-            && (!empty($preferenceUser['is_staff']) || !empty($preferenceUser['is_admin']));
+        $imagePreviewEnabled = !layout_is_install_upgrade_page();
 
         layout_render_pending_upgrade_modal();
-        if ($staffImagePreviewEnabled) {
-            layout_render_staff_image_preview_dialog();
+        if ($imagePreviewEnabled) {
+            layout_render_image_preview_dialog();
         }
 
         echo '<div id="app-busy-overlay" class="app-busy-overlay" aria-hidden="true" aria-live="polite">'
@@ -587,7 +589,7 @@ if (!function_exists('layout_footer')) {
             . '</div></div>';
 
         echo '<script src="assets/nav.js"></script>';
-        if ($staffImagePreviewEnabled) {
+        if ($imagePreviewEnabled) {
             echo '<script src="assets/image-preview.js"></script>';
         }
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';

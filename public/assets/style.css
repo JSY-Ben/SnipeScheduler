@@ -1043,28 +1043,8 @@ button.model-image-wrapper {
     width: min(640px, 100%);
 }
 
-.catalogue-modal--image-zoom .catalogue-modal__dialog {
-    width: min(980px, 100%);
-}
-
 .catalogue-modal--kit-details .catalogue-modal__dialog {
     width: min(920px, 100%);
-}
-
-.catalogue-modal--image-zoom .catalogue-modal__body {
-    background: #0f172a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 220px;
-}
-
-.model-image-zoomed {
-    max-width: 100%;
-    max-height: 78vh;
-    width: auto;
-    height: auto;
-    object-fit: contain;
 }
 
 .kit-details-list {

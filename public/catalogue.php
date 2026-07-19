@@ -2037,10 +2037,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <?php if ($proxiedImage !== ''): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--zoomable"
-                                        data-model-image-zoom="1"
-                                        data-zoom-src="<?= h($proxiedImage) ?>"
-                                        data-zoom-title="<?= h($name) ?>"
-                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>">
+                                        data-image-preview
+                                        data-image-src="<?= h($proxiedImage) ?>"
+                                        data-image-title="<?= h($name) ?>"
+                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>"
+                                        aria-haspopup="dialog">
                                     <img src="<?= htmlspecialchars($proxiedImage) ?>"
                                          alt=""
                                          class="model-image img-fluid">
@@ -2511,10 +2512,11 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
                             <?php if ($proxiedImage !== ''): ?>
                                 <button type="button"
                                         class="model-image-wrapper model-image-wrapper--zoomable"
-                                        data-model-image-zoom="1"
-                                        data-zoom-src="<?= h($proxiedImage) ?>"
-                                        data-zoom-title="<?= h($name) ?>"
-                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>">
+                                        data-image-preview
+                                        data-image-src="<?= h($proxiedImage) ?>"
+                                        data-image-title="<?= h($name) ?>"
+                                        aria-label="<?= _('Click to zoom image for') . ' ' . h($name) ?>"
+                                        aria-haspopup="dialog">
                                     <img src="<?= htmlspecialchars($proxiedImage) ?>"
                                          alt=""
                                          class="model-image img-fluid">
@@ -2862,32 +2864,6 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
     </div>
 </div>
 
-<div id="model-image-zoom-modal"
-     class="catalogue-modal catalogue-modal--image-zoom"
-     role="dialog"
-     aria-modal="true"
-     aria-hidden="true"
-     aria-labelledby="model-image-zoom-title"
-     hidden>
-    <div class="catalogue-modal__backdrop" data-image-zoom-close></div>
-    <div class="catalogue-modal__dialog" role="document">
-        <div class="catalogue-modal__header">
-            <h2 id="model-image-zoom-title" class="catalogue-modal__title"><?= _('Model image') ?></h2>
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary"
-                    data-image-zoom-close>
-                <?= _('Close') ?>
-            </button>
-        </div>
-        <div class="catalogue-modal__body">
-            <img id="model-image-zoomed"
-                 class="model-image-zoomed"
-                 src=""
-                 alt="<?= _('Model image zoomed view') ?>">
-        </div>
-    </div>
-</div>
-
 <!-- AJAX add-to-basket + update basket count text -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -2925,17 +2901,14 @@ document.addEventListener('DOMContentLoaded', function () {
     let nativeWindowDirty = false;
     let nativeWindowBlurTimer = null;
     const modelDetailCards = document.querySelectorAll('.model-card--details');
-    const modelImageZoomButtons = document.querySelectorAll('[data-model-image-zoom="1"]');
+    const modelImagePreviewButtons = document.querySelectorAll('.model-image-wrapper[data-image-preview]');
     const kitDetailsButtons = document.querySelectorAll('[data-kit-details-open]');
     const announcementModal = document.getElementById('catalogue-announcement-modal');
     const modelDetailsModal = document.getElementById('model-details-modal');
     const kitDetailsModal = document.getElementById('kit-details-modal');
-    const modelImageZoomModal = document.getElementById('model-image-zoom-modal');
     const modelDetailsDialog = modelDetailsModal ? modelDetailsModal.querySelector('.catalogue-modal__dialog') : null;
     const kitDetailsTitle = document.getElementById('kit-details-title');
     const kitDetailsBody = document.getElementById('kit-details-body');
-    const modelImageZoomTitle = document.getElementById('model-image-zoom-title');
-    const modelImageZoomed = document.getElementById('model-image-zoomed');
     const modelDetailsTitle = document.getElementById('model-details-title');
     const modelDetailsFeedback = document.getElementById('model-details-feedback');
     const modelDetailsNotes = document.getElementById('model-details-notes');
@@ -2953,17 +2926,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const canViewCatalogueBookingDetails = <?= $isStaff ? 'true' : 'false' ?>;
     let modelDetailsRequestId = 0;
     let modelModalOpen = false;
-    let modelImageZoomOpen = false;
     let kitDetailsModalOpen = false;
     let announcementModalOpen = false;
     let modelModalOpenAnimation = null;
     let announcementModalLastFocused = null;
     let modalLastFocusedElement = null;
-    let modelImageZoomLastFocused = null;
     let kitDetailsLastFocused = null;
 
     function syncModalBodyState() {
-        const hasOpenModal = modelModalOpen || modelImageZoomOpen || kitDetailsModalOpen || announcementModalOpen;
+        const hasOpenModal = modelModalOpen || kitDetailsModalOpen || announcementModalOpen;
         document.body.classList.toggle('catalogue-modal-open', hasOpenModal);
     }
 
@@ -3566,25 +3537,6 @@ document.addEventListener('DOMContentLoaded', function () {
         modalLastFocusedElement = null;
     }
 
-    function closeModelImageZoomModal() {
-        if (!modelImageZoomModal || !modelImageZoomOpen) return;
-
-        modelImageZoomOpen = false;
-        modelImageZoomModal.classList.remove('is-open');
-        modelImageZoomModal.hidden = true;
-        modelImageZoomModal.setAttribute('aria-hidden', 'true');
-        syncModalBodyState();
-
-        if (modelImageZoomed) {
-            modelImageZoomed.setAttribute('src', '');
-        }
-
-        if (modelImageZoomLastFocused && typeof modelImageZoomLastFocused.focus === 'function') {
-            modelImageZoomLastFocused.focus();
-        }
-        modelImageZoomLastFocused = null;
-    }
-
     function closeKitDetailsModal() {
         if (!kitDetailsModal || !kitDetailsModalOpen) return;
 
@@ -3627,27 +3579,6 @@ document.addEventListener('DOMContentLoaded', function () {
         window.requestAnimationFrame(function () {
             if (!kitDetailsModal || !kitDetailsModalOpen) return;
             kitDetailsModal.classList.add('is-open');
-        });
-    }
-
-    function openModelImageZoomModal(imageSrc, imageTitle, triggerElement) {
-        if (!modelImageZoomModal || !modelImageZoomed) return;
-        const src = String(imageSrc || '').trim();
-        if (src === '') return;
-
-        modelImageZoomLastFocused = triggerElement || document.activeElement;
-        modelImageZoomOpen = true;
-        modelImageZoomModal.hidden = false;
-        modelImageZoomModal.setAttribute('aria-hidden', 'false');
-        if (modelImageZoomTitle) {
-            modelImageZoomTitle.textContent = imageTitle ? (imageTitle + ' image') : '<?= _('Model image') ?>';
-        }
-        modelImageZoomed.setAttribute('src', src);
-        modelImageZoomed.setAttribute('alt', imageTitle ? (imageTitle + ' zoomed image') : '<?= _('Model image zoomed view') ?>');
-        syncModalBodyState();
-        window.requestAnimationFrame(function () {
-            if (!modelImageZoomModal || !modelImageZoomOpen) return;
-            modelImageZoomModal.classList.add('is-open');
         });
     }
 
@@ -4079,15 +4010,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    if (modelImageZoomModal) {
-        modelImageZoomModal.addEventListener('click', function (event) {
-            const target = event.target;
-            if (target && target.closest && target.closest('[data-image-zoom-close]')) {
-                closeModelImageZoomModal();
-            }
-        });
-    }
-
     if (kitDetailsModal) {
         kitDetailsModal.addEventListener('click', function (event) {
             const target = event.target;
@@ -4107,7 +4029,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    modelImageZoomButtons.forEach(function (button) {
+    modelImagePreviewButtons.forEach(function (button) {
         const card = button.closest('.model-card--details');
         const setImageHoverState = function (isActive) {
             if (!card) return;
@@ -4126,23 +4048,10 @@ document.addEventListener('DOMContentLoaded', function () {
         button.addEventListener('blur', function () {
             setImageHoverState(false);
         });
-        button.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            setImageHoverState(false);
-            const src = button.getAttribute('data-zoom-src') || '';
-            const title = button.getAttribute('data-zoom-title') || 'Model';
-            openModelImageZoomModal(src, title, button);
-        });
     });
 
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') {
-            return;
-        }
-        if (modelImageZoomOpen) {
-            event.preventDefault();
-            closeModelImageZoomModal();
             return;
         }
         if (kitDetailsModalOpen) {

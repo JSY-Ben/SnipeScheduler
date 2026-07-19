@@ -1,9 +1,9 @@
 (function () {
     'use strict';
 
-    const dialog = document.getElementById('staff-image-preview-dialog');
-    const previewImage = document.getElementById('staff-image-preview-image');
-    const previewTitle = document.getElementById('staff-image-preview-title');
+    const dialog = document.getElementById('image-preview-dialog');
+    const previewImage = document.getElementById('image-preview-image');
+    const previewTitle = document.getElementById('image-preview-title');
     const closeButton = dialog ? dialog.querySelector('[data-image-preview-close]') : null;
 
     if (!dialog || !previewImage || typeof dialog.showModal !== 'function') {
@@ -82,7 +82,7 @@
         event.preventDefault();
         event.stopPropagation();
         openPreview(trigger);
-    });
+    }, true);
 
     if (closeButton) {
         closeButton.addEventListener('click', closePreview);
