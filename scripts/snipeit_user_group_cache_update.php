@@ -58,7 +58,215 @@ function user_group_cache_ensure_tables(PDO $pdo): void
     ");
 }
 
+function user_avatar_cache_normalize_url(string $value, string $baseUrl): string
+{
+    $value = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($value === '') {
+        return '';
+    }
+
+    if (str_starts_with($value, '//')) {
+        $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https';
+        $value = $scheme . ':' . $value;
+    } elseif (!preg_match('#^https?://#i', $value)) {
+        if ($baseUrl === '') {
+            return '';
+        }
+        $value = rtrim($baseUrl, '/') . '/' . ltrim($value, '/');
+    }
+
+    $scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
+    return in_array($scheme, ['http', 'https'], true) ? $value : '';
+}
+
+function user_avatar_cache_remove_files(string $cacheDir, string $cacheKey, string $exceptExtension = ''): void
+{
+    foreach (['jpg', 'png', 'gif', 'webp'] as $extension) {
+        if ($extension === $exceptExtension) {
+            continue;
+        }
+        $path = $cacheDir . '/' . $cacheKey . '.' . $extension;
+        if (is_file($path) && !@unlink($path)) {
+            throw new RuntimeException('Could not remove stale avatar cache file: ' . $path);
+        }
+    }
+}
+
+function user_avatar_cache_download(string $url, string $cacheDir, string $cacheKey, bool $verifySsl): string
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_SSL_VERIFYPEER => $verifySsl,
+        CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
+        CURLOPT_USERAGENT => 'SnipeScheduler avatar cache updater',
+    ]);
+    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    }
+    if (defined('CURLOPT_REDIR_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    }
+
+    $body = curl_exec($ch);
+    if ($body === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new RuntimeException('Avatar download failed: ' . $error);
+    }
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = strtolower(trim((string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE)));
+    curl_close($ch);
+
+    if ($httpCode < 200 || $httpCode >= 300) {
+        throw new RuntimeException('Avatar download returned HTTP ' . $httpCode);
+    }
+    if (!is_string($body) || $body === '' || strlen($body) > 5 * 1024 * 1024) {
+        throw new RuntimeException('Avatar download was empty or exceeded 5 MB');
+    }
+
+    $mimeType = strtolower(trim((string)strtok($contentType, ';')));
+    if (function_exists('getimagesizefromstring')) {
+        $imageInfo = @getimagesizefromstring($body);
+        if (is_array($imageInfo) && !empty($imageInfo['mime'])) {
+            $mimeType = strtolower((string)$imageInfo['mime']);
+        }
+    }
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+    ];
+    $extension = $extensions[$mimeType] ?? '';
+    if ($extension === '') {
+        throw new RuntimeException('Avatar response was not a supported image type');
+    }
+
+    $targetPath = $cacheDir . '/' . $cacheKey . '.' . $extension;
+    if (is_file($targetPath) && hash_file('sha256', $targetPath) === hash('sha256', $body)) {
+        user_avatar_cache_remove_files($cacheDir, $cacheKey, $extension);
+        return $extension;
+    }
+
+    $temporaryPath = tempnam($cacheDir, '.avatar-');
+    if ($temporaryPath === false || file_put_contents($temporaryPath, $body, LOCK_EX) === false) {
+        throw new RuntimeException('Could not write temporary avatar cache file');
+    }
+    @chmod($temporaryPath, 0644);
+    if (!@rename($temporaryPath, $targetPath)) {
+        @unlink($temporaryPath);
+        throw new RuntimeException('Could not publish avatar cache file');
+    }
+    user_avatar_cache_remove_files($cacheDir, $cacheKey, $extension);
+
+    return $extension;
+}
+
+function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, callable $logErr): array
+{
+    $cacheDir = APP_ROOT . '/cache/user_avatars';
+    if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0755, true) && !is_dir($cacheDir)) {
+        throw new RuntimeException('Could not create avatar cache directory: ' . $cacheDir);
+    }
+
+    $localEmails = [];
+    $rows = $pdo->query("
+        SELECT email
+          FROM users
+         WHERE email IS NOT NULL AND TRIM(email) <> ''
+        UNION
+        SELECT user_email AS email
+          FROM reservations
+         WHERE user_email IS NOT NULL AND TRIM(user_email) <> ''
+    ")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($rows as $email) {
+        $email = strtolower(trim((string)$email));
+        if ($email !== '') {
+            $localEmails[$email] = hash('sha256', $email);
+        }
+    }
+
+    foreach (glob($cacheDir . '/*') ?: [] as $cachedPath) {
+        $basename = basename($cachedPath);
+        if (preg_match('/^([a-f0-9]{64})\.(?:jpg|png|gif|webp)$/', $basename, $matches)
+            && !in_array($matches[1], $localEmails, true)) {
+            @unlink($cachedPath);
+        }
+    }
+
+    if ($localEmails === []) {
+        return ['local_users' => 0, 'matched' => 0, 'downloaded' => 0, 'failed' => 0];
+    }
+
+    $snipeCfg = $config['snipeit'] ?? [];
+    $baseUrl = rtrim((string)($snipeCfg['base_url'] ?? ''), '/');
+    $verifySsl = !empty($snipeCfg['verify_ssl']);
+    $limit = 500;
+    $offset = 0;
+    $matched = 0;
+    $downloaded = 0;
+    $failed = 0;
+
+    do {
+        $data = snipeit_request('GET', 'users', ['limit' => $limit, 'offset' => $offset], false);
+        $users = is_array($data['rows'] ?? null) ? $data['rows'] : [];
+        foreach ($users as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
+            $email = strtolower(trim((string)($user['email'] ?? '')));
+            if ($email === '' || !isset($localEmails[$email])) {
+                continue;
+            }
+            $matched++;
+            $cacheKey = $localEmails[$email];
+            $avatarUrl = user_avatar_cache_normalize_url((string)($user['avatar'] ?? ''), $baseUrl);
+            if ($avatarUrl === '') {
+                user_avatar_cache_remove_files($cacheDir, $cacheKey);
+                continue;
+            }
+
+            try {
+                user_avatar_cache_download($avatarUrl, $cacheDir, $cacheKey, $verifySsl);
+                $downloaded++;
+            } catch (Throwable $e) {
+                $failed++;
+                $logErr('Could not cache avatar for ' . $email . ': ' . $e->getMessage());
+            }
+        }
+
+        if (count($users) < $limit) {
+            break;
+        }
+        $offset += $limit;
+    } while (true);
+
+    return [
+        'local_users' => count($localEmails),
+        'matched' => $matched,
+        'downloaded' => $downloaded,
+        'failed' => $failed,
+    ];
+}
+
 $logOut('info', 'Snipe-IT user group cache sync started');
+
+try {
+    $avatarStats = user_avatar_cache_sync($pdo, $config, $logOut, $logErr);
+    $logOut(
+        'info',
+        'Snipe-IT avatar cache sync complete: local_users=' . $avatarStats['local_users']
+        . ', matched=' . $avatarStats['matched']
+        . ', downloaded=' . $avatarStats['downloaded']
+        . ', failed=' . $avatarStats['failed']
+    );
+} catch (Throwable $e) {
+    $logErr('Avatar cache sync failed: ' . $e->getMessage());
+}
 
 try {
     user_group_cache_ensure_tables($pdo);

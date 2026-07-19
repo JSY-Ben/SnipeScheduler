@@ -128,50 +128,25 @@ if (!function_exists('layout_snipeit_avatar_from_user')) {
     }
 }
 
-if (!function_exists('layout_snipeit_avatar_for_email')) {
-    function layout_snipeit_avatar_for_email(string $email, ?array $cfg = null): string
+if (!function_exists('layout_cached_user_avatar_url')) {
+    function layout_cached_user_avatar_url(string $email): string
     {
-        static $requestCache = [];
         $email = strtolower(trim($email));
         if ($email === '') {
             return '';
         }
-        if (array_key_exists($email, $requestCache)) {
-            return $requestCache[$email];
-        }
 
-        $sessionKey = 'snipeit_avatar_' . sha1($email);
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            $cached = $_SESSION[$sessionKey] ?? null;
-            if (is_array($cached) && (int)($cached['expires'] ?? 0) >= time()) {
-                return $requestCache[$email] = (string)($cached['url'] ?? '');
+        $cacheKey = hash('sha256', $email);
+        $cacheDir = APP_ROOT . '/cache/user_avatars';
+        foreach (['jpg', 'png', 'gif', 'webp'] as $extension) {
+            $cachedPath = $cacheDir . '/' . $cacheKey . '.' . $extension;
+            if (is_file($cachedPath)) {
+                return 'image_proxy.php?avatar_cache=' . rawurlencode($cacheKey)
+                    . '&v=' . rawurlencode((string)(filemtime($cachedPath) ?: 0));
             }
         }
 
-        $avatar = '';
-        try {
-            require_once SRC_PATH . '/snipeit_client.php';
-            $response = snipeit_request('GET', 'users', ['email' => $email, 'limit' => 20], false);
-            $rows = is_array($response['rows'] ?? null) ? $response['rows'] : [];
-            $matchedUser = null;
-            foreach ($rows as $row) {
-                if (is_array($row) && strtolower(trim((string)($row['email'] ?? ''))) === $email) {
-                    $matchedUser = $row;
-                    break;
-                }
-            }
-            if (is_array($matchedUser)) {
-                $avatar = layout_snipeit_avatar_from_user($matchedUser, $cfg);
-            }
-        } catch (Throwable $e) {
-            $avatar = '';
-        }
-
-        $requestCache[$email] = $avatar;
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            $_SESSION[$sessionKey] = ['url' => $avatar, 'expires' => time() + 300];
-        }
-        return $avatar;
+        return '';
     }
 }
 
@@ -180,10 +155,7 @@ if (!function_exists('layout_user_avatar')) {
     {
         $name = layout_user_display_name($user);
         $email = trim((string)($user['email'] ?? ''));
-        $avatar = layout_snipeit_avatar_from_user($user, $cfg);
-        if ($avatar === '' && $email !== '') {
-            $avatar = layout_snipeit_avatar_for_email($email, $cfg);
-        }
+        $avatar = layout_cached_user_avatar_url($email);
 
         $initials = layout_html_escape(layout_user_initials($name));
         $fallback = '<span class="user-avatar user-avatar--initials" aria-hidden="true">' . $initials . '</span>';
@@ -191,11 +163,7 @@ if (!function_exists('layout_user_avatar')) {
             return $fallback;
         }
 
-        $config = layout_cached_config($cfg);
-        $proxySignature = hash_hmac('sha256', $avatar, (string)($config['snipeit']['api_token'] ?? ''));
-        $proxiedAvatar = 'image_proxy.php?src=' . rawurlencode($avatar)
-            . '&avatar=1&sig=' . rawurlencode($proxySignature);
-        $escapedAvatar = layout_html_escape($proxiedAvatar);
+        $escapedAvatar = layout_html_escape($avatar);
         $escapedName = layout_html_escape($name);
         return '<button type="button" class="user-avatar-button" data-user-avatar data-image-preview'
             . ' data-image-src="' . $escapedAvatar . '" data-image-title="' . $escapedName . ' profile photo"'

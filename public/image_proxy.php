@@ -1,14 +1,14 @@
 <?php
 // image_proxy.php
 //
-// Simple, locked-down proxy for Snipe-IT images and signed user avatars.
+// Simple, locked-down proxy for Snipe-IT images and cached user avatars.
 // Accepts either:
 //   ?src=/uploads/models/...
 // or
 //   ?src=https://snipeit.example.com/uploads/models/...
 //
-// Normal images must point at the configured Snipe-IT host. Avatar URLs may
-// point at an external host only when signed by the application.
+// Remote images must point at the configured Snipe-IT host. User avatars are
+// served only from the local cache populated by the scheduled sync script.
 
 require_once __DIR__ . '/../src/bootstrap.php';
 
@@ -16,12 +16,49 @@ $config   = load_config();
 $snipeCfg = $config['snipeit'] ?? [];
 
 $baseUrl   = rtrim($snipeCfg['base_url'] ?? '', '/');
-$apiToken  = (string)($snipeCfg['api_token'] ?? '');
 $verifySsl = !empty($snipeCfg['verify_ssl']);
 
 // ---------------------------------------------------------------------
 // Validate input
 // ---------------------------------------------------------------------
+$avatarCacheKey = strtolower(trim((string)($_GET['avatar_cache'] ?? '')));
+if ($avatarCacheKey !== '') {
+    if (!preg_match('/^[a-f0-9]{64}$/', $avatarCacheKey)) {
+        http_response_code(400);
+        echo 'Invalid avatar cache key';
+        exit;
+    }
+
+    $avatarCacheDir = APP_ROOT . '/cache/user_avatars';
+    $avatarPath = '';
+    $avatarTypes = [
+        'jpg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+    foreach ($avatarTypes as $extension => $mimeType) {
+        $candidate = $avatarCacheDir . '/' . $avatarCacheKey . '.' . $extension;
+        if (is_file($candidate)) {
+            $avatarPath = $candidate;
+            $contentType = $mimeType;
+            break;
+        }
+    }
+
+    if ($avatarPath === '') {
+        http_response_code(404);
+        echo 'Avatar not found';
+        exit;
+    }
+
+    header('Content-Type: ' . $contentType);
+    header('Content-Length: ' . (string)filesize($avatarPath));
+    header('Cache-Control: public, max-age=86400');
+    readfile($avatarPath);
+    exit;
+}
+
 $srcParam = $_GET['src'] ?? '';
 
 if ($srcParam === '') {
@@ -33,7 +70,6 @@ if ($srcParam === '') {
 // PHP has already URL-decoded query parameters once. Decoding again would
 // corrupt legitimate percent-encoded characters in upstream image URLs.
 $src = (string)$srcParam;
-$isSignedAvatar = isset($_GET['avatar']) && (string)$_GET['avatar'] === '1';
 
 // Build full URL
 if (preg_match('#^https?://#i', $src)) {
@@ -56,13 +92,8 @@ $baseHost = parse_url($baseUrl, PHP_URL_HOST);
 $srcHost  = parse_url($url, PHP_URL_HOST);
 $srcScheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
 $hostMatchesSnipeIt = $baseHost && $srcHost && strcasecmp($baseHost, $srcHost) === 0;
-$avatarSignature = trim((string)($_GET['sig'] ?? ''));
-$expectedAvatarSignature = $apiToken !== '' ? hash_hmac('sha256', $url, $apiToken) : '';
-$hasValidAvatarSignature = $isSignedAvatar
-    && $expectedAvatarSignature !== ''
-    && hash_equals($expectedAvatarSignature, $avatarSignature);
 
-if (!in_array($srcScheme, ['http', 'https'], true) || (!$hostMatchesSnipeIt && !$hasValidAvatarSignature)) {
+if (!in_array($srcScheme, ['http', 'https'], true) || !$hostMatchesSnipeIt) {
     http_response_code(400);
     echo 'Invalid src parameter';
     exit;
