@@ -230,8 +230,7 @@ try {
         <div class="top-bar mb-3">
             <div class="top-bar-user">
                 Logged in as:
-                <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
-                (<?= h($currentUser['email'] ?? '') ?>)
+                <?= layout_user_identity($currentUser, true) ?>
             </div>
             <div class="top-bar-actions">
                 <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
@@ -389,7 +388,12 @@ try {
                                     <tr>
                                         <td class="text-nowrap"><?= h($displayTime) ?></td>
                                         <td><?= h($eventLabel) ?></td>
-                                        <td><?= h($actorLabel) ?></td>
+                                        <td><?= trim((string)($row['actor_email'] ?? '')) !== ''
+                                            ? layout_user_identity_by_email(
+                                                $actorLabel,
+                                                (string)($row['actor_email'] ?? '')
+                                            )
+                                            : h($actorLabel) ?></td>
                                         <td>
                                             <div class="fw-semibold"><?= h((string)($row['message'] ?? '')) ?></div>
                                             <?php if ($subjectDetailHtml !== ''): ?>

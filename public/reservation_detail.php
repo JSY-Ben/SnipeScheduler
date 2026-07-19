@@ -97,8 +97,7 @@ if (!$showStaffView) {
         <div class="top-bar mb-3">
             <div class="top-bar-user">
                 Logged in as:
-                <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
-                (<?= h($currentUser['email'] ?? '') ?>)
+                <?= layout_user_identity($currentUser, true) ?>
             </div>
             <div class="top-bar-actions">
                 <a href="<?= h($backHref) ?>" class="btn btn-outline-secondary btn-sm"><?= h($backLabel) ?></a>
@@ -111,7 +110,11 @@ if (!$showStaffView) {
                 <h5 class="card-title">Booking information</h5>
                 <p class="card-text">
                     <strong>User Name:</strong>
-                    <?= h($reservation['user_name'] ?? '(Unknown)') ?><br>
+                    <?= layout_user_identity_by_email(
+                        (string)($reservation['user_name'] ?? '(Unknown)'),
+                        (string)($reservation['user_email'] ?? ''),
+                        true
+                    ) ?><br>
 
                     <strong>Start:</strong>
                     <?= display_datetime($reservation['start_datetime'] ?? '') ?><br>

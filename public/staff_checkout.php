@@ -1240,8 +1240,7 @@ $active  = basename($_SERVER['PHP_SELF']);
             <div class="top-bar mb-3">
                 <div class="top-bar-user">
                     Logged in as:
-                    <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
-                    (<?= h($currentUser['email'] ?? '') ?>)
+                    <?= layout_user_identity($currentUser, true) ?>
                 </div>
                 <div class="top-bar-actions">
                     <a href="logout.php" class="btn btn-link btn-sm">Log out</a>
@@ -1304,7 +1303,11 @@ $active  = basename($_SERVER['PHP_SELF']);
 
                 <?php if ($selectedReservation): ?>
                     <div class="mt-3 alert alert-info mb-0">
-                        <div><strong>Selected:</strong> #<?= (int)$selectedReservation['id'] ?> – <?= h($selectedReservation['user_name'] ?? '') ?></div>
+                        <div><strong>Selected:</strong> #<?= (int)$selectedReservation['id'] ?> – <?= layout_user_identity_by_email(
+                            (string)($selectedReservation['user_name'] ?? ''),
+                            (string)($selectedReservation['user_email'] ?? ''),
+                            true
+                        ) ?></div>
                         <div>When: <?= h(display_datetime($selectedReservation['start_datetime'] ?? '')) ?> → <?= h(display_datetime($selectedReservation['end_datetime'] ?? '')) ?></div>
                         <?php if (!empty($selectedItems)): ?>
                             <div>Items &amp; quantities: <?= h(build_items_summary_text($selectedItems)) ?></div>
@@ -1341,8 +1344,11 @@ $active  = basename($_SERVER['PHP_SELF']);
                                         <?php foreach (($conflict['overlaps'] ?? []) as $overlap): ?>
                                             <br>
                                             Reservation #<?= (int)($overlap['id'] ?? 0) ?>:
-                                            <?= h((string)($overlap['user_name'] ?? 'Unknown user')) ?>
-                                            (<?= h((string)($overlap['user_email'] ?? '')) ?>),
+                                            <?= layout_user_identity_by_email(
+                                                (string)($overlap['user_name'] ?? 'Unknown user'),
+                                                (string)($overlap['user_email'] ?? ''),
+                                                true
+                                            ) ?>,
                                             <?= h(display_datetime($overlap['start_datetime'] ?? '')) ?>
                                             → <?= h(display_datetime($overlap['end_datetime'] ?? '')) ?>,
                                             qty <?= (int)($overlap['quantity'] ?? 0) ?>.

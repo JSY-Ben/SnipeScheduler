@@ -54,6 +54,176 @@ if (!function_exists('layout_html_escape')) {
     }
 }
 
+if (!function_exists('layout_user_display_name')) {
+    function layout_user_display_name(array $user): string
+    {
+        $fullName = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+        foreach ([$fullName, $user['name'] ?? '', $user['display_name'] ?? '', $user['username'] ?? '', $user['email'] ?? ''] as $candidate) {
+            $candidate = trim((string)$candidate);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return 'User';
+    }
+}
+
+if (!function_exists('layout_user_initials')) {
+    function layout_user_initials(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return 'U';
+        }
+
+        $parts = preg_split('/[\s@._-]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $firstCharacter = static function (string $value): string {
+            return function_exists('mb_substr') ? mb_substr($value, 0, 1, 'UTF-8') : substr($value, 0, 1);
+        };
+        $initials = $firstCharacter((string)($parts[0] ?? $name));
+        if (count($parts) > 1) {
+            $initials .= $firstCharacter((string)$parts[count($parts) - 1]);
+        }
+
+        return function_exists('mb_strtoupper') ? mb_strtoupper($initials, 'UTF-8') : strtoupper($initials);
+    }
+}
+
+if (!function_exists('layout_normalize_snipeit_avatar_url')) {
+    function layout_normalize_snipeit_avatar_url(string $value, ?array $cfg = null): string
+    {
+        $value = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($value === '') {
+            return '';
+        }
+
+        $baseUrl = rtrim((string)(layout_cached_config($cfg)['snipeit']['base_url'] ?? ''), '/');
+        if (str_starts_with($value, '//')) {
+            $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https';
+            $value = $scheme . ':' . $value;
+        } elseif (!preg_match('#^https?://#i', $value)) {
+            if ($baseUrl === '') {
+                return '';
+            }
+            $value = $baseUrl . '/' . ltrim($value, '/');
+        }
+
+        $scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
+        return in_array($scheme, ['http', 'https'], true) ? $value : '';
+    }
+}
+
+if (!function_exists('layout_snipeit_avatar_from_user')) {
+    function layout_snipeit_avatar_from_user(array $user, ?array $cfg = null): string
+    {
+        foreach (['avatar', 'avatar_url', 'profile_photo_url', 'image'] as $field) {
+            $avatar = layout_normalize_snipeit_avatar_url((string)($user[$field] ?? ''), $cfg);
+            if ($avatar !== '') {
+                return $avatar;
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('layout_snipeit_avatar_for_email')) {
+    function layout_snipeit_avatar_for_email(string $email, ?array $cfg = null): string
+    {
+        static $requestCache = [];
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return '';
+        }
+        if (array_key_exists($email, $requestCache)) {
+            return $requestCache[$email];
+        }
+
+        $sessionKey = 'snipeit_avatar_' . sha1($email);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $cached = $_SESSION[$sessionKey] ?? null;
+            if (is_array($cached) && (int)($cached['expires'] ?? 0) >= time()) {
+                return $requestCache[$email] = (string)($cached['url'] ?? '');
+            }
+        }
+
+        $avatar = '';
+        try {
+            require_once SRC_PATH . '/snipeit_client.php';
+            $response = snipeit_request('GET', 'users', ['email' => $email, 'limit' => 20], false);
+            $rows = is_array($response['rows'] ?? null) ? $response['rows'] : [];
+            $matchedUser = null;
+            foreach ($rows as $row) {
+                if (is_array($row) && strtolower(trim((string)($row['email'] ?? ''))) === $email) {
+                    $matchedUser = $row;
+                    break;
+                }
+            }
+            if (is_array($matchedUser)) {
+                $avatar = layout_snipeit_avatar_from_user($matchedUser, $cfg);
+            }
+        } catch (Throwable $e) {
+            $avatar = '';
+        }
+
+        $requestCache[$email] = $avatar;
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION[$sessionKey] = ['url' => $avatar, 'expires' => time() + 300];
+        }
+        return $avatar;
+    }
+}
+
+if (!function_exists('layout_user_avatar')) {
+    function layout_user_avatar(array $user, ?array $cfg = null): string
+    {
+        $name = layout_user_display_name($user);
+        $email = trim((string)($user['email'] ?? ''));
+        $avatar = layout_snipeit_avatar_from_user($user, $cfg);
+        if ($avatar === '' && $email !== '') {
+            $avatar = layout_snipeit_avatar_for_email($email, $cfg);
+        }
+
+        $initials = layout_html_escape(layout_user_initials($name));
+        $fallback = '<span class="user-avatar user-avatar--initials" aria-hidden="true">' . $initials . '</span>';
+        if ($avatar === '') {
+            return $fallback;
+        }
+
+        $escapedAvatar = layout_html_escape($avatar);
+        $escapedName = layout_html_escape($name);
+        return '<button type="button" class="user-avatar-button" data-user-avatar data-image-preview'
+            . ' data-image-src="' . $escapedAvatar . '" data-image-title="' . $escapedName . ' profile photo"'
+            . ' aria-label="View full profile photo for ' . $escapedName . '" aria-haspopup="dialog">'
+            . $fallback
+            . '<img class="user-avatar user-avatar--image" src="' . $escapedAvatar . '" alt="" loading="lazy"'
+            . ' referrerpolicy="no-referrer" data-user-avatar-image>'
+            . '</button>';
+    }
+}
+
+if (!function_exists('layout_user_identity')) {
+    function layout_user_identity(array $user, bool $showEmail = false, ?array $cfg = null): string
+    {
+        $name = layout_user_display_name($user);
+        $email = trim((string)($user['email'] ?? ''));
+        $html = '<span class="user-identity">' . layout_user_avatar($user, $cfg)
+            . '<span class="user-identity__text"><strong>' . layout_html_escape($name) . '</strong>';
+        if ($showEmail && $email !== '' && strcasecmp($email, $name) !== 0) {
+            $html .= '<span class="user-identity__email">' . layout_html_escape($email) . '</span>';
+        }
+        return $html . '</span></span>';
+    }
+}
+
+if (!function_exists('layout_user_identity_by_email')) {
+    function layout_user_identity_by_email(string $name, string $email, bool $showEmail = false, ?array $cfg = null): string
+    {
+        return layout_user_identity(['name' => trim($name), 'email' => trim($email)], $showEmail, $cfg);
+    }
+}
+
 if (!function_exists('layout_upgrade_description_from_sql')) {
     function layout_upgrade_description_from_sql(string $path, string $version): string
     {

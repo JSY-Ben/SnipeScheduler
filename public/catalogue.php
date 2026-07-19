@@ -1649,8 +1649,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <?php if ($isAuthenticated): ?>
                 <div class="top-bar-user">
                     <?= _('Logged in as:') ?>
-                    <strong><?= htmlspecialchars(trim((string)$currentUser['first_name'] . ' ' . (string)$currentUser['last_name'])) ?></strong>
-                    (<?= htmlspecialchars((string)$currentUser['email']) ?>)
+                    <?= layout_user_identity($currentUser, true) ?>
                 </div>
                 <div class="top-bar-actions d-flex gap-2">
                     <a href="basket.php"
@@ -1679,10 +1678,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
             <div class="alert alert-info d-flex flex-column flex-md-row align-items-md-center justify-content-md-between booking-for-alert">
                 <div class="mb-2 mb-md-0">
                     <strong><?= _('Booking for:') ?></strong>
-                    <?= h($activeUser['email'] ?? '') ?>
-                    <?php if (!empty($activeUser['first_name'])): ?>
-                        (<?= h(trim(($activeUser['first_name'] ?? '') . ' ' . ($activeUser['last_name'] ?? ''))) ?>)
-                    <?php endif; ?>
+                    <?= layout_user_identity($activeUser, true) ?>
                 </div>
                 <form method="post" id="booking_user_form" class="d-flex gap-2 mb-0 flex-wrap position-relative" style="z-index: 9998;">
                     <input type="hidden" name="mode" value="set_booking_user">

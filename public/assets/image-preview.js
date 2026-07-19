@@ -13,6 +13,30 @@
     let lastTrigger = null;
     let restoreTriggerFocus = false;
 
+    const disableBrokenAvatar = function (avatarImage) {
+        const trigger = avatarImage.closest('[data-user-avatar]');
+        avatarImage.remove();
+        if (!trigger) {
+            return;
+        }
+        trigger.removeAttribute('data-image-preview');
+        trigger.removeAttribute('data-image-src');
+        trigger.removeAttribute('data-image-title');
+        trigger.removeAttribute('aria-haspopup');
+        trigger.removeAttribute('aria-label');
+        trigger.disabled = true;
+        trigger.style.cursor = 'default';
+    };
+
+    document.querySelectorAll('[data-user-avatar-image]').forEach(function (avatarImage) {
+        avatarImage.addEventListener('error', function () {
+            disableBrokenAvatar(avatarImage);
+        }, { once: true });
+        if (avatarImage.complete && avatarImage.naturalWidth === 0) {
+            disableBrokenAvatar(avatarImage);
+        }
+    });
+
     const imageForTrigger = function (trigger) {
         if (trigger instanceof HTMLImageElement) {
             return trigger;

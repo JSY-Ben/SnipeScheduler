@@ -175,8 +175,7 @@ if (!empty($_GET['cancelled'])) {
         <div class="top-bar mb-3">
             <div class="top-bar-user">
                 <?= _('Logged in as:') ?>
-                <strong><?= h($userName) ?></strong>
-                (<?= h($currentUser['email'] ?? '') ?>)
+                <?= layout_user_identity($currentUser, true) ?>
             </div>
             <div class="top-bar-actions">
                 <a href="logout.php" class="btn btn-link btn-sm"><?= _('Log out') ?></a>

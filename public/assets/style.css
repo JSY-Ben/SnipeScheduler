@@ -455,6 +455,79 @@ input[type="checkbox"] {
     z-index: 50;
 }
 
+.user-identity {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+    vertical-align: middle;
+}
+
+.user-identity__text {
+    display: inline-flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.user-identity__email {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+
+.user-avatar,
+.user-avatar-button {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 50%;
+}
+
+.user-avatar {
+    border: 2px solid rgba(var(--primary-rgb), 0.22);
+    background: #fff;
+    object-fit: cover;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
+}
+
+.user-avatar--initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+.user-avatar-button {
+    position: relative;
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+}
+
+.user-avatar-button .user-avatar {
+    position: absolute;
+    inset: 0;
+}
+
+.user-avatar-button:hover .user-avatar--image,
+.user-avatar-button:focus-visible .user-avatar--image {
+    border-color: var(--primary);
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.28);
+}
+
+.user-avatar-button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
+
 .page-header {
     margin-bottom: 1rem;
     text-align: center;

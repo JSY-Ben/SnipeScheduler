@@ -2047,8 +2047,11 @@ if ($selectorTab === 'accessories') {
                                             <strong><?= h(qc_checkout_entry_display_label($entry)) ?></strong>
                                             <div class="small text-muted">
                                                 <?php foreach ($reservationConflicts[$entryKey] as $conf): ?>
-                                                    Reserved by <?= h($conf['user_name'] ?? 'Unknown') ?>
-                                                    (<?= h($conf['user_email'] ?? '') ?>)
+                                                    Reserved by <?= layout_user_identity_by_email(
+                                                        (string)($conf['user_name'] ?? 'Unknown'),
+                                                        (string)($conf['user_email'] ?? ''),
+                                                        true
+                                                    ) ?>
                                                     from <?= h(qc_display_datetime($conf['start_datetime'] ?? '')) ?>
                                                     to <?= h(qc_display_datetime($conf['end_datetime'] ?? '')) ?>.
                                                     Quantity: <?= (int)($conf['quantity'] ?? 0) ?>.

@@ -219,8 +219,7 @@ if (!empty($basket)) {
         <div class="top-bar mb-3">
             <div class="top-bar-user">
                 <?= _('Logged in as:') ?>
-                <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
-                (<?= h($currentUser['email'] ?? '') ?>)
+                <?= layout_user_identity($currentUser, true) ?>
             </div>
             <div class="top-bar-actions">
                 <a href="<?= h($catalogueBackUrl) ?>" class="btn btn-outline-primary">

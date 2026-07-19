@@ -343,7 +343,16 @@ function qci_render_checkin_list(array $checkinItems, string $activeTab, string 
                                     </td>
                                     <td><?= h($item['name'] ?? '') ?></td>
                                     <td><?= h($item['model'] ?? '') ?></td>
-                                    <td><?= h(qci_checkin_item_assigned_label($item)) ?></td>
+                                    <td>
+                                        <?php if (trim((string)($item['assigned_name'] ?? $item['assigned_email'] ?? '')) !== ''): ?>
+                                            <?= layout_user_identity_by_email(
+                                                (string)($item['assigned_name'] ?? ''),
+                                                (string)($item['assigned_email'] ?? '')
+                                            ) ?>
+                                        <?php else: ?>
+                                            <?= h(qci_checkin_item_assigned_label($item)) ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <a href="quick_checkin.php?remove=<?= h((string)$itemKey) ?>&tab=<?= h($activeTab) ?>"
                                            class="btn btn-sm btn-outline-danger">
@@ -1237,7 +1246,10 @@ if ($selectorTab === 'accessories') {
                                                         $assignedLabel = '';
                                                     }
                                                 ?>
-                                                <td><?= h($assignedLabel) ?></td>
+                                                <td><?= $assignedLabel !== '' ? layout_user_identity_by_email(
+                                                    (string)($assigned['name'] ?? $assignedLabel),
+                                                    (string)($assigned['email'] ?? '')
+                                                ) : '' ?></td>
                                                 <td><?= h(app_format_datetime($accessory['last_checkout'] ?? '')) ?></td>
                                                 <td>
                                                     <button type="submit"

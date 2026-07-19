@@ -306,6 +306,19 @@ function checked_out_row_user_display(array $row): string
     return trim((string)$user);
 }
 
+function checked_out_row_user_email(array $row): string
+{
+    $user = $row['assigned_to'] ?? [];
+    if (is_array($user)) {
+        $email = trim((string)($user['email'] ?? ''));
+        if ($email !== '') {
+            return $email;
+        }
+    }
+
+    return trim((string)($row['assigned_to_email'] ?? ''));
+}
+
 function checked_out_parse_bulk_selection($rawItems): array
 {
     $items = is_array($rawItems) ? $rawItems : [];
@@ -922,6 +935,7 @@ function layout_checked_out_url(string $base, array $params): string
                                     $name = checked_out_row_name($a);
                                     $details = checked_out_row_details($a);
                                     $user = checked_out_row_user_display($a);
+                                    $userEmail = checked_out_row_user_email($a);
                                     $assignedQty = max(1, (int)($a['assigned_qty'] ?? 1));
                                     $checkedOut = $a['_last_checkout_norm'] ?? ($a['last_checkout'] ?? '');
                                     $expected   = $a['_expected_checkin_norm'] ?? ($a['expected_checkin'] ?? '');
@@ -974,7 +988,7 @@ function layout_checked_out_url(string $base, array $params): string
                                         </div>
                                     </td>
                                     <td><?= h($details) ?></td>
-                                    <td><?= h($user) ?></td>
+                                    <td><?= $user !== '' ? layout_user_identity_by_email($user, $userEmail) : '' ?></td>
                                     <td><?= h(format_display_datetime($checkedOut)) ?></td>
                                     <td class="<?= $isOverdue ? 'text-danger fw-semibold' : '' ?>">
                                         <?= h(format_display_datetime($expected)) ?>

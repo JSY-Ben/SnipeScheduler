@@ -466,8 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="top-bar mb-3">
             <div class="top-bar-user">
                 Logged in as:
-                <strong><?= h(trim(($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? ''))) ?></strong>
-                (<?= h($currentUser['email'] ?? '') ?>)
+                <?= layout_user_identity($currentUser, true) ?>
             </div>
             <div class="top-bar-actions">
                 <?php $backLabel = $fromMy ? 'Back to My Reservations' : 'Back to reservations'; ?>
