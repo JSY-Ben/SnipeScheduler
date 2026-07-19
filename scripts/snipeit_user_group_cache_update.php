@@ -93,13 +93,22 @@ function user_avatar_cache_publish_mapping(string $cacheDir, string $cacheKey, s
         throw new RuntimeException('Invalid avatar blob filename');
     }
 
+    $mappingPath = $cacheDir . '/' . $cacheKey . '.json';
+    if (is_file($mappingPath)) {
+        $existingMapping = json_decode((string)@file_get_contents($mappingPath), true);
+        $existingBlob = is_array($existingMapping) ? trim((string)($existingMapping['blob'] ?? '')) : '';
+        if (hash_equals($blob, $existingBlob)) {
+            return;
+        }
+    }
+
     $temporaryPath = tempnam($cacheDir, '.mapping-');
     $payload = json_encode(['blob' => $blob], JSON_UNESCAPED_SLASHES);
     if ($temporaryPath === false || $payload === false || file_put_contents($temporaryPath, $payload, LOCK_EX) === false) {
         throw new RuntimeException('Could not write temporary avatar mapping');
     }
     @chmod($temporaryPath, 0644);
-    if (!@rename($temporaryPath, $cacheDir . '/' . $cacheKey . '.json')) {
+    if (!@rename($temporaryPath, $mappingPath)) {
         @unlink($temporaryPath);
         throw new RuntimeException('Could not publish avatar cache mapping');
     }
