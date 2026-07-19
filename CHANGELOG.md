@@ -1,5 +1,22 @@
 # Changelog
 
+## [v1.7.7](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.7) - 19/07/2026
+
+### Pagination
+
+- Long pagination lists on the All Reservations page are now truncated around the current page, preventing the page links from extending beyond the available space.
+
+### Image previews
+
+- Equipment thumbnails throughout the staff pages are now clickable and open the full-size image in a modal window.
+
+### Snipe-IT user avatars
+
+- Added Snipe-IT user avatars beside user identities across the Dashboard, Catalogue, reservation pages, staff checkout/check-in pages, checked-out equipment listings, Activity Log and other staff/admin sections.
+- Avatars can be clicked to open the full-size image just as equipment image previews mentioned above. Users without an avatar will fall back to generated user initials.
+- The `snipeit_user_group_cache_update.php` cron script now caches avatars for users by downloading the avatars of all people who have a user entry in SnipeScheduler, removing slow page-load avatar API requests.
+
+
 ## [v1.7.6](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.6) - 18/07/2026
 
 With this version, the admin will be warned when logging in after updating the files that you will need to run an upgrade script as it requires new database schema in order to work correctly. However, if you'd prefer to do this manually, please do the following:
