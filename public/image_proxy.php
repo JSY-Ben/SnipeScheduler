@@ -30,29 +30,27 @@ if ($avatarCacheKey !== '') {
     }
 
     $avatarCacheDir = APP_ROOT . '/cache/user_avatars';
-    $avatarPath = '';
     $avatarTypes = [
         'jpg' => 'image/jpeg',
         'png' => 'image/png',
         'gif' => 'image/gif',
         'webp' => 'image/webp',
     ];
-    foreach ($avatarTypes as $extension => $mimeType) {
-        $candidate = $avatarCacheDir . '/' . $avatarCacheKey . '.' . $extension;
-        if (is_file($candidate)) {
-            $avatarPath = $candidate;
-            $contentType = $mimeType;
-            break;
-        }
-    }
+    $mappingPath = $avatarCacheDir . '/' . $avatarCacheKey . '.json';
+    $mapping = is_file($mappingPath) ? json_decode((string)@file_get_contents($mappingPath), true) : null;
+    $blob = is_array($mapping) ? trim((string)($mapping['blob'] ?? '')) : '';
+    $extension = strtolower((string)pathinfo($blob, PATHINFO_EXTENSION));
+    $avatarPath = preg_match('/^[a-f0-9]{64}\.(?:jpg|png|gif|webp)$/', $blob)
+        ? $avatarCacheDir . '/' . $blob
+        : '';
 
-    if ($avatarPath === '') {
+    if ($avatarPath === '' || !is_file($avatarPath) || !isset($avatarTypes[$extension])) {
         http_response_code(404);
         echo 'Avatar not found';
         exit;
     }
 
-    header('Content-Type: ' . $contentType);
+    header('Content-Type: ' . $avatarTypes[$extension]);
     header('Content-Length: ' . (string)filesize($avatarPath));
     header('Cache-Control: public, max-age=86400');
     readfile($avatarPath);

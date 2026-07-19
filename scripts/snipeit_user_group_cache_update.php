@@ -79,20 +79,63 @@ function user_avatar_cache_normalize_url(string $value, string $baseUrl): string
     return in_array($scheme, ['http', 'https'], true) ? $value : '';
 }
 
-function user_avatar_cache_remove_files(string $cacheDir, string $cacheKey, string $exceptExtension = ''): void
+function user_avatar_cache_remove_mapping(string $cacheDir, string $cacheKey): void
 {
-    foreach (['jpg', 'png', 'gif', 'webp'] as $extension) {
-        if ($extension === $exceptExtension) {
-            continue;
-        }
-        $path = $cacheDir . '/' . $cacheKey . '.' . $extension;
-        if (is_file($path) && !@unlink($path)) {
-            throw new RuntimeException('Could not remove stale avatar cache file: ' . $path);
-        }
+    $mappingPath = $cacheDir . '/' . $cacheKey . '.json';
+    if (is_file($mappingPath) && !@unlink($mappingPath)) {
+        throw new RuntimeException('Could not remove avatar cache mapping: ' . $mappingPath);
     }
 }
 
-function user_avatar_cache_download(string $url, string $cacheDir, string $cacheKey, bool $verifySsl): string
+function user_avatar_cache_publish_mapping(string $cacheDir, string $cacheKey, string $blob): void
+{
+    if (!preg_match('/^[a-f0-9]{64}\.(?:jpg|png|gif|webp)$/', $blob)) {
+        throw new RuntimeException('Invalid avatar blob filename');
+    }
+
+    $temporaryPath = tempnam($cacheDir, '.mapping-');
+    $payload = json_encode(['blob' => $blob], JSON_UNESCAPED_SLASHES);
+    if ($temporaryPath === false || $payload === false || file_put_contents($temporaryPath, $payload, LOCK_EX) === false) {
+        throw new RuntimeException('Could not write temporary avatar mapping');
+    }
+    @chmod($temporaryPath, 0644);
+    if (!@rename($temporaryPath, $cacheDir . '/' . $cacheKey . '.json')) {
+        @unlink($temporaryPath);
+        throw new RuntimeException('Could not publish avatar cache mapping');
+    }
+}
+
+function user_avatar_cache_cleanup(string $cacheDir, array $localCacheKeys): int
+{
+    $localKeyMap = array_fill_keys(array_values($localCacheKeys), true);
+    $referencedBlobs = [];
+    foreach (glob($cacheDir . '/*.json') ?: [] as $mappingPath) {
+        $cacheKey = basename($mappingPath, '.json');
+        $mapping = json_decode((string)@file_get_contents($mappingPath), true);
+        $blob = is_array($mapping) ? trim((string)($mapping['blob'] ?? '')) : '';
+        if (!isset($localKeyMap[$cacheKey])
+            || !preg_match('/^[a-f0-9]{64}\.(?:jpg|png|gif|webp)$/', $blob)
+            || !is_file($cacheDir . '/' . $blob)) {
+            @unlink($mappingPath);
+            continue;
+        }
+        $referencedBlobs[$blob] = true;
+    }
+
+    foreach (glob($cacheDir . '/*') ?: [] as $cachedPath) {
+        $basename = basename($cachedPath);
+        if (preg_match('/^[a-f0-9]{64}\.(?:jpg|png|gif|webp)$/', $basename)
+            && !isset($referencedBlobs[$basename])) {
+            @unlink($cachedPath);
+        } elseif (str_starts_with($basename, '.avatar-') || str_starts_with($basename, '.mapping-')) {
+            @unlink($cachedPath);
+        }
+    }
+
+    return count($referencedBlobs);
+}
+
+function user_avatar_cache_download(string $url, string $cacheDir, bool $verifySsl): string
 {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -146,10 +189,10 @@ function user_avatar_cache_download(string $url, string $cacheDir, string $cache
         throw new RuntimeException('Avatar response was not a supported image type');
     }
 
-    $targetPath = $cacheDir . '/' . $cacheKey . '.' . $extension;
-    if (is_file($targetPath) && hash_file('sha256', $targetPath) === hash('sha256', $body)) {
-        user_avatar_cache_remove_files($cacheDir, $cacheKey, $extension);
-        return $extension;
+    $blob = hash('sha256', $body) . '.' . $extension;
+    $targetPath = $cacheDir . '/' . $blob;
+    if (is_file($targetPath)) {
+        return $blob;
     }
 
     $temporaryPath = tempnam($cacheDir, '.avatar-');
@@ -161,9 +204,7 @@ function user_avatar_cache_download(string $url, string $cacheDir, string $cache
         @unlink($temporaryPath);
         throw new RuntimeException('Could not publish avatar cache file');
     }
-    user_avatar_cache_remove_files($cacheDir, $cacheKey, $extension);
-
-    return $extension;
+    return $blob;
 }
 
 function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, callable $logErr): array
@@ -190,16 +231,9 @@ function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, calla
         }
     }
 
-    foreach (glob($cacheDir . '/*') ?: [] as $cachedPath) {
-        $basename = basename($cachedPath);
-        if (preg_match('/^([a-f0-9]{64})\.(?:jpg|png|gif|webp)$/', $basename, $matches)
-            && !in_array($matches[1], $localEmails, true)) {
-            @unlink($cachedPath);
-        }
-    }
-
     if ($localEmails === []) {
-        return ['local_users' => 0, 'matched' => 0, 'downloaded' => 0, 'failed' => 0];
+        $uniqueBlobs = user_avatar_cache_cleanup($cacheDir, []);
+        return ['local_users' => 0, 'matched' => 0, 'downloaded' => 0, 'failed' => 0, 'unique_blobs' => $uniqueBlobs];
     }
 
     $snipeCfg = $config['snipeit'] ?? [];
@@ -210,6 +244,7 @@ function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, calla
     $matched = 0;
     $downloaded = 0;
     $failed = 0;
+    $downloadedUrls = [];
 
     do {
         $data = snipeit_request('GET', 'users', ['limit' => $limit, 'offset' => $offset], false);
@@ -226,13 +261,19 @@ function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, calla
             $cacheKey = $localEmails[$email];
             $avatarUrl = user_avatar_cache_normalize_url((string)($user['avatar'] ?? ''), $baseUrl);
             if ($avatarUrl === '') {
-                user_avatar_cache_remove_files($cacheDir, $cacheKey);
+                user_avatar_cache_remove_mapping($cacheDir, $cacheKey);
                 continue;
             }
 
             try {
-                user_avatar_cache_download($avatarUrl, $cacheDir, $cacheKey, $verifySsl);
-                $downloaded++;
+                if (isset($downloadedUrls[$avatarUrl])) {
+                    $blob = $downloadedUrls[$avatarUrl];
+                } else {
+                    $blob = user_avatar_cache_download($avatarUrl, $cacheDir, $verifySsl);
+                    $downloadedUrls[$avatarUrl] = $blob;
+                    $downloaded++;
+                }
+                user_avatar_cache_publish_mapping($cacheDir, $cacheKey, $blob);
             } catch (Throwable $e) {
                 $failed++;
                 $logErr('Could not cache avatar for ' . $email . ': ' . $e->getMessage());
@@ -245,11 +286,13 @@ function user_avatar_cache_sync(PDO $pdo, array $config, callable $logOut, calla
         $offset += $limit;
     } while (true);
 
+    $uniqueBlobs = user_avatar_cache_cleanup($cacheDir, $localEmails);
     return [
         'local_users' => count($localEmails),
         'matched' => $matched,
         'downloaded' => $downloaded,
         'failed' => $failed,
+        'unique_blobs' => $uniqueBlobs,
     ];
 }
 
@@ -263,6 +306,7 @@ try {
         . ', matched=' . $avatarStats['matched']
         . ', downloaded=' . $avatarStats['downloaded']
         . ', failed=' . $avatarStats['failed']
+        . ', unique_image_files=' . $avatarStats['unique_blobs']
     );
 } catch (Throwable $e) {
     $logErr('Avatar cache sync failed: ' . $e->getMessage());

@@ -138,12 +138,13 @@ if (!function_exists('layout_cached_user_avatar_url')) {
 
         $cacheKey = hash('sha256', $email);
         $cacheDir = APP_ROOT . '/cache/user_avatars';
-        foreach (['jpg', 'png', 'gif', 'webp'] as $extension) {
-            $cachedPath = $cacheDir . '/' . $cacheKey . '.' . $extension;
-            if (is_file($cachedPath)) {
-                return 'image_proxy.php?avatar_cache=' . rawurlencode($cacheKey)
-                    . '&v=' . rawurlencode((string)(filemtime($cachedPath) ?: 0));
-            }
+        $mappingPath = $cacheDir . '/' . $cacheKey . '.json';
+        $mapping = is_file($mappingPath) ? json_decode((string)@file_get_contents($mappingPath), true) : null;
+        $blob = is_array($mapping) ? trim((string)($mapping['blob'] ?? '')) : '';
+        if (preg_match('/^[a-f0-9]{64}\.(?:jpg|png|gif|webp)$/', $blob)
+            && is_file($cacheDir . '/' . $blob)) {
+            return 'image_proxy.php?avatar_cache=' . rawurlencode($cacheKey)
+                . '&v=' . rawurlencode(pathinfo($blob, PATHINFO_FILENAME));
         }
 
         return '';
