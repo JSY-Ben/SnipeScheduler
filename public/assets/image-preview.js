@@ -11,6 +11,7 @@
     }
 
     let lastTrigger = null;
+    let restoreTriggerFocus = false;
 
     const imageForTrigger = function (trigger) {
         if (trigger instanceof HTMLImageElement) {
@@ -30,7 +31,7 @@
         return cleanedAlt || 'Image';
     };
 
-    const openPreview = function (trigger) {
+    const openPreview = function (trigger, restoreFocus) {
         const thumbnail = imageForTrigger(trigger);
         if (!thumbnail) {
             return;
@@ -48,6 +49,7 @@
 
         const title = titleForTrigger(trigger, thumbnail);
         lastTrigger = trigger;
+        restoreTriggerFocus = !!restoreFocus;
         previewImage.setAttribute('src', source);
         previewImage.setAttribute('alt', 'Full-size image of ' + title);
         if (previewTitle) {
@@ -81,7 +83,7 @@
 
         event.preventDefault();
         event.stopPropagation();
-        openPreview(trigger);
+        openPreview(trigger, event.detail === 0);
     }, true);
 
     if (closeButton) {
@@ -105,9 +107,13 @@
         previewImage.setAttribute('alt', '');
 
         const focusTarget = lastTrigger;
+        const shouldRestoreFocus = restoreTriggerFocus;
         lastTrigger = null;
-        if (focusTarget && focusTarget.isConnected && typeof focusTarget.focus === 'function') {
+        restoreTriggerFocus = false;
+        if (shouldRestoreFocus && focusTarget && focusTarget.isConnected && typeof focusTarget.focus === 'function') {
             focusTarget.focus();
+        } else if (focusTarget && typeof focusTarget.blur === 'function') {
+            focusTarget.blur();
         }
     });
 }());
