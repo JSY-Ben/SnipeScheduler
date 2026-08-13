@@ -160,9 +160,13 @@ function snipeit_request(string $method, string $endpoint, array $params = [], b
     }
 
     $ch = curl_init();
+    $appVersion = app_version_string();
+    $userAgent = 'SnipeScheduler' . ($appVersion !== '' ? '/' . $appVersion : '');
     $headers = [
         'Accept: application/json',
+        'Content-Type: application/json',
         'Authorization: Bearer ' . $snipeApiToken,
+        'User-Agent: ' . $userAgent,
     ];
 
     if ($method === 'GET') {
@@ -171,7 +175,6 @@ function snipeit_request(string $method, string $endpoint, array $params = [], b
         }
     } else {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
-        $headers[] = 'Content-Type: application/json';
     }
 
     curl_setopt_array($ch, [

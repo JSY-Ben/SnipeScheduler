@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.7.8](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.8) - 13/08/2026
+
+### Snipe-IT v8.7.0 API compatibility updates
+
+- Snipe-IT v.8.7.0 now includes an option to block API requests with a blank 'User-Agent' header. SnipeScheduler now sends a request with a User-Agent header called 'SnipeScheduler/1.7.8' (1.7.8 being the version of SnipeScheduler sending the API request), so you can enable this setting in Snipe-IT without breaking SnipeScheduler. The header version nunber remains updated with every new version release.  
+- Added the required `Content-Type: application/json` header to every Snipe-IT API request, in line with the current Snipe-IT API authentication requirements.
+
+### Requestable Accessories Issue
+
+- v8.7.0 of Snipe-IT added a setting to enable accessories to be 'Requestable', in the same way as Assets/Models etc are. SnipeScheduler uses the Snipe-IT API to check what Assets/Models etc are 'Requestable' and uses it to determine which items display in the SnipeScheduler Catalogue. Currently the Snipe-IT API does not have a way to return which accessories are requestable, so SnipeScheduler cannot currently differentiate which accessories are requestable and which aren't, so it will display all of them regardless. Please keep that in mind when using SnipeScheduler until the Snipe-IT API is updated.
+
+
 ## [v1.7.7](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.7) - 19/07/2026
 
 ### Pagination
