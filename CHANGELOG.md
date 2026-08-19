@@ -1,5 +1,12 @@
 # Changelog
 
+## [v1.7.9](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.9) - 19/08/2026
+
+### Requestable accessories
+
+- Snipe-IT v8.7.2 added API filtering for requestable accessories. When connected to v8.7.2 or newer, SnipeScheduler now shows only accessories marked as requestable throughout the Catalogue, Quick Checkout, checked-out and check-in views, and prevents direct checkout of non-requestable accessories. Older Snipe-IT versions retain the previous behaviour of showing all accessories because their API does not expose this distinction.
+
+
 ## [v1.7.8](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.8) - 13/08/2026
 
 ### Snipe-IT v8.7.0 API compatibility updates

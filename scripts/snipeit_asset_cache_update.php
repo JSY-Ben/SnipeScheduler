@@ -76,7 +76,7 @@ if ($catalogueCacheEnabled) {
 
 if ($accessoryCacheEnabled) {
     try {
-        $allAccessories = fetch_all_accessories_from_snipeit('', false);
+        $allAccessories = fetch_all_accessories_from_snipeit('', false, true);
     } catch (Throwable $e) {
         $logErr('Failed to load accessories: ' . $e->getMessage());
         exit(1);

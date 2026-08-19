@@ -2856,7 +2856,7 @@ function snipeit_normalize_checked_out_accessory_row(array $accessory, array $ro
 
 function fetch_checked_out_accessories_from_snipeit(bool $allowResponseCache = true): array
 {
-    $accessories = fetch_all_accessories_from_snipeit('', $allowResponseCache);
+    $accessories = fetch_all_accessories_from_snipeit('', $allowResponseCache, true);
     $results = [];
 
     foreach ($accessories as $accessory) {
@@ -3031,7 +3031,11 @@ function snipeit_accessory_available_quantity_from_payload(array $accessory): in
     return max(0, $qty - $checkedOut);
 }
 
-function fetch_all_accessories_from_snipeit(string $search = '', bool $allowResponseCache = true): array
+function fetch_all_accessories_from_snipeit(
+    string $search = '',
+    bool $allowResponseCache = true,
+    bool $requestableOnly = false
+): array
 {
     if ($allowResponseCache) {
         $cached = snipeit_get_cached_accessories($search);
@@ -3045,12 +3049,29 @@ function fetch_all_accessories_from_snipeit(string $search = '', bool $allowResp
         $params['search'] = $search;
     }
 
-    return snipeit_fetch_all_rows_from_endpoint('accessories', $params, $allowResponseCache);
+    if ($requestableOnly) {
+        $params['requestable'] = 'true';
+    }
+
+    try {
+        return snipeit_fetch_all_rows_from_endpoint('accessories', $params, $allowResponseCache);
+    } catch (Throwable $e) {
+        // Snipe-IT added the requestable accessory filter in v8.7.2.
+        // If an older release rejects the parameter, retain the legacy
+        // behaviour and return all accessories instead.
+        $unsupportedFilter = preg_match('/HTTP (400|404|405|422)\b/', $e->getMessage()) === 1;
+        if (!$requestableOnly || !$unsupportedFilter) {
+            throw $e;
+        }
+
+        unset($params['requestable']);
+        return snipeit_fetch_all_rows_from_endpoint('accessories', $params, $allowResponseCache);
+    }
 }
 
 function fetch_accessory_categories_from_snipeit(bool $allowResponseCache = true): array
 {
-    return snipeit_collect_category_options(fetch_all_accessories_from_snipeit('', $allowResponseCache));
+    return snipeit_collect_category_options(fetch_all_accessories_from_snipeit('', $allowResponseCache, true));
 }
 
 function get_bookable_accessories(
@@ -3064,7 +3085,7 @@ function get_bookable_accessories(
     $perPage = max(1, $perPage);
     $sort = trim((string)$sort);
 
-    $rows = fetch_all_accessories_from_snipeit($search);
+    $rows = fetch_all_accessories_from_snipeit($search, true, true);
     $rows = array_values(array_filter($rows, static function (array $row): bool {
         return snipeit_accessory_available_quantity_from_payload($row) > 0;
     }));
@@ -3111,7 +3132,11 @@ function get_bookable_accessories(
     ];
 }
 
-function snipeit_find_accessory_in_collection(int $accessoryId, bool $allowResponseCache = true): ?array
+function snipeit_find_accessory_in_collection(
+    int $accessoryId,
+    bool $allowResponseCache = true,
+    bool $requestableOnly = false
+): ?array
 {
     static $lookups = [];
 
@@ -3119,11 +3144,11 @@ function snipeit_find_accessory_in_collection(int $accessoryId, bool $allowRespo
         return null;
     }
 
-    $cacheKey = $allowResponseCache ? 'cached' : 'fresh';
+    $cacheKey = ($allowResponseCache ? 'cached' : 'fresh') . ($requestableOnly ? ':requestable' : ':all');
     if (!array_key_exists($cacheKey, $lookups)) {
         $lookups[$cacheKey] = [];
         try {
-            foreach (fetch_all_accessories_from_snipeit('', $allowResponseCache) as $accessory) {
+            foreach (fetch_all_accessories_from_snipeit('', $allowResponseCache, $requestableOnly) as $accessory) {
                 if (!is_array($accessory)) {
                     continue;
                 }
@@ -3166,9 +3191,10 @@ function count_available_accessory_units(int $accessoryId): int
         return $cache[$accessoryId];
     }
 
-    $accessory = snipeit_find_accessory_in_collection($accessoryId);
+    $accessory = snipeit_find_accessory_in_collection($accessoryId, true, true);
     if ($accessory === null) {
-        $accessory = get_accessory($accessoryId);
+        $cache[$accessoryId] = 0;
+        return 0;
     }
     $cache[$accessoryId] = snipeit_accessory_available_quantity_from_payload($accessory);
 
@@ -3185,6 +3211,10 @@ function checkout_accessory_to_user(int $accessoryId, int $userId, int $quantity
     }
     if ($quantity <= 0) {
         throw new InvalidArgumentException('Accessory checkout quantity must be positive.');
+    }
+
+    if (snipeit_find_accessory_in_collection($accessoryId, false, true) === null) {
+        throw new RuntimeException('This accessory is not available for checkout.');
     }
 
     $payload = [

@@ -603,7 +603,7 @@ function qc_accessory_browser_results(
     int $perPage = 12
 ): array
 {
-    $rows = fetch_all_accessories_from_snipeit($search);
+    $rows = fetch_all_accessories_from_snipeit($search, true, true);
     $selectedAccessoryQty = qc_selected_accessory_quantities($checkoutItems);
     $allowedCategories = snipeit_normalize_category_filter_values($allowedCategories);
 
