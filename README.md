@@ -3,9 +3,7 @@
 
 # SnipeScheduler - An Asset Reservation/Checkout System for Snipe-IT
 
-- This app has been tested with version 8 of Snipe-IT up to Version **v8.7.0**
-
-**PLEASE NOTE:** - v8.7.0 of Snipe-IT added a setting to enable accessories to be 'Requestable', in the same way as Assets/Models etc are. SnipeScheduler uses the Snipe-IT API to check what Assets/Models etc are 'Requestable' and uses it to determine which items display in the SnipeScheduler Catalogue. Currently the Snipe-IT API does not have a way to return which accessories are requestable, so SnipeScheduler cannot currently differentiate which accessories are requestable and which aren't, so it will display all of them regardless. Please keep that in mind when using SnipeScheduler until the Snipe-IT API is updated.
+- This app has been tested with version 8 of Snipe-IT up to Version **v8.7.2**
 
 - There is also a standalone version of this app that has its own inventory database and doesn't require Snipe-IT. It is called KitGrab, and is available [here](https://github.com/JSY-Ben/KitGrab)
 
