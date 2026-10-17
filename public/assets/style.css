@@ -2839,8 +2839,12 @@ body.app-is-busy {
     100% { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
 }
 
-.btn.basket-button-added {
-    background-color: #15803d;
+.btn.basket-button-added,
+.btn.basket-button-added:hover,
+.btn.basket-button-added:focus,
+.btn.basket-button-added:focus-visible,
+.btn.basket-button-added:active {
+    background: #15803d;
     border-color: #15803d;
     color: #fff;
 }
