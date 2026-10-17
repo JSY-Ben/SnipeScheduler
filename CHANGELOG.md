@@ -1,5 +1,14 @@
 # Changelog
 
+## [v1.7.10](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.10) - 17/10/2026
+
+### Checked-out reservations
+
+- Successful equipment and accessory check-ins/check-outs now trigger the inventory cache sync once per request, including bulk actions. The sync shares the cron lock and runs after the response on PHP-FPM.
+
+- Removed the delayed full inventory reload after single and bulk check-ins. Successful check-ins still update the displayed list, while renewals retain their automatic refresh.
+- Prevented a previous refresh URL from forcing another full inventory fetch when submitting a check-in or renewal.
+
 ## [v1.7.9](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.9) - 19/08/2026
 
 ### Requestable accessories

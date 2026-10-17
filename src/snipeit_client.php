@@ -2461,6 +2461,9 @@ function checkout_asset_to_user(int $assetId, int $userId, string $note = '', ?s
     if ($status !== 'success' || $hasExplicitError) {
         throw new Exception('Snipe-IT checkout did not succeed: ' . $message);
     }
+
+    require_once __DIR__ . '/asset_cache_refresh.php';
+    asset_cache_refresh_after_response();
 }
 
 /**
@@ -2545,6 +2548,9 @@ function checkin_asset(int $assetId, string $note = ''): void
     if ($status !== 'success' || $hasExplicitError) {
         throw new Exception('Snipe-IT checkin did not succeed: ' . $message);
     }
+
+    require_once __DIR__ . '/asset_cache_refresh.php';
+    asset_cache_refresh_after_response();
 }
 
 /**
@@ -3251,6 +3257,9 @@ function checkout_accessory_to_user(int $accessoryId, int $userId, int $quantity
     if ($status !== 'success' || $hasExplicitError) {
         throw new Exception('Snipe-IT accessory checkout did not succeed: ' . $message);
     }
+
+    require_once __DIR__ . '/asset_cache_refresh.php';
+    asset_cache_refresh_after_response();
 }
 
 function checkin_accessory(int $accessoryCheckoutId, string $note = ''): void
@@ -3285,6 +3294,9 @@ function checkin_accessory(int $accessoryCheckoutId, string $note = ''): void
     if ($status !== 'success' || $hasExplicitError) {
         throw new Exception('Snipe-IT accessory check-in did not succeed: ' . $message);
     }
+
+    require_once __DIR__ . '/asset_cache_refresh.php';
+    asset_cache_refresh_after_response();
 }
 
 function snipeit_kit_endpoint_candidates(): array

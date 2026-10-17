@@ -409,7 +409,9 @@ $sortOptions = [
     'checkout_asc',
 ];
 $sort = in_array($sortRaw, $sortOptions, true) ? $sortRaw : 'expected_asc';
-$forceRefresh = isset($_REQUEST['refresh']) && $_REQUEST['refresh'] === '1';
+$forceRefresh = $_SERVER['REQUEST_METHOD'] === 'GET'
+    && isset($_GET['refresh']) && $_GET['refresh'] === '1';
+$refreshAfterRenewal = false;
 
 // Handle row and bulk actions (all/overdue tabs)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -477,6 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($renewId > 0 && $normalized !== '') {
             try {
                 update_asset_expected_checkin($renewId, $normalized);
+                $refreshAfterRenewal = true;
                 $messages[] = "Extended expected check-in to " . format_display_datetime($normalized) . " for equipment #{$renewId}.";
                 $labels = load_asset_labels($pdo, [$renewId]);
                 $label = $labels[$renewId] ?? ('Asset #' . $renewId);
@@ -560,6 +563,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $count = 0;
                 foreach ($assetIds as $aid) {
                     update_asset_expected_checkin($aid, $bulkExpected);
+                    $refreshAfterRenewal = true;
                     $count++;
                 }
                 $messages[] = "Extended expected check-in to " . format_display_datetime($bulkExpected) . " for {$count} equipment item(s).";
@@ -1171,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </body>
 </html>
 <?php endif; ?>
-<?php if (!empty($messages)): ?>
+<?php if ($refreshAfterRenewal): ?>
 <script>
     // After showing renew success, reload the overdue list with a fresh Snipe-IT fetch.
     setTimeout(() => {

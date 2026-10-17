@@ -2731,6 +2731,7 @@ if ($catalogueTab === 'models' && !empty($allowedCategoryMap) && !empty($categor
      role="status"
      aria-live="polite"
      aria-hidden="true"></div>
+<div id="basket-added-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <?php if (!empty($catalogueAnnouncements)): ?>
 <div id="catalogue-announcement-modal"
@@ -3130,6 +3131,52 @@ document.addEventListener('DOMContentLoaded', function () {
             basketToast.classList.remove('show');
             basketToast.setAttribute('aria-hidden', 'true');
         }, 2200);
+    }
+
+    function animateItemToBasket(form, message) {
+        const status = document.getElementById('basket-added-status');
+        if (status) status.textContent = message;
+        if (!viewBasketBtn || !Element.prototype.animate
+            || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const card = form.closest('.model-card');
+        const image = card ? card.querySelector('img.model-image') : null;
+        const button = form.querySelector('button[type="submit"]');
+        let source = image ? image.getBoundingClientRect() : null;
+        if (!source || source.bottom <= 0 || source.top >= window.innerHeight) {
+            source = (button || form).getBoundingClientRect();
+        }
+        const target = viewBasketBtn.getBoundingClientRect();
+        const startX = source.left + source.width / 2 - 28;
+        const startY = source.top + source.height / 2 - 28;
+        const endX = target.left + target.width / 2 - 28;
+        const endY = target.top + target.height / 2 - 28;
+        const flyer = document.createElement('div');
+        flyer.className = 'basket-flying-item';
+        flyer.setAttribute('aria-hidden', 'true');
+        if (image && image.complete && image.naturalWidth > 0) {
+            const thumbnail = document.createElement('img');
+            thumbnail.src = image.currentSrc || image.src;
+            thumbnail.alt = '';
+            flyer.appendChild(thumbnail);
+        } else {
+            flyer.textContent = '📦';
+        }
+        document.body.appendChild(flyer);
+        const flight = flyer.animate([
+            { transform: `translate(${startX}px, ${startY}px) scale(1)`, opacity: 1 },
+            { transform: `translate(${startX + (endX - startX) * 0.45}px, ${Math.min(startY, endY) - 45}px) scale(0.8)`, opacity: 0.9, offset: 0.55 },
+            { transform: `translate(${endX}px, ${endY}px) scale(0.2)`, opacity: 0 }
+        ], { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
+        flight.onfinish = function () {
+            flyer.remove();
+            viewBasketBtn.animate([
+                { transform: 'scale(1)' },
+                { transform: 'scale(1.08)' },
+                { transform: 'scale(1)' }
+            ], { duration: 260, easing: 'ease-out' });
+        };
+        flight.oncancel = function () { flyer.remove(); };
     }
 
     function setModelFeedback(message, tone) {
@@ -3845,7 +3892,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                             viewBasketBtn.textContent = '<?= _('View basket') ?>';
                         }
-                        showBasketToast(data.message || '<?= _('Added to basket') ?>');
+                        animateItemToBasket(form, data.message || '<?= _('Added to basket') ?>');
                     }
                 })
                 .catch(function () {

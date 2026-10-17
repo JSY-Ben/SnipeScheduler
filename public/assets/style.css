@@ -2839,6 +2839,31 @@ body.app-is-busy {
     100% { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
 }
 
+.basket-flying-item {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    padding: 5px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    font-size: 30px;
+    pointer-events: none;
+    z-index: 1100;
+    will-change: transform, opacity;
+}
+
+.basket-flying-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 7px;
+}
+
 .basket-toast {
     position: fixed;
     top: 24px;
