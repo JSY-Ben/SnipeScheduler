@@ -681,9 +681,9 @@ if (!function_exists('layout_footer')) {
         if (!is_string($todayLabelJson)) {
             $todayLabelJson = '"Today"';
         }
-        $timeLabelJson = json_encode(_('Time'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        $timeLabelJson = json_encode(_('Choose time'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
         if (!is_string($timeLabelJson)) {
-            $timeLabelJson = '"Time"';
+            $timeLabelJson = '"Choose time"';
         }
         $dateLabelJson = json_encode(_('Date'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
         if (!is_string($dateLabelJson)) {

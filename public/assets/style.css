@@ -347,23 +347,58 @@ body.app-image-preview-open {
     top: 31px;
 }
 
+.flatpickr-calendar .flatpickr-time-heading {
+    margin-top: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border-top: 3px solid var(--primary);
+    background: var(--primary-strong);
+    color: #fff;
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+}
+
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time {
-    height: 48px;
-    max-height: 48px;
+    height: 76px;
+    max-height: 76px;
+    padding: 10px;
     border-top: 0;
-    background: rgba(var(--primary-rgb), 0.06);
+    background: rgba(var(--primary-rgb), 0.12);
+    box-sizing: border-box;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .numInputWrapper {
+    height: 56px;
+    border: 2px solid rgba(var(--primary-rgb), 0.45);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .numInputWrapper span {
+    opacity: 1;
+    width: 22px;
+    background: rgba(var(--primary-rgb), 0.1);
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time input,
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-am-pm {
     color: var(--primary-strong);
-    font-size: 1.15rem;
+    height: 56px;
+    line-height: 56px;
+    font-size: 1.5rem;
     font-weight: 800;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time input:focus {
+    background: rgba(var(--primary-rgb), 0.12);
+    box-shadow: inset 0 0 0 2px var(--primary);
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-time-separator {
     color: var(--primary-strong);
-    font-size: 1.15rem;
+    height: 56px;
+    line-height: 56px;
+    font-size: 1.5rem;
     font-weight: 800;
 }
 
