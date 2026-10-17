@@ -3136,21 +3136,38 @@ document.addEventListener('DOMContentLoaded', function () {
     function animateItemToBasket(form, message) {
         const status = document.getElementById('basket-added-status');
         if (status) status.textContent = message;
+        const card = form.closest('.model-card');
+        if (card) {
+            const previousFeedback = card.querySelector('.basket-card-feedback');
+            if (previousFeedback) previousFeedback.remove();
+            const feedback = document.createElement('div');
+            feedback.className = 'basket-card-feedback';
+            feedback.setAttribute('aria-hidden', 'true');
+            feedback.textContent = '✓ <?= _('Added to basket') ?>';
+            card.appendChild(feedback);
+            setTimeout(() => feedback.remove(), 1600);
+        }
         if (!viewBasketBtn || !Element.prototype.animate
             || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-        const card = form.closest('.model-card');
         const image = card ? card.querySelector('img.model-image') : null;
         const button = form.querySelector('button[type="submit"]');
-        let source = image ? image.getBoundingClientRect() : null;
-        if (!source || source.bottom <= 0 || source.top >= window.innerHeight) {
-            source = (button || form).getBoundingClientRect();
-        }
+        // Start beside the clicked button, which remains visible on tall cards.
+        const source = (button || form).getBoundingClientRect();
         const target = viewBasketBtn.getBoundingClientRect();
         const startX = source.left + source.width / 2 - 28;
         const startY = source.top + source.height / 2 - 28;
         const endX = target.left + target.width / 2 - 28;
-        const endY = target.top + target.height / 2 - 28;
+        // Fly to the viewport edge when the basket is above the visible page.
+        const endY = Math.max(-56, target.top + target.height / 2 - 28);
+        if (card) {
+            const direction = Math.sign(endX - startX);
+            card.animate([
+                { transform: 'translate(0, 0)', boxShadow: '0 0 0 0 rgba(21, 128, 61, 0)' },
+                { transform: `translate(${direction * 7}px, -7px)`, boxShadow: '0 0 0 3px rgba(21, 128, 61, 0.35)', offset: 0.4 },
+                { transform: 'translate(0, 0)', boxShadow: '0 0 0 0 rgba(21, 128, 61, 0)' }
+            ], { duration: 420, easing: 'ease-out' });
+        }
         const flyer = document.createElement('div');
         flyer.className = 'basket-flying-item';
         flyer.setAttribute('aria-hidden', 'true');
@@ -3165,9 +3182,9 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.appendChild(flyer);
         const flight = flyer.animate([
             { transform: `translate(${startX}px, ${startY}px) scale(1)`, opacity: 1 },
-            { transform: `translate(${startX + (endX - startX) * 0.45}px, ${Math.min(startY, endY) - 45}px) scale(0.8)`, opacity: 0.9, offset: 0.55 },
+            { transform: `translate(${startX + (endX - startX) * 0.45}px, ${startY + (endY - startY) * 0.45 - 35}px) scale(0.8)`, opacity: 0.9, offset: 0.55 },
             { transform: `translate(${endX}px, ${endY}px) scale(0.2)`, opacity: 0 }
-        ], { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
+        ], { duration: 650, delay: 180, fill: 'backwards', easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
         flight.onfinish = function () {
             flyer.remove();
             viewBasketBtn.animate([
