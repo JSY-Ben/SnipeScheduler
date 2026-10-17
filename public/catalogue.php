@@ -3133,25 +3133,30 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 2200);
     }
 
+    const basketButtonFeedback = new WeakMap();
+
     function animateItemToBasket(form, message) {
         const status = document.getElementById('basket-added-status');
         if (status) status.textContent = message;
         const card = form.closest('.model-card');
-        if (card) {
-            const previousFeedback = card.querySelector('.basket-card-feedback');
-            if (previousFeedback) previousFeedback.remove();
-            const feedback = document.createElement('div');
-            feedback.className = 'basket-card-feedback';
-            feedback.setAttribute('aria-hidden', 'true');
-            feedback.textContent = '✓ <?= _('Added to basket') ?>';
-            card.appendChild(feedback);
-            setTimeout(() => feedback.remove(), 1600);
+        const button = form.querySelector('button[type="submit"]');
+        if (button) {
+            const previousFeedback = basketButtonFeedback.get(button);
+            if (previousFeedback) clearTimeout(previousFeedback.timer);
+            const originalText = previousFeedback ? previousFeedback.originalText : button.textContent;
+            button.textContent = '✓ <?= _('Added to basket') ?>';
+            button.classList.add('basket-button-added');
+            const timer = setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove('basket-button-added');
+                basketButtonFeedback.delete(button);
+            }, 1600);
+            basketButtonFeedback.set(button, { originalText, timer });
         }
         if (!viewBasketBtn || !Element.prototype.animate
             || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const image = card ? card.querySelector('img.model-image') : null;
-        const button = form.querySelector('button[type="submit"]');
         // Start beside the clicked button, which remains visible on tall cards.
         const source = (button || form).getBoundingClientRect();
         const target = viewBasketBtn.getBoundingClientRect();

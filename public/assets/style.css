@@ -2839,19 +2839,10 @@ body.app-is-busy {
     100% { transform: scale(1);   box-shadow: 0 0 0rem rgba(0,0,0,0.0); }
 }
 
-.basket-card-feedback {
-    position: absolute;
-    bottom: 64px;
-    right: 12px;
-    z-index: 2;
-    padding: 7px 12px;
-    border-radius: 20px;
-    background: #15803d;
+.btn.basket-button-added {
+    background-color: #15803d;
+    border-color: #15803d;
     color: #fff;
-    font-size: 0.85rem;
-    font-weight: 600;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
-    pointer-events: none;
 }
 
 .basket-flying-item {
