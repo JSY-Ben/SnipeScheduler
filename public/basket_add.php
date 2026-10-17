@@ -17,7 +17,7 @@ function basket_add_is_ajax_request(): bool
     );
 }
 
-function basket_add_respond(bool $ok, string $message, int $statusCode = 200): void
+function basket_add_respond(bool $ok, string $message, int $statusCode = 200, ?string $code = null): void
 {
     $basketCount = booking_session_basket_total_quantity($_SESSION['basket'] ?? []);
 
@@ -27,6 +27,7 @@ function basket_add_respond(bool $ok, string $message, int $statusCode = 200): v
         echo json_encode([
             'ok' => $ok,
             'message' => $message,
+            'code' => $code,
             'basket_count' => $basketCount,
         ]);
         exit;
@@ -230,7 +231,7 @@ try {
     $itemKey = booking_catalogue_item_key($itemType, $itemId);
     $currentQty = (int)($basketItems[$itemKey]['qty'] ?? 0);
     if ($availableUnits <= $currentQty) {
-        basket_add_respond(false, 'No additional units are currently available for that item.', 409);
+        basket_add_respond(false, 'No additional units are currently available for that item.', 409, 'no_additional_units');
     }
     $newQty = $currentQty + $qtyRequested;
 

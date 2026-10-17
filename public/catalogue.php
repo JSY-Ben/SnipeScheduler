@@ -3135,24 +3135,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const basketButtonFeedback = new WeakMap();
 
-    function animateItemToBasket(form, message) {
+    function showBasketButtonFeedback(form, label, tone, message, duration = 1600) {
         const status = document.getElementById('basket-added-status');
         if (status) status.textContent = message;
-        const card = form.closest('.model-card');
         const button = form.querySelector('button[type="submit"]');
         if (button) {
             const previousFeedback = basketButtonFeedback.get(button);
             if (previousFeedback) clearTimeout(previousFeedback.timer);
             const originalText = previousFeedback ? previousFeedback.originalText : button.textContent;
-            button.textContent = '✓ <?= _('Added to basket') ?>';
-            button.classList.add('basket-button-added');
+            button.textContent = label;
+            button.classList.remove('basket-button-added', 'basket-button-warning');
+            button.classList.add(tone);
             const timer = setTimeout(() => {
                 button.textContent = originalText;
-                button.classList.remove('basket-button-added');
+                button.classList.remove('basket-button-added', 'basket-button-warning');
                 basketButtonFeedback.delete(button);
-            }, 1600);
+            }, duration);
             basketButtonFeedback.set(button, { originalText, timer });
         }
+    }
+
+    function animateItemToBasket(form, message) {
+        showBasketButtonFeedback(form, '✓ <?= _('Added to basket') ?>', 'basket-button-added', message);
+        const card = form.closest('.model-card');
+        const button = form.querySelector('button[type="submit"]');
         if (!viewBasketBtn || !Element.prototype.animate
             || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -3903,6 +3909,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!viewBasketBtn) return;
 
                     if (data && data.ok === false) {
+                        if (data.code === 'no_additional_units') {
+                            showBasketButtonFeedback(form, '<?= _('No additional units available') ?>', 'basket-button-warning', data.message, 2600);
+                            return;
+                        }
                         showBasketToast(data.message || '<?= _('Could not add to basket') ?>');
                         return;
                     }

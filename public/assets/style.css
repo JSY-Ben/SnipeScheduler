@@ -2849,6 +2849,16 @@ body.app-is-busy {
     color: #fff;
 }
 
+.btn.basket-button-warning,
+.btn.basket-button-warning:hover,
+.btn.basket-button-warning:focus,
+.btn.basket-button-warning:focus-visible,
+.btn.basket-button-warning:active {
+    background: #facc15;
+    border-color: #facc15;
+    color: #422006;
+}
+
 .basket-flying-item {
     position: fixed;
     top: 0;
