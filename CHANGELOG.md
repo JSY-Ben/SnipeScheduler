@@ -2,12 +2,19 @@
 
 ## [v1.7.10](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.10) - 17/10/2026
 
-### Checked-out reservations
+### Cache Update Changes
 
-- Successful equipment and accessory check-ins/check-outs now trigger the inventory cache sync once per request, including bulk actions. The sync runs in a detached PHP CLI process and shares the cron lock, keeping inventory updates out of the page request on all supported Unix PHP handlers.
+- With the previous version, a checkin/checkout caused a full cache refresh, which left the page hanging until the cache refresh was completed. The cache refresh is now triggered as a separate php process, so now the user shouldn't notice it, and the page should be instantly available again after a checkin/checkout.
 
-- Removed the delayed full inventory reload after single and bulk check-ins. Successful check-ins still update the displayed list, while renewals retain their automatic refresh.
-- Prevented a previous refresh URL from forcing another full inventory fetch when submitting a check-in or renewal.
+
+### Catalogue Styling changes
+
+- Replaced the successful "Added to Basket" popup with a temporary green “✓ Added to basket” confirmation on the item's Add to basket button, which then returns to its original label. Errors etc also appear in the same place. An animation showing the item being added to basket has also been added.
+
+### Date and time pickers
+
+- Removed the Apply button from shared date/time pickers. Selections update the field directly, and Catalogue and Basket availability automatically refresh when the picker closes, allowing users to finish choosing both the date and time.
+- Adjusted styling on date/time picker to be easier to read and separate it more from the background. 
 
 ## [v1.7.9](https://github.com/JSY-Ben/SnipeScheduler/releases/tag/v1.7.9) - 19/08/2026
 
