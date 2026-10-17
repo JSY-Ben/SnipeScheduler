@@ -352,26 +352,53 @@ body.app-image-preview-open {
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time {
-    height: 60px;
-    max-height: 60px;
-    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: auto;
+    min-height: 52px;
+    max-height: none;
+    padding: 8px;
+    clear: both;
     border-top: 0;
     background: rgba(var(--primary-rgb), 0.06);
     box-sizing: border-box;
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .numInputWrapper {
-    height: 48px;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    height: 36px;
+    float: none;
 }
 
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time input,
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-am-pm,
 .flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-time-separator {
     color: var(--primary-strong);
-    height: 48px;
-    line-height: 48px;
-    font-size: 1.15rem;
+    height: 36px;
+    line-height: 36px;
+    font-size: 1rem;
     font-weight: 800;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-time-separator {
+    flex: 0 0 8px;
+    width: 8px;
+    float: none;
+}
+
+.flatpickr-calendar.flatpickr-has-prominent-time .flatpickr-time .flatpickr-am-pm {
+    flex: 0 0 44px;
+    width: 44px;
+    float: none;
 }
 
 #reservation-note-dialog::backdrop,
@@ -3060,10 +3087,13 @@ body.app-is-busy {
 .flatpickr-calendar.open {
     position: absolute;
     z-index: 99999;
-    border: 1px solid rgba(var(--primary-rgb), 0.38);
+    background: #fff;
+    border: 1px solid var(--primary-strong);
+    border-radius: 10px;
     box-shadow:
-        0 20px 48px rgba(15, 23, 42, 0.28),
-        0 4px 12px rgba(var(--primary-rgb), 0.18);
+        0 0 0 4px rgba(var(--primary-rgb), 0.16),
+        0 24px 64px rgba(15, 23, 42, 0.38),
+        0 6px 18px rgba(15, 23, 42, 0.22);
 }
 .notification-group-heading {
     margin: 0 0 .65rem;
