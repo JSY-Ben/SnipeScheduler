@@ -628,17 +628,6 @@ document.addEventListener('DOMContentLoaded', function () {
         maybeSubmitWindow();
     }
 
-    function bindFlatpickrApplySubmit(input) {
-        if (!input || !input._flatpickr || !input._flatpickr.calendarContainer) return;
-        const confirmButton = input._flatpickr.calendarContainer.querySelector('.flatpickr-confirm');
-        if (!confirmButton || confirmButton.dataset.windowApplyBound === '1') return;
-        confirmButton.dataset.windowApplyBound = '1';
-        confirmButton.addEventListener('click', function () {
-            normalizeWindowEnd();
-            maybeSubmitWindow();
-        });
-    }
-
     if (windowForm) {
         windowForm.addEventListener('submit', function () {
             if (startInput && endInput) {
@@ -666,8 +655,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         startInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
         endInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
-        bindFlatpickrApplySubmit(startInput);
-        bindFlatpickrApplySubmit(endInput);
+        [startInput, endInput].forEach(function (input) {
+            input.addEventListener('snipescheduler:picker-commit', function () {
+                normalizeWindowEnd();
+                maybeSubmitWindow();
+            });
+        });
         bindPickerCentering(startInput);
         bindPickerCentering(endInput);
     }

@@ -3824,6 +3824,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 maybeSubmitNativeWindowOnBlur();
             }
         });
+        [windowStartInput, windowEndInput].forEach(function (input) {
+            input.addEventListener('snipescheduler:picker-commit', function () {
+                normalizeWindowEnd();
+                maybeSubmitWindow();
+            });
+        });
         windowStartInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
         windowEndInput.addEventListener('blur', maybeSubmitNativeWindowOnBlur);
     }
@@ -3838,26 +3844,6 @@ document.addEventListener('DOMContentLoaded', function () {
             showLoadingOverlay();
         });
     }
-    document.addEventListener('click', function (event) {
-        if (!windowStartInput || !windowEndInput) return;
-        const target = event.target instanceof Element ? event.target : null;
-        if (!target) return;
-        const confirmButton = target.closest('.flatpickr-confirm');
-        if (!confirmButton) return;
-        const calendar = confirmButton.closest('.flatpickr-calendar');
-        if (!calendar) return;
-
-        const startCalendar = windowStartInput._flatpickr
-            ? windowStartInput._flatpickr.calendarContainer
-            : null;
-        const endCalendar = windowEndInput._flatpickr
-            ? windowEndInput._flatpickr.calendarContainer
-            : null;
-        if (calendar !== startCalendar && calendar !== endCalendar) return;
-
-        normalizeWindowEnd();
-        maybeSubmitWindow();
-    });
 
     const overdueEnabled = document.body.dataset.catalogueOverdue === '1';
     if (overdueEnabled) {

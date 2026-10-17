@@ -529,7 +529,6 @@ if (!function_exists('layout_theme_styles')) {
         [$rl, $gl, $bl]       = layout_color_to_rgb($primarySoft);
 
         $style = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">' . "\n"
-            . '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css">' . "\n"
             . <<<CSS
 <style>
 :root {
@@ -581,22 +580,6 @@ if (!function_exists('layout_theme_styles')) {
     background: rgba(var(--primary-rgb), 0.12);
 }
 
-.flatpickr-calendar .flatpickr-confirm {
-    background: var(--primary) !important;
-    border-color: var(--primary) !important;
-    color: #fff !important;
-}
-
-.flatpickr-calendar .flatpickr-confirm:hover,
-.flatpickr-calendar .flatpickr-confirm:focus {
-    background: var(--primary-strong) !important;
-    border-color: var(--primary-strong) !important;
-    color: #fff !important;
-}
-
-.flatpickr-calendar .flatpickr-confirm svg {
-    fill: currentColor;
-}
 </style>
 CSS;
 
@@ -736,7 +719,6 @@ if (!function_exists('layout_footer')) {
             echo '<script src="assets/image-preview.js"></script>';
         }
         echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
-        echo '<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>';
         echo '<script>window.SnipeSchedulerFlatpickr=' . ($flatpickrCfgJson ?: '{}') . ';</script>';
         echo <<<SCRIPT
 <script>
@@ -1071,16 +1053,10 @@ if (!function_exists('layout_footer')) {
                 altInputClass: (input.className ? input.className + ' ' : '') + 'flatpickr-alt-input',
                 parseDate: parseDateFactory(fallbackFormats[pickerType] || []),
                 onOpen: [centerOpenCalendar],
+                onClose: [() => {
+                    input.dispatchEvent(new CustomEvent('snipescheduler:picker-commit'));
+                }],
             };
-            if ((pickerType === 'time' || pickerType === 'datetime') && typeof window.confirmDatePlugin === 'function') {
-                baseOptions.plugins = [
-                    new window.confirmDatePlugin({
-                        confirmText: 'Apply',
-                        showAlways: false,
-                        theme: 'light',
-                    }),
-                ];
-            }
             const parsedInitialDate = baseOptions.parseDate(input.value);
             if (parsedInitialDate instanceof Date && !Number.isNaN(parsedInitialDate.getTime())) {
                 baseOptions.defaultDate = parsedInitialDate;
