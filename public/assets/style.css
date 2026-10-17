@@ -3088,10 +3088,11 @@ body.app-is-busy {
     position: absolute;
     z-index: 99999;
     background: #fff;
-    border: 1px solid var(--primary-strong);
+    border: 2px solid var(--primary-strong);
     border-radius: 10px;
     box-shadow:
-        0 0 0 4px rgba(var(--primary-rgb), 0.16),
+        0 0 0 2px #fff,
+        0 0 0 6px rgba(var(--primary-rgb), 0.35),
         0 24px 64px rgba(15, 23, 42, 0.38),
         0 6px 18px rgba(15, 23, 42, 0.22);
 }
