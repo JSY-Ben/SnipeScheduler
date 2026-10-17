@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 /**
- * Acquire a process-wide, non-blocking lock for a scheduled task.
+ * Acquire a process-wide lock for a scheduled task (non-blocking by default).
  *
  * The returned handle must remain referenced for the lifetime of the script.
  * A static registry and shutdown handler provide an additional safeguard.
  *
  * @return resource
  */
-function cron_acquire_lock(string $jobName)
+function cron_acquire_lock(string $jobName, bool $wait = false)
 {
     static $locks = [];
     static $shutdownRegistered = false;
@@ -30,7 +30,7 @@ function cron_acquire_lock(string $jobName)
         exit(1);
     }
 
-    if (!@flock($handle, LOCK_EX | LOCK_NB)) {
+    if (!@flock($handle, $wait ? LOCK_EX : (LOCK_EX | LOCK_NB))) {
         fclose($handle);
         fwrite(STDOUT, "Another {$jobName} run is already in progress; this run was skipped.\n");
         exit(0);

@@ -16,7 +16,8 @@ if (php_sapi_name() !== 'cli') {
 }
 
 require_once __DIR__ . '/../src/cron_lock.php';
-$cronLock = cron_acquire_lock('snipeit-asset-cache-update');
+// Web-triggered background runs must fetch a new snapshot after any active sync.
+$cronLock = cron_acquire_lock('snipeit-asset-cache-update', in_array('--wait-for-lock', $argv, true));
 
 require_once __DIR__ . '/../src/bootstrap.php';
 require_once SRC_PATH . '/snipeit_client.php';

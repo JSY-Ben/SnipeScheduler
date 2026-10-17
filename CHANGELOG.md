@@ -4,7 +4,7 @@
 
 ### Checked-out reservations
 
-- Successful equipment and accessory check-ins/check-outs now trigger the inventory cache sync once per request, including bulk actions. The sync shares the cron lock and runs after the response on PHP-FPM.
+- Successful equipment and accessory check-ins/check-outs now trigger the inventory cache sync once per request, including bulk actions. The sync runs in a detached PHP CLI process and shares the cron lock, keeping inventory updates out of the page request on all supported Unix PHP handlers.
 
 - Removed the delayed full inventory reload after single and bulk check-ins. Successful check-ins still update the displayed list, while renewals retain their automatic refresh.
 - Prevented a previous refresh URL from forcing another full inventory fetch when submitting a check-in or renewal.
