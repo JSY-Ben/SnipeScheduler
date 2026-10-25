@@ -39,7 +39,7 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 - LDAP/AD, Google OAuth and Microsoft Entra Integration for authentication.
 
 ## System requirements
-- PHP 8.2+ with extensions: pdo_mysql, curl, ldap, mbstring, openssl, json.
+- PHP 8.3+ with extensions: pdo_mysql, curl, ldap, mbstring, openssl, json. (At least versions 8.3.36, 8.4.27 or 8.5.12 strongly recommended due to recent well publicised PHP security issues that were patched in these versions)
 - MySQL/MariaDB database for the booking tables.
 - Web server: Apache or Nginx (PHP-FPM or mod_php).
 - Snipe-IT instance with API access token and either LDAP, Google OAuth or Microsoft Entra Authentication enabled.
@@ -69,12 +69,12 @@ In the app, Users can request equipment, and staff can manage reservations, chec
 ## General usage
 - Users:
   - Browse equipment via `Catalogue`, add to basket, and submit reservations.
-  - View their reservations on `My Reservations').
+  - View your reservations on `My Reservations').
 - Staff:
   - Use `Reservations` page for:
     - Today’s Reservations (checkout against bookings).
     - Checked Out Reservations (view/overdue assets from Snipe-IT).
-    - Reservation History (filter/search all reservations).
+    - All Reservations (filter/search all reservations).
   - Quick checkout/checkin pages exist for ad-hoc asset handling.
 - Settings:
   - Configure app, API, and LDAP options via `Settings` (staff only). Test buttons let you validate connections without saving.
